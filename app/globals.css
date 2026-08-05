@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --background: #EAF4F1;
+  --foreground: #1C2430;
+
+  /* Trailmate design tokens */
+  --pine: #0B3D3A;
+  --teal: #1C7C6D;
+  --teal-light: #E4F2EE;
+  --marigold: #E8A33D;
+  --marigold-light: #FCF0DC;
+  --clay: #C1542C;
+  --clay-light: #FBEAE2;
+  --sky: #EAF4F1;
+  --ink: #1C2430;
+  --ink-soft: #5B6866;
+  --line: #D8E3E0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-pine: var(--pine);
+  --color-teal: var(--teal);
+  --color-teal-light: var(--teal-light);
+  --color-marigold: var(--marigold);
+  --color-marigold-light: var(--marigold-light);
+  --color-clay: var(--clay);
+  --color-clay-light: var(--clay-light);
+  --color-sky: var(--sky);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), sans-serif;
+}

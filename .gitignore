@@ -1,5 +1,24 @@
-﻿node_modules/
+# dependencies
+node_modules/
+
+# next.js
 .next/
-.env.local
+out/
+next-env.d.ts
+
+# env — never commit secrets
 .env
+.env*.local
+
+# supabase CLI local state (contains project refs)
+supabase/.temp/
+supabase/.branches/
+
+# misc
 *.tsbuildinfo
+.DS_Store
+*.zip
+coverage/
+
+# copied from node_modules by scripts/copy-maplibre-worker.mjs
+public/maplibre/

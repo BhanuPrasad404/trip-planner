@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { PlaceSearch, type PickedPlace } from "./PlaceSearch";
+import { Button } from "./ui/Button";
+import { FormError, TextField } from "./ui/Field";
 
 type AddPlaceFormProps = {
   tripId: string;
   dayNumber: number;
-  onAdded?: () => void;
+  /** Where the trip is going — keeps place searches local. */
+  near: { lat: number; lng: number } | null;
+  onAdded: () => void;
+  onCancel: () => void;
 };
 
-export function AddPlaceForm({ tripId, dayNumber, onAdded }: AddPlaceFormProps) {
+export function AddPlaceForm({ tripId, dayNumber, near, onAdded, onCancel }: AddPlaceFormProps) {
+  const [picked, setPicked] = useState<PickedPlace | null>(null);
   const [name, setName] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
@@ -18,124 +24,130 @@ export function AddPlaceForm({ tripId, dayNumber, onAdded }: AddPlaceFormProps) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const supabase = createClient();
-
-    // Try to match this place name against curated season data (simple ILIKE match for v1 —
-    // swap for a proper geocoding + nearest-match lookup once you're past MVP)
-    const { data: seasonMatch } = await supabase
-      .from("season_tags")
-      .select("id")
-      .ilike("place_name", `%${name}%`)
-      .limit(1)
-      .maybeSingle();
-
-    const { error: insertError } = await supabase.from("places").insert({
-      trip_id: tripId,
-      name,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      source_type: sourceUrl ? "reel_link" : "manual",
-      source_url: sourceUrl || null,
-      season_tag_id: seasonMatch?.id ?? null,
-      day_number: dayNumber,
-      arrival_time: arrivalTime || null,
-    });
-
-    setLoading(false);
-
-    if (insertError) {
-      setError(insertError.message);
+  // Google Maps "copy coordinates" gives "18.7645, 73.4155" — accept that pasted into either box.
+  function handleLatChange(value: string) {
+    const pair = value.split(/[,\s]+/).filter(Boolean);
+    if (pair.length === 2 && pair.every((p) => !Number.isNaN(Number(p)))) {
+      setLat(pair[0]);
+      setLng(pair[1]);
       return;
     }
+    setLat(value);
+  }
 
-    setName("");
-    setLat("");
-    setLng("");
-    setSourceUrl("");
-    setArrivalTime("");
-    onAdded?.();
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    // A searched place wins; otherwise fall back to hand-typed coordinates.
+    const latNum = picked ? picked.lat : Number(lat);
+    const lngNum = picked ? picked.lng : Number(lng);
+    const finalName = (name.trim() || picked?.name || "").trim();
+    if (!finalName) return setError("Give this stop a name.");
+    if ((!picked && (!lat.trim() || !lng.trim())) || Number.isNaN(latNum) || Number.isNaN(lngNum)) {
+      return setError("Search for the place (or enter its coordinates) so we can put it on the map.");
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trip_id: tripId,
+          name: finalName,
+          lat: latNum,
+          lng: lngNum,
+          address: picked?.address ?? null,
+          day_number: dayNumber,
+          source_url: sourceUrl || null,
+          arrival_time: arrivalTime || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? "Couldn't add this stop. Please try again.");
+        return;
+      }
+      onAdded();
+    } catch {
+      setError("Network problem — check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-4 bg-white rounded-2xl border border-line">
-      <div>
-        <label className="text-[11px] font-semibold text-ink-soft uppercase tracking-wide">
-          Place name
-        </label>
-        <input
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Kalu Waterfall"
-          className="w-full mt-1 px-3 py-2 rounded-lg border border-line text-sm outline-none focus:ring-2 focus:ring-teal"
-        />
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-line bg-sky/60 p-4 sm:p-5" noValidate>
+      <h3 className="font-display text-lg font-semibold text-pine">Add a stop to Day {dayNumber}</h3>
 
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className="text-[11px] font-semibold text-ink-soft uppercase tracking-wide">
-            Latitude
-          </label>
-          <input
-            required
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            placeholder="18.7645"
-            className="w-full mt-1 px-3 py-2 rounded-lg border border-line text-sm outline-none focus:ring-2 focus:ring-teal font-mono"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="text-[11px] font-semibold text-ink-soft uppercase tracking-wide">
-            Longitude
-          </label>
-          <input
-            required
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-            placeholder="73.4155"
-            className="w-full mt-1 px-3 py-2 rounded-lg border border-line text-sm outline-none focus:ring-2 focus:ring-teal font-mono"
-          />
-        </div>
-      </div>
+      <PlaceSearch
+        label="Find the place"
+        value={picked}
+        onChange={(p) => {
+          setPicked(p);
+          if (p && !name.trim()) setName(p.name);
+        }}
+        near={near}
+        placeholder="e.g. Kondapalli Fort"
+        hint="Search by name, add the town for common names."
+      />
 
-      <div>
-        <label className="text-[11px] font-semibold text-ink-soft uppercase tracking-wide">
-          Reel / video link (optional)
-        </label>
-        <input
+      <TextField
+        label="Stop name"
+        maxLength={120}
+        autoComplete="off"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Filled in from your search — rename if you like"
+      />
+
+      {!picked && (
+        <details className="rounded-xl border border-line bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-ink-muted">Or enter coordinates yourself</summary>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Latitude"
+              inputMode="decimal"
+              autoComplete="off"
+              className="font-mono"
+              value={lat}
+              onChange={(e) => handleLatChange(e.target.value)}
+              placeholder="16.5062"
+              hint="Tip: paste “lat, lng” from Google Maps here."
+            />
+            <TextField
+              label="Longitude"
+              inputMode="decimal"
+              autoComplete="off"
+              className="font-mono"
+              value={lng}
+              onChange={(e) => setLng(e.target.value)}
+              placeholder="80.6480"
+            />
+          </div>
+        </details>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField
+          label="Reel / video link (optional)"
+          type="url"
+          inputMode="url"
+          autoComplete="off"
           value={sourceUrl}
           onChange={(e) => setSourceUrl(e.target.value)}
-          placeholder="https://instagram.com/reel/..."
-          className="w-full mt-1 px-3 py-2 rounded-lg border border-line text-sm outline-none focus:ring-2 focus:ring-teal"
+          placeholder="https://instagram.com/reel/…"
         />
+        <TextField label="Arrival time (optional)" type="time" className="font-mono" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
       </div>
 
-      <div>
-        <label className="text-[11px] font-semibold text-ink-soft uppercase tracking-wide">
-          Arrival time (optional)
-        </label>
-        <input
-          type="time"
-          value={arrivalTime}
-          onChange={(e) => setArrivalTime(e.target.value)}
-          className="w-full mt-1 px-3 py-2 rounded-lg border border-line text-sm outline-none focus:ring-2 focus:ring-teal font-mono"
-        />
+      <FormError message={error} />
+
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
+        <Button type="submit" disabled={loading}>{loading ? "Adding…" : `Add to Day ${dayNumber}`}</Button>
       </div>
-
-      {error && <p className="text-[12px] text-clay">{error}</p>}
-
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 rounded-xl bg-marigold text-pine font-bold text-sm disabled:opacity-60"
-      >
-        {loading ? "Adding..." : "Add to Day " + dayNumber}
-      </button>
     </form>
   );
 }

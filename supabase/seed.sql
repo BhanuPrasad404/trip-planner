@@ -1,5 +1,5 @@
 -- ============================================
--- SEED DATA — run AFTER schema.sql and AFTER you've signed up
+-- SEED DATA — run AFTER all migrations and AFTER you've signed up
 -- one test user via Supabase Auth (Dashboard → Authentication → Users → Add user)
 -- Replace 'YOUR_USER_ID' below with that user's UUID.
 -- ============================================
@@ -23,8 +23,11 @@ values (
   current_date,
   6
 );
+-- The on_trip_created trigger (migration 2) already adds the owner as a member; this just
+-- sets a friendlier display name and keeps the seed re-runnable.
 insert into trip_members (trip_id, user_id, display_name, avatar_color) values
-  ('00000000-0000-0000-0000-000000000001', 'e32c45b1-ddc3-4dd5-bf80-d5df5a34ae07', 'You', '#1C7C6D');
+  ('00000000-0000-0000-0000-000000000001', 'e32c45b1-ddc3-4dd5-bf80-d5df5a34ae07', 'You', '#1C7C6D')
+on conflict (trip_id, user_id) do update set display_name = excluded.display_name;
 
 -- Sample places for Day 3, linked to the season tags above
 insert into places (trip_id, name, lat, lng, day_number, sequence_order, arrival_time, season_tag_id)

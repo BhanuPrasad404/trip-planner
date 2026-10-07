@@ -1,0 +1,426 @@
+{
+  "_note": "Single source of truth for curated season data. Edit here, then run `npm run build:season` to regenerate the SQL migration. Coordinates are approximate (about 10 km) and are used ONLY to match a user's pin to this record. 'researched' = the season window agrees across 2+ sources (see source_urls); reasons are paraphrased summaries, not quotes.",
+  "places": [
+    {
+      "place_name": "Undavalli Caves",
+      "lat": 16.4962,
+      "lng": 80.5835,
+      "category": "museum",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Comfortable in the cool, dry months. The rock-cut caves turn warm and humid in summer, and the monsoon brings heavy rain.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-vijayawada-for-a-mesmerising-experience",
+        "https://www.holidify.com/places/vijayawada",
+        "https://championtraveler.com/dates/best-time-to-visit-vijayawada-in/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Kondapalli Fort",
+      "lat": 16.619,
+      "lng": 80.534,
+      "category": "fort",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "The hilltop climb is pleasant in the cooler months and very hot in summer.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-vijayawada-for-a-mesmerising-experience",
+        "https://www.bajajfinserv.in/best-places-to-visit-in-vijayawada",
+        "https://championtraveler.com/dates/best-time-to-visit-vijayawada-in/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Bhavani Island",
+      "lat": 16.523,
+      "lng": 80.599,
+      "category": "lake",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "The cool season suits the riverside island. When the Krishna swells in the monsoon, water activities can be limited.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-vijayawada-for-a-mesmerising-experience",
+        "https://championtraveler.com/dates/best-time-to-visit-vijayawada-in/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Kanaka Durga Temple",
+      "lat": 16.5155,
+      "lng": 80.6054,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Pleasant weather from October to March. Dussehra in autumn is the big festival, so expect crowds then.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-vijayawada-for-a-mesmerising-experience",
+        "https://www.onnbikes.com/blog/top-10-famous-temples-in-vijayawada-you-must-visit"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Kolleru Lake",
+      "lat": 16.65,
+      "lng": 81.2,
+      "category": "wildlife",
+      "good_months": [
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Migratory birds fill the lake in winter. The peak is roughly December to February.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.outlooktraveller.com/experiences/nature/a-million-strong-the-kolleru-lake-bird-sanctuary-in-andhra-pradesh",
+        "https://traveltriangle.com/blog/kolleru-lake/",
+        "https://thebetterindia.com/394231/best-birdwatching-destinations-india-winter-migration-rajasthan-gujarat-kerala"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Araku Valley",
+      "lat": 18.3273,
+      "lng": 82.8776,
+      "category": "hill_station",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Cool, clear and green after the monsoon. During heavy rain the ghat roads carry landslide and closure risk.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.holidify.com/places/araku-valley/best-time-to-visit.html",
+        "https://www.veenaworld.com/blog/places-to-visit-araku-valley",
+        "https://www.outlooktraveller.com/destinations/india/offbeat-hillstations-to-visit-in-andhra-pradesh"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Borra Caves",
+      "lat": 18.2806,
+      "lng": 82.9719,
+      "category": "museum",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Comfortable in the cool season, and nearby waterfalls flow strongest just after the monsoon (October to December).",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.outlooktraveller.com/destinations/india/offbeat-wonders-lesser-known-destinations-near-visakhapatnam",
+        "https://www.veenaworld.com/blog/places-to-visit-araku-valley"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Lambasingi",
+      "lat": 17.8667,
+      "lng": 82.4833,
+      "category": "hill_station",
+      "good_months": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Known for cold, misty winter mornings. It is one of the coolest spots in the state.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.outlooktraveller.com/destinations/india/offbeat-hillstations-to-visit-in-andhra-pradesh",
+        "https://www.siasat.com/4-lesser-known-andhra-pradesh-getaways-to-take-from-hyderabad-3538851/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Papikondalu Boat Cruise",
+      "lat": 17.5,
+      "lng": 81.35,
+      "category": "activity",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Boat trips are usually suspended when the Godavari floods in the monsoon (about July to September). Peak season runs from October to January.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.telangana360.com/2026/07/pochavaram-boating-point.html",
+        "https://www.deccanchronicle.com/southern-states/andhra-pradesh/tourism-boat-operations-to-papikondalu-remain-suspended-since-july-29-1987073",
+        "https://traveltriangle.com/blog/papikondalu/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Bogatha Waterfall",
+      "lat": 18.4761,
+      "lng": 80.5,
+      "category": "waterfall",
+      "good_months": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "reason": "Water flows through the year, but the fall is fullest from June to November.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://en.wikipedia.org/wiki/Bogatha_Waterfall",
+        "https://traveltriangle.com/blog/waterfalls-near-hyderabad/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Kuntala Waterfall",
+      "lat": 19.285,
+      "lng": 78.503,
+      "category": "waterfall",
+      "good_months": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "reason": "Strongest in the monsoon and still good afterwards. The rocks are very slippery in heavy rain, so October to December is easier.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://en.wikipedia.org/wiki/Kuntala_Waterfall",
+        "https://www.sotc.in/blog/?p=8517",
+        "https://telanganatourism.gov.in/partials/about/33-districts-of-telangana/adilabad.html",
+        "https://www.oyorooms.com/travel-guide/waterfalls-near-hyderabad/amp/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Golconda Fort",
+      "lat": 17.3833,
+      "lng": 78.4011,
+      "category": "fort",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Cooler months make the hill climb comfortable. Summer afternoons are very hot.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://championtraveler.com/dates/best-time-to-visit-hyderabad-in/",
+        "https://www.thomascook.in/india-tourism/hyderabad-tourism/best-time-to-visit-hyderabad",
+        "https://www.indianholiday.com/telangana/hyderabad/best-time-to-visit.html"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Charminar",
+      "lat": 17.3616,
+      "lng": 78.4747,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Walking the old city is easiest in the cooler months.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://championtraveler.com/dates/best-time-to-visit-hyderabad-in/",
+        "https://www.thomascook.in/india-tourism/hyderabad-tourism/best-time-to-visit-hyderabad",
+        "https://www.indianholiday.com/telangana/hyderabad/best-time-to-visit.html"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Warangal Fort",
+      "lat": 17.9497,
+      "lng": 79.6015,
+      "category": "fort",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Open ruins with little shade, so the cooler months are far more comfortable.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-warangal-and-things-to-do",
+        "https://www.makemytrip.com/tripideas/places/warangal",
+        "https://traveltriangle.com/blog/places-to-visit-near-warangal/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Thousand Pillar Temple",
+      "lat": 18.0,
+      "lng": 79.58,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Best in the cooler months, between the end of the monsoon and the start of summer.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-warangal-and-things-to-do",
+        "https://www.makemytrip.com/tripideas/places/warangal",
+        "https://traveltriangle.com/blog/places-to-visit-near-warangal/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Ramappa Temple",
+      "lat": 18.2594,
+      "lng": 79.943,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Best in the cooler months, between the end of the monsoon and the start of summer.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://housing.com/news/places-to-visit-in-warangal-and-things-to-do",
+        "https://www.makemytrip.com/tripideas/places/warangal",
+        "https://traveltriangle.com/blog/places-to-visit-near-warangal/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Gandikota",
+      "lat": 14.814,
+      "lng": 78.2842,
+      "category": "viewpoint",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Pleasant for the gorge views and camping. Summers are extremely hot and the monsoon makes paths slippery.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://natureinfocus.in/guide/gandikota/",
+        "https://www.siasat.com/4-lesser-known-andhra-pradesh-getaways-to-take-from-hyderabad-3538851/",
+        "https://muddietrails.com/?p=7329"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Belum Caves",
+      "lat": 15.1,
+      "lng": 78.117,
+      "category": "museum",
+      "good_months": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "The cave interior stays humid, so the cooler months are most comfortable.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.siasat.com/4-lesser-known-andhra-pradesh-getaways-to-take-from-hyderabad-3538851/",
+        "https://natureinfocus.in/guide/gandikota/"
+      ],
+      "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "RK Beach Visakhapatnam",
+      "lat": 17.714,
+      "lng": 83.323,
+      "category": "beach",
+      "good_months": [
+        12,
+        1,
+        2,
+        3,
+        4
+      ],
+      "reason": "Little rain and not too hot from December to April.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://media.lonelyplanet.com/shop/pdfs/india-17-telangana-andhra-pradesh-preview.pdf"
+      ],
+      "last_checked": "2026-10-06"
+    }
+  ]
+}

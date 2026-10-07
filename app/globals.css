@@ -1,21 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --background: #EAF4F1;
-  --foreground: #1C2430;
+  --background: #eaf4f1;
+  --foreground: #1c2430;
 
   /* Trailmate design tokens */
-  --pine: #0B3D3A;
-  --teal: #1C7C6D;
-  --teal-light: #E4F2EE;
-  --marigold: #E8A33D;
-  --marigold-light: #FCF0DC;
-  --clay: #C1542C;
-  --clay-light: #FBEAE2;
-  --sky: #EAF4F1;
-  --ink: #1C2430;
-  --ink-soft: #5B6866;
-  --line: #D8E3E0;
+  --pine: #0b3d3a;
+  --teal: #1c7c6d;
+  --teal-light: #e4f2ee;
+  --marigold: #e8a33d;
+  --marigold-light: #fcf0dc;
+  --clay: #c1542c;
+  --clay-light: #fbeae2;
+  --sky: #eaf4f1;
+  --ink: #1c2430;
+  --ink-soft: #5b6866;
+  --line: #d8e3e0;
+
+  /* Text-safe variants — meet WCAG AA (≥4.5:1) on their tinted backgrounds */
+  --teal-ink: #14624f;
+  --clay-ink: #a8431f;
+  --ink-muted: #4f5c5a;
 }
 
 @theme inline {
@@ -33,14 +38,63 @@
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-line: var(--line);
+  --color-teal-ink: var(--teal-ink);
+  --color-clay-ink: var(--clay-ink);
+  --color-ink-muted: var(--ink-muted);
 
-  --font-display: var(--font-fraunces);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-plex-mono);
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Visible keyboard focus everywhere, without showing rings on mouse click. */
+:focus-visible {
+  outline: 3px solid var(--marigold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Thin scrollbars for the horizontal day picker */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Navigation puck (Google-style blue dot with aura and heading fan) ─────────────────────────────────────────── */
+.tm-puck { position: relative; width: 64px; height: 64px; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.tm-puck-dot { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #1a73e8; border: 3px solid #fff; box-sizing: border-box; }
+.tm-puck-ring { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: rgba(26, 115, 232, 0.35); animation: tm-pulse 2s ease-out infinite; }
+.tm-puck-fan { position: absolute; left: 0; top: 0; width: 64px; height: 64px; }
+.tm-puck-vague .tm-puck-dot { background: #70757a; }
+.tm-puck-vague .tm-puck-fan { opacity: 0.3; }
+@keyframes tm-pulse { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(2.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tm-puck-ring { animation: none; opacity: 0.4; } }
+
+.tm-puck-nohead .tm-puck-fan { opacity: 0; } /* no cone when we are not sure which way you face */
+/* Phones: bigger touch targets for the map's own controls */
+@media (pointer: coarse) {
+  .maplibregl-ctrl-group button { width: 44px; height: 44px; }
+  .maplibregl-ctrl-attrib-button { width: 32px; height: 32px; }
 }

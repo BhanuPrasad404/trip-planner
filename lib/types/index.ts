@@ -1,4 +1,4 @@
-// Matches the tables in supabase/schema.sql
+// TypeScript mirror of the database tables (see supabase/migrations).
 
 export type Trip = {
   id: string;
@@ -7,8 +7,14 @@ export type Trip = {
   start_city: string | null;
   start_lat: number | null;
   start_lng: number | null;
-  start_date: string | null;
+  dest_name: string | null;
+  dest_lat: number | null;
+  dest_lng: number | null;
+  start_date: string | null; // "YYYY-MM-DD"
   num_days: number;
+  /** Personalisation for Trip Intelligence (absent until the latest migration is applied). */
+  trip_type?: "friends" | "family" | "couple" | "solo" | "biker" | "backpacker";
+  vehicle_range_km?: number;
   invite_code: string;
   created_at: string;
 };
@@ -41,19 +47,36 @@ export type Place = {
   name: string;
   lat: number;
   lng: number;
-  source_type: "manual" | "reel_link" | "search";
+  source_type: "manual" | "reel_link" | "search" | "maps_link" | "screenshot" | "ai_text" | "ai_suggestion";
   source_url: string | null;
   season_tag_id: string | null;
   day_number: number | null;
   sequence_order: number | null;
   arrival_time: string | null;
   notes: string | null;
+  category: string | null;
+  status: "planned" | "done" | "skipped"; // trip mode progress
+  status_at: string | null;
+  address: string | null; // where the geocoder says this is, so wrong pins are visible
+  drive_minutes: number | null; // driving time from the previous stop (or trip start)
+  drive_km: number | null;
+  /** Smart Trip Builder: must = never dropped, high, normal, optional ("maybe"). */
+  priority?: "must" | "high" | "normal" | "optional";
+  /** The traveller's own time at the place (minutes); null = the category's usual time. */
+  visit_minutes?: number | null;
   added_by: string | null;
   created_at: string;
+};
 
-  // Joined/derived at query time — not raw columns
-  season_status?: SeasonStatus;
-  season_reason?: string | null;
+/** A place joined with its curated season data (what the planner actually renders). */
+export type PlaceWithSeason = Place & {
+  season_tags?: {
+    good_months: number[];
+    reason: string | null;
+    category: string | null;
+    confidence?: string | null;
+    source_urls?: string[] | null;
+  } | null;
 };
 
 export type LocationPing = {
@@ -79,9 +102,6 @@ export type TripMedia = {
   created_at: string;
 };
 
-// Helper: compute season status client-side from good_months
-export function getSeasonStatus(goodMonths: number[] | undefined | null): SeasonStatus {
-  if (!goodMonths || goodMonths.length === 0) return "unknown";
-  const currentMonth = new Date().getMonth() + 1; // 1-12
-  return goodMonths.includes(currentMonth) ? "good" : "wrong_season";
-}
+export type PlaceVote = { place_id: string; user_id: string; vote: -1 | 1 };
+
+export const MAX_TRIP_DAYS = 30;

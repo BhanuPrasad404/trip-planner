@@ -59,7 +59,7 @@ export function AppNav({ trips, userInitial, signOutAction }: Props) {
     );
   };
 
-  const primaryMobile = items.filter((i) => ["dashboard", "trips", "live", "map"].includes(i.id));
+  const primaryMobile = items.filter((i) => ["discover", "trips", "live", "map"].includes(i.id));
 
   return (
     <>

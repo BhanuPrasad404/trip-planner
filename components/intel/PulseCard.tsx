@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Pulse, PulseSignal, PulseSource } from "@/lib/intel/pulse";
 import { Glyph } from "@/components/ui/Glyph";
 
-type Props = { name: string; lat: number; lng: number; hours?: string | null; hoursCheckedAt?: string | null };
+type Props = { name: string; lat: number; lng: number; hours?: string | null; hoursCheckedAt?: string | null; /** True only for trip stops — never for Radar places. */ showTravelerPhotos?: boolean };
 
 // How to read each source — shown on every signal so nothing looks more certain than it is.
 const SOURCE: Record<PulseSource, { label: string; cls: string; hint: string }> = {
@@ -33,7 +33,7 @@ function Signal({ s }: { s: PulseSignal }) {
 }
 
 /** Opens on demand — so a page full of places never loads a pulse for every one of them. */
-export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null }: Props) {
+export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null, showTravelerPhotos = false }: Props) {
   const [open, setOpen] = useState(false);
   const [pulse, setPulse] = useState<Pulse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,7 +46,7 @@ export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null 
       const res = await fetch("/api/pulse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lng, name, hours, hours_checked_at: hoursCheckedAt, utc_offset_min: -new Date().getTimezoneOffset() }),
+        body: JSON.stringify({ lat, lng, name, hours, hours_checked_at: hoursCheckedAt, utc_offset_min: -new Date().getTimezoneOffset(), include_photos: showTravelerPhotos }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error ?? "Couldn't load live information.");

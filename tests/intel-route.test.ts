@@ -9,6 +9,7 @@ const state = {
   quotaOk: true,
   trip: { id: TRIP, trip_type: "family", vehicle_range_km: 200 } as unknown,
   reports: [] as unknown[],
+  pumpOwnPhoto: false,
   updated: [{ id: TRIP }] as unknown[],
   updatePayload: null as unknown,
   routingCalls: 0,
@@ -40,10 +41,10 @@ const provider: PlacesProvider = {
   async fetchPlaces(bbox) {
     const lat = bbox.south <= 17 && 17 <= bbox.north ? 17.0 : (bbox.north + bbox.south) / 2;
     const lng = (bbox.east + bbox.west) / 2;
-    return [{ id: `node/${lng.toFixed(3)}`, lat, lng, tags: { amenity: "fuel", name: `Pump ${lng.toFixed(2)}`, opening_hours: "24/7" } }];
+    return [{ id: `node/${lng.toFixed(3)}`, lat, lng, tags: { amenity: "fuel", name: `Pump ${lng.toFixed(2)}`, opening_hours: "24/7", ...(state.pumpOwnPhoto ? { wikimedia_commons: "File:Pump.jpg" } : {}) } }];
   },
 };
-const svc = new PoiService(new MemoryPoiStore(), provider);
+let svc = new PoiService(new MemoryPoiStore(), provider);
 vi.mock("@/lib/poi", () => ({ getPoiService: () => svc }));
 
 const fakeRoute = { legs: [{ minutes: 130, km: 106 }], line: [[80, 17], [80.5, 17], [81, 17]] as [number, number][], source: "osrm" };
@@ -76,6 +77,7 @@ beforeEach(() => {
   state.quotaOk = true;
   state.trip = { id: TRIP, trip_type: "family", vehicle_range_km: 200 };
   state.reports = [];
+  state.pumpOwnPhoto = false;
   state.updated = [{ id: TRIP }];
   state.routingCalls = 0;
   buildIntelSpy.mockClear();
@@ -129,15 +131,24 @@ describe("POST /api/intel", () => {
     expect(none.notes.join(" ")).toMatch(/Add a stop/);
   });
 
-  it("gives places real community photos and a ranking boost", async () => {
-    state.reports = [{ lat: 17.0001, lng: 80.0001 + 0.0, photo_path: "someone/p.jpg", created_at: new Date().toISOString() }];
-    // put the report next to wherever the first fake pump lands
+  it("uses fresh community reports to rank a place, but NEVER shows a traveler's photo as the place's picture", async () => {
     const first = await (await post(body({ route: fakeRoute }))).json();
     const pump = first.result.aheadByKind.fuel[0];
-    state.reports = [{ lat: pump.lat, lng: pump.lng, photo_path: "someone/p.jpg", created_at: new Date().toISOString() }];
+    // A traveler's photo taken right next to the pump (and next to several other places): destination media, not the pump's photo.
+    state.reports = [{ lat: pump.lat, lng: pump.lng, photo_path: "someone/waterfall.jpg", created_at: new Date().toISOString() }];
     const again = await (await post(body({ route: fakeRoute }))).json();
-    expect(again.photos[pump.key]).toBe("https://sb.example/someone/p.jpg");
-    expect(again.result.aheadByKind.fuel.find((p: { key: string }) => p.key === pump.key).reasons.join(" ")).toMatch(/Fresh updates/);
+    expect(Object.keys(again.photos)).toEqual([]);
+    expect(JSON.stringify(again)).not.toContain("waterfall.jpg");
+    expect(again.result.aheadByKind.fuel.find((p: { key: string }) => p.key === pump.key).reasons.join(" ")).toMatch(/Fresh updates/); // ranking signal still works
+  });
+
+  it("gives a place a photo only when its own map entry has one", async () => {
+    state.pumpOwnPhoto = true;
+    svc = new PoiService(new MemoryPoiStore(), provider); // fresh store: earlier tests already ingested these tiles without the photo tag
+    const json = await (await post(body({ route: fakeRoute }))).json();
+    const shown = Object.values(json.photos) as { url: string; source: string }[];
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.every((p) => p.source === "osm" && p.url.startsWith("https://commons.wikimedia.org/"))).toBe(true);
   });
 });
 

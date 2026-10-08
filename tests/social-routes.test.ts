@@ -34,6 +34,9 @@ function builder(table: string) {
   return b;
 }
 
+// What the server finds inside uploaded files is tested on its own (verify-media, media-inspect, posts-route); these tests are about who may post what.
+vi.mock("@/lib/server/verify-media", () => ({ verifyUploadedMedia: async () => null }));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },

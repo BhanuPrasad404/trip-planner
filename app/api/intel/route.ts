@@ -2,9 +2,11 @@ import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
-import { communityBoost, communityPhotoPath, type ReportLite } from "@/lib/intel/community";
+import { communityBoost, type ReportLite } from "@/lib/intel/community";
+import { poiOwnPhoto, type PoiPhoto } from "@/lib/intel/poi-media";
 import { measureRoadDetours, shortlistForDetour } from "@/lib/intel/detour";
 import { buildIntel } from "@/lib/intel/engine";
+import { poiKey } from "@/lib/intel/ranking";
 import { pointAt, buildRoute, trimLine } from "@/lib/intel/route-geometry";
 import type { TripType, WeatherSample } from "@/lib/intel/types";
 import { getPoiService } from "@/lib/poi";
@@ -13,7 +15,6 @@ import { groupsOfKinds, POI_KINDS, type PoiKind } from "@/lib/poi/types";
 import { eventsProvider, routingProvider, trafficProvider, weatherProvider } from "@/lib/providers/registry";
 import type { RouteLeg } from "@/lib/providers/types";
 import { consumeQuota } from "@/lib/quota";
-import { REPORT_PHOTO_BUCKET } from "@/lib/reports";
 import { intelSchema } from "@/lib/validation/schemas";
 
 export const maxDuration = 30;
@@ -106,14 +107,14 @@ export async function POST(req: Request) {
   // 3. Weather (already running; hourly forecasts are cached per ~10 km cell and shared between requests).
   const weather: WeatherSample[] = (await weatherPromise).filter((w) => w.hours.length > 0);
 
-  // 4. Fresh community updates near the candidates (best-effort; makes good places rank higher and gives them real photos).
+  // 4. Fresh community updates near the candidates (best-effort; used ONLY as a ranking signal — never as a picture of a place).
   let reports: ReportLite[] = [];
   if (pois.length > 0) {
     const lats = pois.map((p) => p.lat), lngs = pois.map((p) => p.lng);
     const since = new Date(nowMs - 60 * 86_400_000).toISOString();
     const { data } = await supabase
       .from("place_reports")
-      .select("lat, lng, photo_path, created_at")
+      .select("lat, lng, created_at")
       .gte("created_at", since)
       .gte("lat", Math.min(...lats) - 0.004).lte("lat", Math.max(...lats) + 0.004)
       .gte("lng", Math.min(...lngs) - 0.004).lte("lng", Math.max(...lngs) + 0.004)
@@ -150,14 +151,16 @@ export async function POST(req: Request) {
   }
   result.notes.push(...notes);
 
-  // Real photos for the places we're about to show.
-  const shown = new Map<string, { lat: number; lng: number }>();
-  for (const s of result.smartStops) for (const o of s.options) shown.set(o.key, o);
-  for (const list of Object.values(result.aheadByKind)) for (const o of list ?? []) shown.set(o.key, o);
-  const photos: Record<string, string> = {};
-  for (const [key, p] of shown) {
-    const path = communityPhotoPath(p, reports);
-    if (path) photos[key] = supabase.storage.from(REPORT_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+  // Photos: ONLY a place's own photo (its Wikimedia tag in our POI table). Traveler/destination uploads are never reused
+  // here — being close to a place doesn't make a photo a photo of that place. No own photo → the UI shows the category icon.
+  const poiByKey = new Map(pois.map((p) => [poiKey(p), p]));
+  const shownKeys = new Set<string>();
+  for (const s of result.smartStops) for (const o of s.options) shownKeys.add(o.key);
+  for (const list of Object.values(result.aheadByKind)) for (const o of list ?? []) shownKeys.add(o.key);
+  const photos: Record<string, PoiPhoto> = {};
+  for (const key of shownKeys) {
+    const own = poiOwnPhoto(poiByKey.get(key) ?? {});
+    if (own) photos[key] = own;
   }
 
   timings.total = Math.round(performance.now() - t0);

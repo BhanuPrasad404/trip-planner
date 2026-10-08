@@ -1,15 +1,14 @@
 // Real photos for nearby places. Sources, in order of trust:
-//   1. community  — photos other Trailmate travelers uploaded within ~300 m of the place
-//   2. osm        — the place's own OpenStreetMap photo tag (already on the place, Wikimedia only)
-//   3. commons    — geotagged Wikimedia Commons photos within ~300 m, for SIGHTS only
+//   1. osm        — the place's own OpenStreetMap photo tag (already on the place, Wikimedia only)
+//   2. commons    — geotagged Wikimedia Commons photos within ~300 m, for SIGHTS only
+// Traveler/community uploads are deliberately NOT a source: a photo taken near a place is destination media, not a picture of
+// that place (a waterfall photo must never become a pharmacy's picture).
 // A place with no real photo gets none. We never show stock or look-alike pictures.
 import { distanceKm, type GeoPoint } from "@/lib/geo";
 import type { NearbyKind, NearbyPhoto, NearbyPlace } from "@/lib/nearby";
 
 export type CommonsImage = { lat: number; lng: number; thumb: string; pageUrl: string };
-export type CommunityPhoto = { lat: number; lng: number; url: string };
 
-export const COMMUNITY_PHOTO_KM = 0.3;
 export const COMMONS_PHOTO_KM = 0.3;
 
 /** Commons is only used where a geotagged photo is very likely to be of the place itself. */
@@ -84,10 +83,8 @@ const nearest = <T extends GeoPoint>(to: GeoPoint, items: T[], maxKm: number): T
   return best;
 };
 
-export function attachPhotos(places: NearbyPlace[], sources: { community?: CommunityPhoto[]; commons?: CommonsImage[] }): NearbyPlace[] {
+export function attachPhotos(places: NearbyPlace[], sources: { commons?: CommonsImage[] }): NearbyPlace[] {
   return places.map((p) => {
-    const c = nearest(p, sources.community ?? [], COMMUNITY_PHOTO_KM);
-    if (c) return { ...p, photo: { url: c.url, source: "community" } satisfies NearbyPhoto };
     if (p.photo) return p; // the place's own OSM photo
     if (COMMONS_KINDS.includes(p.kind)) {
       const w = nearest(p, sources.commons ?? [], COMMONS_PHOTO_KM);

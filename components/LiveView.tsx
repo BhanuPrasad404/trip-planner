@@ -162,7 +162,7 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
                             <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "done", `Marked ${p.name} done`)} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2 disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
                             <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="min-h-9 py-1.5 text-ink-muted underline underline-offset-2 disabled:opacity-60">Skip</button>
                           </div>
-                          <PulseCard name={p.name} lat={p.lat} lng={p.lng} />
+                          <PulseCard name={p.name} lat={p.lat} lng={p.lng} showTravelerPhotos />
                         </div>
                       </div>
                     </li>

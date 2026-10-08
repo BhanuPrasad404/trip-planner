@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import type { PoiPhoto } from "@/lib/intel/poi-media";
 import type { Advice } from "@/lib/intel/types";
 import { Button } from "../ui/Button";
 import { PlaceRow } from "./PlaceRow";
 
 type Props = {
   advice: Advice;
-  photos: Record<string, string>;
+  photos: Record<string, PoiPhoto>;
   busy: boolean;
   onAccept: (a: Advice, optionKey?: string) => void;
   onKeep: (a: Advice) => void;

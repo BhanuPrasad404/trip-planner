@@ -4,6 +4,7 @@ import { KIND_META, type PoiKind } from "@/lib/poi/types";
 import type { OpenStatus } from "@/lib/intel/hours";
 import { PulseCard } from "./PulseCard";
 import { Glyph, KindBadge } from "@/components/ui/Glyph";
+import type { PoiPhoto } from "@/lib/intel/poi-media";
 
 type Props = {
   kind: PoiKind;
@@ -17,7 +18,8 @@ type Props = {
   note?: string | null;
   hours?: string | null;
   fetchedAt?: string | null;
-  photo?: string;
+  /** The place's OWN photo (from its map entry). Never a nearby traveler's upload. */
+  photo?: PoiPhoto;
   /** Extra buttons (e.g. "Go there"). */
   children?: React.ReactNode;
 };
@@ -30,8 +32,8 @@ export function PlaceRow({ kind, name, lat, lng, etaMin, aheadKm, detourMin, ope
   return (
     <li className="flex gap-3 py-3 text-sm">
       {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element -- real traveler photo, already downscaled
-        <img src={photo} alt={`Photo of ${name} shared by a traveler`} width={56} height={56} loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+        // eslint-disable-next-line @next/next/no-img-element -- the place's own Wikimedia photo, small thumbnail
+        <img src={photo.url} alt={`Photo of ${name}`} width={56} height={56} loading="lazy" referrerPolicy="no-referrer" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
       ) : (
         <KindBadge kind={kind} size={56} />
       )}
@@ -40,7 +42,7 @@ export function PlaceRow({ kind, name, lat, lng, etaMin, aheadKm, detourMin, ope
         <p className="font-mono text-xs text-ink-muted">
           {etaMin < 1 ? "just ahead" : `${etaMin} min ahead`} · {detourMin > 0 ? `${detourMin} min detour` : "on your road"} · {aheadKm < 1 ? "<1 km" : formatDistance(aheadKm)}
         </p>
-        <p className={`text-xs ${open.state === "open" ? "text-teal-ink" : open.state === "closed" ? "text-clay-ink" : "text-ink-muted"}`}>{openText(open)}{photo ? " · photo by a traveler" : ""}</p>
+        <p className={`text-xs ${open.state === "open" ? "text-teal-ink" : open.state === "closed" ? "text-clay-ink" : "text-ink-muted"}`}>{openText(open)}{photo?.creditUrl && (<> · <a href={photo.creditUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Photo: Wikimedia<span className="sr-only"> (opens in a new tab)</span></a></>)}</p>
         {note && <p className="flex items-center gap-1 text-xs font-semibold text-[#7a4a00]"><Glyph name="sun" size={13} />{note}</p>}
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
           <a href={googleMapsDirections({ lat, lng })} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">

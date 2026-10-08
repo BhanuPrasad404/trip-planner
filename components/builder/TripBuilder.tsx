@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Glyph, CategoryGlyph } from "@/components/ui/Glyph";
+import { PlacePhoto } from "@/components/ui/PlacePhoto";
+import { usePlacePhotos } from "@/lib/client/use-place-photos";
+import type { PlacePhoto as Photo } from "@/lib/place-photos";
 import { normalizeCategory } from "@/lib/categories";
 import { snapshotPlaces } from "@/lib/snapshot";
 import { PRIORITIES, PRIORITY_LABEL, duration, hhmm, type BuilderResult, type DayPlan, type PlanOption, type Priority, type Warning } from "@/lib/trip-builder";
@@ -50,6 +53,10 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, onPrevie
   const [endMode, setEndMode] = useState<EndMode>("free");
   const [chosen, setChosen] = useState<PlanOption["style"] | null>(null);
   const [applied, setApplied] = useState<{ label: string; snapshot: ReturnType<typeof snapshotPlaces> } | null>(null);
+  // Real photos of the places, looked up only once the builder is open and after the plan is on screen.
+  const photoQueries = useMemo(() => (open ? places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)).map((p) => ({ key: p.id, name: p.name, lat: p.lat, lng: p.lng })) : []), [open, places]);
+  const photos = usePlacePhotos(photoQueries);
+  const placeById = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
 
   const load = useCallback(async (mode: EndMode = endMode) => {
     setBusy(true); setError(null);
@@ -148,7 +155,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, onPrevie
                 </div>
               )}
 
-              <PlaceList places={places} result={data.result} busy={busy} onPriority={(id, p) => void patchPlace(id, { priority: p })} />
+              <PlaceList places={places} photos={photos} result={data.result} busy={busy} onPriority={(id, p) => void patchPlace(id, { priority: p })} />
 
               {data.result.clusters.length > 0 && (
                 <div>
@@ -181,7 +188,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, onPrevie
                       {option.warnings.map((w, i) => <li key={`${w.code}-${i}`} className={`flex gap-2 rounded-lg border px-3 py-1.5 text-sm ${sevStyle[w.severity]}`}><Glyph name={w.severity === "info" ? "info" : "warn"} size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}
                     </ul>
                   )}
-                  {option.days.map((d) => <Day key={d.day} d={d} />)}
+                  {option.days.map((d) => <Day key={d.day} d={d} photos={photos} placeById={placeById} />)}
                   {option.removed.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-pine">Left out of this plan ({option.removed.length}) — they go to your Ideas</h4>
@@ -225,7 +232,7 @@ function Reality({ r, routing }: { r: BuilderResult["reality"]; routing: string 
   );
 }
 
-function PlaceList({ places, result, busy, onPriority }: { places: PlaceWithSeason[]; result: BuilderResult; busy: boolean; onPriority: (id: string, p: Priority) => void }) {
+function PlaceList({ places, photos, result, busy, onPriority }: { places: PlaceWithSeason[]; photos: Record<string, Photo>; result: BuilderResult; busy: boolean; onPriority: (id: string, p: Priority) => void }) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-pine">Your places — how much does each one matter?</h3>
@@ -234,13 +241,16 @@ function PlaceList({ places, result, busy, onPriority }: { places: PlaceWithSeas
           const c = result.placeCosts.find((x) => x.placeId === p.id);
           const cat = normalizeCategory(p.category);
           return (
-            <li key={p.id} className="rounded-xl border border-line p-3">
-              <p className="flex items-center gap-2 font-semibold text-pine"><CategoryGlyph category={cat} size={16} className="text-teal" />{p.name}</p>
+            <li key={p.id} className="flex gap-3 rounded-xl border border-line p-3">
+              <PlacePhoto photo={photos[p.id]} name={p.name} credit className="h-20 w-20" fallback={<CategoryGlyph category={cat} size={26} />} />
+              <div className="min-w-0 flex-1">
+              <p className="font-semibold text-pine">{p.name}</p>
               {c && <p className="mt-0.5 text-xs text-ink-muted">{c.fromStart.dir} of the start · {c.fromStart.km} km · {duration(c.fromStart.driveMin)} drive + {duration(c.visitMin)} there = <strong className="text-pine">~{duration(c.totalMin)}</strong></p>}
               <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label={`Priority for ${p.name}`}>
                 {PRIORITIES.map((pr) => (
                   <button key={pr} type="button" disabled={busy} aria-pressed={(p.priority ?? "normal") === pr} onClick={() => onPriority(p.id, pr)} className={`min-h-9 rounded-full border px-3 text-xs font-semibold ${(p.priority ?? "normal") === pr ? (pr === "must" ? "border-clay bg-clay text-white" : "border-teal bg-teal text-white") : "border-line bg-white text-ink-muted"}`}>{PRIORITY_LABEL[pr]}</button>
                 ))}
+              </div>
               </div>
             </li>
           );
@@ -262,7 +272,7 @@ function OptionCard({ o, total, selected, onSelect }: { o: PlanOption; total: nu
   );
 }
 
-function Day({ d }: { d: DayPlan }) {
+function Day({ d, photos, placeById }: { d: DayPlan; photos: Record<string, Photo>; placeById: Map<string, PlaceWithSeason> }) {
   const st = intensityStyle[d.intensity];
   return (
     <article className="rounded-2xl border border-line p-4">
@@ -273,9 +283,12 @@ function Day({ d }: { d: DayPlan }) {
       {d.stops.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Nothing planned: a free day.</p> : (
         <ol className="mt-3 space-y-3">
           {d.stops.map((s) => (
-            <li key={s.placeId} className="text-sm">
+            <li key={s.placeId} className="flex gap-3 text-sm">
+              <PlacePhoto photo={photos[s.placeId]} name={s.name} credit className="h-16 w-16 sm:h-20 sm:w-20" fallback={<CategoryGlyph category={normalizeCategory(placeById.get(s.placeId)?.category ?? null)} size={22} />} />
+              <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-baseline gap-x-2"><span className="font-mono text-xs text-ink-muted">{hhmm(s.arriveMin)}</span><strong className="text-pine">{s.name}</strong><span className="text-xs text-ink-muted">{s.fromPrev.dir} of {s.fromPrev.fromName} · {s.driveKm} km · {duration(s.driveMin)} · stay {duration(s.visitMin)}</span></p>
               <details className="mt-0.5"><summary className="min-h-8 cursor-pointer text-xs font-semibold text-ink-muted underline underline-offset-2">Why here?</summary><ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{s.reasons.map((r) => <li key={r}>{r}</li>)}</ul></details>
+              </div>
             </li>
           ))}
         </ol>

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import type { PoiPhoto } from "@/lib/intel/poi-media";
 import { KIND_META, POI_KINDS, type PoiKind } from "@/lib/poi/types";
 import type { IntelResult } from "@/lib/intel/types";
 import { PlaceRow } from "./PlaceRow";
 import { KindGlyph } from "@/components/ui/Glyph";
 
-type Props = { aheadByKind: IntelResult["aheadByKind"]; photos: Record<string, string> };
+type Props = { aheadByKind: IntelResult["aheadByKind"]; photos: Record<string, PoiPhoto> };
 
 /** Browse EVERYTHING we found ahead, by type, in the order you will pass it (the radar shows only the best few). */
 export function AheadBrowser({ aheadByKind, photos }: Props) {

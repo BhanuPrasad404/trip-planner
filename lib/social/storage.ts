@@ -12,6 +12,8 @@ export interface MediaStorage {
   /** Short-lived read URLs. Returns a map path → url; missing/forbidden paths are simply absent. */
   signedUrls(paths: string[], seconds?: number): Promise<Map<string, string>>;
   remove(paths: string[]): Promise<void>;
+  /** The bytes of a stored file, for the SERVER to inspect (never trust what a client says about its own upload). null = missing, unreadable or bigger than maxBytes. */
+  readBytes(path: string, opts: { maxBytes: number; range?: [number, number] }): Promise<Uint8Array | null>;
 }
 
 export function supabaseMediaStorage(supabase: SupabaseClient): MediaStorage {
@@ -35,6 +37,32 @@ export function supabaseMediaStorage(supabase: SupabaseClient): MediaStorage {
     },
     async remove(paths) {
       if (paths.length) await bucket().remove(paths);
+    },
+    async readBytes(path, { maxBytes, range }) {
+      try {
+        const { data } = await bucket().createSignedUrl(path, 60);
+        if (!data?.signedUrl) return null;
+        const res = await fetch(data.signedUrl, { headers: range ? { Range: `bytes=${range[0]}-${range[1]}` } : undefined, signal: AbortSignal.timeout(25_000) });
+        if (!res.ok && res.status !== 206) return null;
+        if (Number(res.headers.get("content-length")) > maxBytes) return null;
+        const reader = res.body?.getReader();
+        if (!reader) return null;
+        const parts: Uint8Array[] = [];
+        let total = 0;
+        for (;;) {                                           // stop reading the moment it is too big, however it was announced
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.length;
+          if (total > maxBytes) { await reader.cancel(); return null; }
+          parts.push(value);
+        }
+        const out = new Uint8Array(total);
+        let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+        return out;
+      } catch (e) {
+        console.error("[media] read:", e instanceof Error ? e.message : e);
+        return null;
+      }
     },
   };
 }

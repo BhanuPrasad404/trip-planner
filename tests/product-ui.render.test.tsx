@@ -56,7 +56,7 @@ describe("navigation", () => {
     expect(items.find((i) => i.id === "live")!.href).toBe(`/trips/${ID}/live`);
     expect(items.find((i) => i.id === "map")!.href).toBe(`/trips/${ID}/map`);
     expect(buildNav("/dashboard", []).find((i) => i.id === "plan")!.href).toBe("/trips");
-    expect(items.map((i) => i.id)).toEqual(["dashboard", "trips", "plan", "explore", "live", "map", "memories", "profile"]);
+    expect(items.map((i) => i.id)).toEqual(["dashboard", "discover", "trips", "plan", "explore", "live", "map", "memories", "profile"]);
   });
   it("highlights the right item for each page", () => {
     const active = (path: string) => buildNav(path, trips).filter((i) => i.match(path)).map((i) => i.id);
@@ -65,6 +65,7 @@ describe("navigation", () => {
     expect(active(`/trips/${ID}/live`)).toEqual(["live"]);
     expect(active(`/trips/${ID}/explore`)).toEqual(["explore"]);
     expect(active("/memories")).toEqual(["memories"]);
+    expect(active("/discover")).toEqual(["discover"]);
   });
   it("renders a labelled sidebar, a mobile bar, the live indicator, and marks the current page", () => {
     const html = renderToStaticMarkup(<AppNav trips={trips} userInitial="B" signOutAction={async () => {}} />);
@@ -109,10 +110,15 @@ describe("Travel Radar", () => {
     expect(html).toContain("still mapping");
     expect(html).not.toContain("0 useful");
   });
-  it("shows a real traveler photo when there is one, an icon tile when not", () => {
-    const a = renderToStaticMarkup(<RadarList radar={[poi()]} photos={{ "osm|1": "https://sb/p.jpg" }} mapping={false} trafficConnected={false} />);
-    expect(a).toContain('alt="Photo of Sunset Point shared by a traveler"');
-    expect(renderToStaticMarkup(<RadarList radar={[poi()]} photos={{}} mapping={false} trafficConnected={false} />)).not.toContain("<img");
+  it("shows the place's OWN photo (credited) when it has one, an icon tile when not — never a traveler's photo", () => {
+    const own = { url: "https://upload.wikimedia.org/p.jpg", source: "osm" as const, creditUrl: "https://commons.wikimedia.org/wiki/File:P.jpg" };
+    const a = renderToStaticMarkup(<RadarList radar={[poi()]} photos={{ "osm|1": own }} mapping={false} trafficConnected={false} />);
+    expect(a).toContain('alt="Photo of Sunset Point"');
+    expect(a).toContain("Photo: Wikimedia");
+    expect(a).not.toMatch(/traveler/i);
+    const none = renderToStaticMarkup(<RadarList radar={[poi()]} photos={{}} mapping={false} trafficConnected={false} />);
+    expect(none).not.toContain("<img");
+    expect(none).not.toMatch(/photo by a traveler/i);
   });
 });
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MEDIA_LIMITS, MIME_EXT, isVideoMime, maxBytesFor } from "./media";
+import { CONDITION_IDS, CROWD_LEVELS, LIMITS, VIBE_IDS } from "@/lib/feed/experience";
 
 const latitude = z.number().min(-90).max(90);
 const longitude = z.number().min(-180).max(180);
@@ -39,12 +40,22 @@ export const createPostSchema = z
     kind: z.enum(["photo", "video", "report"]),
     caption: optionalText(500),
     place_name: z.string().trim().min(1, "Which place is this?").max(120),
+    /** The destination this belongs to ("Matheran"). Defaults to the place name. The server resolves it to a destination row. */
+    destination_name: z.string().trim().min(2, "Name the destination").max(120).nullish().transform((v) => v || null),
     lat: latitude,
     lng: longitude,
     location_precision: z.enum(["exact", "approx"]).default("approx"),
     captured_at: z.string().datetime().nullish().transform((v) => v ?? null),
     visibility: z.enum(["public", "followers"]).default("public"),
     comments_allowed: z.enum(["everyone", "followers", "off"]).default("everyone"),
+    // What it was like — all optional, one tap each. Unknown values are refused (the same lists are enforced in the database).
+    crowd: z.enum(CROWD_LEVELS).nullish().transform((v) => v ?? null),
+    conditions: z.array(z.enum(CONDITION_IDS)).max(LIMITS.conditions).default([]).transform((a) => [...new Set(a)]),
+    vibes: z.array(z.enum(VIBE_IDS)).max(LIMITS.vibes).default([]).transform((a) => [...new Set(a)]),
+    tip: z.string().trim().min(LIMITS.tipMin, "A tip needs a few words").max(LIMITS.tipMax, `Keep the tip under ${LIMITS.tipMax} characters`).nullish().transform((v) => v || null),
+    // The phone's position at posting time. Used once to earn "posted from the area", never stored.
+    device_lat: latitude.nullish().transform((v) => v ?? null),
+    device_lng: longitude.nullish().transform((v) => v ?? null),
     media: z.array(mediaItem).max(MEDIA_LIMITS.mediaPerPost).default([]),
   })
   .superRefine((v, ctx) => {

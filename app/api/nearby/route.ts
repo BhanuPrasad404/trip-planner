@@ -6,9 +6,8 @@ import { searchNearbyDetailed, type NearbyPlace } from "@/lib/nearby";
 import { getPoiService } from "@/lib/poi";
 import { runBackground } from "@/lib/poi/background";
 import { nearbyFromOwnData } from "@/lib/poi/near";
-import { attachPhotos, COMMONS_KINDS, fetchCommonsImages, type CommunityPhoto } from "@/lib/nearby-photos";
+import { attachPhotos, COMMONS_KINDS, fetchCommonsImages } from "@/lib/nearby-photos";
 import { consumeQuota } from "@/lib/quota";
-import { REPORT_PHOTO_BUCKET } from "@/lib/reports";
 import { nearbySchema } from "@/lib/validation/schemas";
 
 export const maxDuration = 25;
@@ -63,32 +62,12 @@ export async function POST(req: Request) {
   }
 
   // Photo enrichment is best-effort: it can only ADD pictures, never break the search.
+  // A place's photo is its own (OSM/Wikimedia tag) or, for sights only, a Commons photo of that spot. Traveler uploads are
+  // destination media and are never used as a place's picture.
   try {
-    if (places.length > 0) {
-      const pad = 0.004; // ~450 m
-      const lats = places.map((p) => p.lat);
-      const lngs = places.map((p) => p.lng);
-      const since = new Date(Date.now() - 180 * 86_400_000).toISOString();
-      const [reportsRes, commons] = await Promise.all([
-        supabase
-          .from("place_reports")
-          .select("lat, lng, photo_path")
-          .not("photo_path", "is", null)
-          .gte("created_at", since)
-          .gte("lat", Math.min(...lats) - pad)
-          .lte("lat", Math.max(...lats) + pad)
-          .gte("lng", Math.min(...lngs) - pad)
-          .lte("lng", Math.max(...lngs) + pad)
-          .order("created_at", { ascending: false })
-          .limit(200),
-        COMMONS_KINDS.includes(input.kind) ? fetchCommonsImages(origin, input.radius_km) : Promise.resolve([]),
-      ]);
-      const community: CommunityPhoto[] = (reportsRes.data ?? []).map((r: { lat: number; lng: number; photo_path: string }) => ({
-        lat: r.lat,
-        lng: r.lng,
-        url: supabase.storage.from(REPORT_PHOTO_BUCKET).getPublicUrl(r.photo_path).data.publicUrl,
-      }));
-      places = attachPhotos(places, { community, commons });
+    if (places.length > 0 && COMMONS_KINDS.includes(input.kind)) {
+      const commons = await fetchCommonsImages(origin, input.radius_km);
+      places = attachPhotos(places, { commons });
     }
   } catch (e) {
     console.error("[api] nearby photos:", e instanceof Error ? e.message : e);

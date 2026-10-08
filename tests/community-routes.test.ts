@@ -152,14 +152,16 @@ describe("POST /api/nearby", () => {
     state.nearbyFails = true;
     expect((await post(nearbyPOST, body)).status).toBe(502);
   });
-  it("adds photos uploaded by other travelers near a place, and still answers if the photo lookup breaks", async () => {
+  it("never uses a traveler's upload as a place's photo, keeps the place's own photo, and still answers if the photo lookup breaks", async () => {
     state.nearby = [{ id: "node/1", name: "HP", kind: "fuel", lat: 17, lng: 80, km: 1, hours: null, photo: null }];
-    state.rows = [{ lat: 17.0001, lng: 80.0001, photo_path: "someone/a.jpg" }];
-    const withPhoto = await (await post(nearbyPOST, body)).json();
-    expect(withPhoto.places[0].photo).toEqual({ url: "https://sb.example/someone/a.jpg", source: "community" });
-    state.rows = [{ lat: 17.5, lng: 80.5, photo_path: "far/b.jpg" }]; // too far to be this place
-    expect((await (await post(nearbyPOST, body)).json()).places[0].photo).toBeNull();
-    state.rows = [null as never]; // garbage row -> enrichment fails, search must not
+    state.rows = [{ lat: 17.0001, lng: 80.0001, photo_path: "someone/a.jpg" }]; // a traveler photo right next to the pump
+    const res = await (await post(nearbyPOST, body)).json();
+    expect(res.places[0].photo).toBeNull();
+    expect(JSON.stringify(res)).not.toContain("someone/a.jpg");
+    const own = { url: "https://commons.wikimedia.org/wiki/Special:FilePath/HP.jpg?width=320", source: "osm" };
+    state.nearby = [{ id: "node/1", name: "HP", kind: "fuel", lat: 17, lng: 80, km: 1, hours: null, photo: own }];
+    expect((await (await post(nearbyPOST, body)).json()).places[0].photo).toEqual(own);
+    state.rows = [null as never]; // garbage row -> must not matter
     expect((await post(nearbyPOST, body)).status).toBe(200);
   });
 });

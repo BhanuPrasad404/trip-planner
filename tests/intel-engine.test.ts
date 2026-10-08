@@ -249,17 +249,20 @@ describe("only claims what has been mapped", () => {
 });
 
 describe("community helpers", () => {
-  it("boosts places with recent reports nearby, ignores old or far ones, and finds real photos", async () => {
-    const { communityBoost, communityPhotoPath } = await import("@/lib/intel/community");
+  it("boosts places with recent reports nearby and ignores old or far ones", async () => {
+    const { communityBoost } = await import("@/lib/intel/community");
     const p = poi("food", "Dhaba", 20);
     const now = Date.parse("2026-10-10T00:00:00Z");
     const day = (n: number) => new Date(now - n * 86_400_000).toISOString();
     const near = { lat: p.lat, lng: p.lng };
-    const b = communityBoost([p], [{ ...near, photo_path: "a.jpg", created_at: day(2) }, { ...near, photo_path: null, created_at: day(30) }, { lat: p.lat + 1, lng: p.lng, photo_path: "far.jpg", created_at: day(1) }, { ...near, photo_path: null, created_at: day(90) }], now);
+    const b = communityBoost([p], [{ ...near, created_at: day(2) }, { ...near, created_at: day(30) }, { lat: p.lat + 1, lng: p.lng, created_at: day(1) }, { ...near, created_at: day(90) }], now);
     expect(b["osm|food/Dhaba"]).toBeCloseTo(0.7, 2); // 0.5 (≤7 days) + 0.2 (≤60 days); far and 90-day-old ignored
     expect(communityBoost([p], [], now)).toEqual({});
-    expect(communityPhotoPath(near, [{ ...near, photo_path: "old.jpg", created_at: day(10) }, { ...near, photo_path: "new.jpg", created_at: day(1) }])).toBe("new.jpg");
-    expect(communityPhotoPath(near, [{ lat: p.lat + 1, lng: p.lng, photo_path: "far.jpg", created_at: day(1) }])).toBeNull();
+  });
+
+  it("community code can no longer hand a traveler's photo to a place (media separation)", async () => {
+    const community = await import("@/lib/intel/community");
+    expect("communityPhotoPath" in community).toBe(false);
   });
 });
 

@@ -269,4 +269,16 @@ export const pulseSchema = z.object({
   hours: z.string().trim().max(200).nullish().transform((v) => v || null),
   hours_checked_at: z.string().datetime().nullish().transform((v) => v ?? null),
   utc_offset_min: z.number().int().min(-840).max(840).default(0),
+  /** Traveler photos belong to destinations/trip stops. A Radar POI (restaurant, pump…) never borrows photos taken nearby. */
+  include_photos: z.boolean().default(false),
+});
+
+/** Real photos for a batch of places (a review list, a builder preview). Only places we could locate are asked about. */
+export const placePhotosSchema = z.object({
+  places: z.array(z.object({
+    key: z.string().trim().min(1).max(80),
+    name: z.string().trim().min(1).max(120),
+    lat: latitude,
+    lng: longitude,
+  })).min(1, "No places").max(30, "Too many places at once"),
 });

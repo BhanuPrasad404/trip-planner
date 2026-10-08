@@ -1,9 +1,11 @@
 // Fresh community updates make a place more trustworthy: a recent report from someone who was actually there beats a stale map entry.
+// This is a RANKING signal only. Report photos are destination/community media and are never shown as a place's own picture
+// (see lib/intel/poi-media.ts).
 import { haversineM } from "./route-geometry";
 import { poiKey } from "./ranking";
 import type { PoiRecord } from "@/lib/poi/types";
 
-export type ReportLite = { lat: number; lng: number; photo_path: string | null; created_at: string };
+export type ReportLite = { lat: number; lng: number; created_at: string };
 
 export const COMMUNITY_RADIUS_M = 300;
 
@@ -21,14 +23,4 @@ export function communityBoost(pois: PoiRecord[], reports: ReportLite[], nowMs: 
     if (score > 0) out[poiKey(p)] = Math.min(1, Math.round(score * 100) / 100);
   }
   return out;
-}
-
-/** The newest real photo taken within ~300 m of a place, or null. */
-export function communityPhotoPath(poi: { lat: number; lng: number }, reports: ReportLite[]): string | null {
-  let best: ReportLite | null = null;
-  for (const r of reports) {
-    if (!r.photo_path || haversineM(poi, r) > COMMUNITY_RADIUS_M) continue;
-    if (!best || r.created_at > best.created_at) best = r;
-  }
-  return best?.photo_path ?? null;
 }

@@ -160,11 +160,18 @@ describe("POST /api/pulse", () => {
 
   it("combines map hours, the forecast and fresh traveler reports — with a visible conflict — and never reveals who reported", async () => {
     state.reports = [report("alice", ["closed"], 18), report("bob", ["closed"], 25, { photo_path: "bob/p.jpg" })];
-    const json = await (await pulsePOST(new Request("http://x", { method: "POST", body: JSON.stringify(body) }))).json();
+    const json = await (await pulsePOST(new Request("http://x", { method: "POST", body: JSON.stringify({ ...body, include_photos: true }) }))).json();
     expect(json.pulse.conflicts[0].detail).toMatch(/Map data says open, but 2 travelers reported it closed/);
     expect(json.pulse.signals.map((s: { source: string }) => s.source)).toEqual(expect.arrayContaining(["recent", "forecast", "map-data"]));
     expect(json.pulse.photos[0].url).toBe("https://sb.example/bob/p.jpg");
     expect(JSON.stringify(json)).not.toMatch(/alice|bob\b(?!\/)/);
     expect(JSON.stringify(json)).not.toContain("user_id");
+  });
+
+  it("does not show nearby travelers' photos for a Radar place unless the caller is a trip stop", async () => {
+    state.reports = [report("bob", ["crowded"], 25, { photo_path: "bob/waterfall.jpg" })];
+    const json = await (await pulsePOST(new Request("http://x", { method: "POST", body: JSON.stringify(body) }))).json();
+    expect(json.pulse.photos).toEqual([]);
+    expect(JSON.stringify(json)).not.toContain("waterfall.jpg");
   });
 });

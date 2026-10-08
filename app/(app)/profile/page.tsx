@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/PageHeader";
 import { SetupCheck } from "@/components/SetupCheck";
+import { ContributionCard } from "@/components/ContributionCard";
 import { TravelerProfileForm } from "@/components/TravelerProfileForm";
 import { TravelStyleClient } from "@/components/TravelStyleClient";
 import { Button } from "@/components/ui/Button";
@@ -16,12 +17,16 @@ export default async function ProfilePage() {
   const trips = await loadLearnTrips(supabase);
   const setup = getSetupStatus();
   const { data: profile } = await supabase.from("profiles").select("username, display_name, bio, interests, is_private, show_follow_lists").eq("id", user.id).maybeSingle();
+  const { data: contribution } = await supabase.rpc("my_contribution");
+  const c = (Array.isArray(contribution) ? contribution[0] : contribution) as { posts: number; destinations: number; travelers_helped: number; saves: number; helpful: number; trip_adds: number } | null;
 
   return (
     <main id="main" className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader eyebrow="You" title="Profile" subtitle={user.email ?? undefined} actions={<form action={signOut}><Button type="submit" variant="secondary" size="sm">Sign out</Button></form>} />
 
       <TravelerProfileForm initial={profile ?? null} />
+
+      {profile && <ContributionCard posts={c?.posts ?? 0} destinations={c?.destinations ?? 0} travelersHelped={c?.travelers_helped ?? 0} saves={c?.saves ?? 0} helpful={c?.helpful ?? 0} tripAdds={c?.trip_adds ?? 0} />}
 
       <TravelStyleClient trips={trips} />
 

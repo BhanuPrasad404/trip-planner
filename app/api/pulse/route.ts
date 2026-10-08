@@ -38,7 +38,8 @@ export async function POST(req: Request) {
     hours: input.hours,
     hoursCheckedAt: input.hours_checked_at,
     weather: hour,
-    reports: (rows ?? []) as PulseReport[],
+    // Photos only when asked for (trip stops). Radar places don't get nearby travelers' photos as if they were their own.
+    reports: ((rows ?? []) as PulseReport[]).map((r) => (input.include_photos ? r : { ...r, photo_path: null })),
     photoUrl: (path) => supabase.storage.from(REPORT_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl,
     nowMs,
     utcOffsetMin: input.utc_offset_min,

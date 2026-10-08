@@ -242,7 +242,7 @@ export function NearbyPanel({ anchor }: NearbyPanelProps) {
                   {p.hours && <p className="break-words text-xs text-ink-muted">Hours (as listed): {p.hours}</p>}
                   {p.photo && (
                     <p className="text-xs text-ink-muted">
-                      {p.photo.source === "community" ? "Photo by a Trailmate traveler" : p.photo.creditUrl ? (
+                      {p.photo.creditUrl ? (
                         <>Photo: <a href={p.photo.creditUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Wikimedia Commons<span className="sr-only"> (opens in a new tab)</span></a></>
                       ) : "Photo"}
                     </p>

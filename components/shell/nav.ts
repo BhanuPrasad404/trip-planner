@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { IconDashboard, IconExplore, IconLive, IconMap, IconMemories, IconPlan, IconProfile, IconTrips } from "./icons";
+import { IconDashboard, IconDiscover, IconExplore, IconLive, IconMap, IconMemories, IconPlan, IconProfile, IconTrips } from "./icons";
 
 export type NavTrip = { id: string; name: string; state: "draft" | "upcoming" | "active" | "completed" };
 export type NavItem = { id: string; label: string; href: string; Icon: ComponentType<{ className?: string }>; match: (path: string) => boolean };
@@ -17,6 +17,7 @@ export function buildNav(pathname: string, trips: NavTrip[]): NavItem[] {
   const inTrip = (sub: string) => (p: string) => new RegExp(`^/trips/[^/]+${sub}(/|$)`).test(p);
   return [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", Icon: IconDashboard, match: (p) => p === "/dashboard" },
+    { id: "discover", label: "Discover", href: "/discover", Icon: IconDiscover, match: (p) => p === "/discover" },
     { id: "trips", label: "My trips", href: "/trips", Icon: IconTrips, match: (p) => p === "/trips" || /^\/trips\/[^/]+$/.test(p) },
     { id: "plan", label: "Plan", href: t("/plan"), Icon: IconPlan, match: inTrip("/plan") },
     { id: "explore", label: "Explore", href: "/explore", Icon: IconExplore, match: (p) => p === "/explore" || inTrip("/explore")(p) },

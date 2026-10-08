@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PoiPhoto } from "@/lib/intel/poi-media";
 import { distanceKm } from "@/lib/geo";
 import type { IntelResult } from "@/lib/intel/types";
 import type { RouteLeg } from "@/lib/providers/types";
@@ -13,7 +14,8 @@ export type IntelStopInput = {
 export type IntelState = {
   result: IntelResult | null;
   coverage: { total: number; ready: number; pending: number; failed: number } | null;
-  photos: Record<string, string>;
+  /** Each place's OWN photo (never a nearby traveler's upload), keyed by place key. */
+  photos: Record<string, PoiPhoto>;
   /** Where the advice is computed from. */
   mode: "live" | "preview" | "idle";
   busy: boolean;

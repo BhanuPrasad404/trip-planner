@@ -29,7 +29,7 @@ export const NEARBY_KIND_IDS = Object.keys(NEARBY_KINDS) as [NearbyKind, ...Near
 
 export type NearbyPhoto = {
   url: string;
-  source: "community" | "osm" | "commons";
+  source: "osm" | "commons";
   /** Where to credit/see the original (required for Wikimedia Commons). */
   creditUrl?: string;
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { fileToDataUrl } from "@/lib/client/image";
 import { getSeasonStatus, visitMonth } from "@/lib/season";
 import type { ImportCandidate } from "@/lib/import/pipeline";
@@ -8,6 +8,8 @@ import { SeasonBadge } from "./SeasonBadge";
 import { Button } from "./ui/Button";
 import { FormError } from "./ui/Field";
 import { Glyph, CategoryGlyph } from "@/components/ui/Glyph";
+import { PlacePhoto } from "@/components/ui/PlacePhoto";
+import { usePlacePhotos } from "@/lib/client/use-place-photos";
 
 type Props = {
   tripId: string;
@@ -137,6 +139,9 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
       return next;
     });
 
+  // Real photos of the found places, filled in after the list is on screen. Only places we could locate are looked up.
+  const photoQueries = useMemo(() => candidates.filter((c) => c.lat != null && c.lng != null).map((c) => ({ key: c.key, name: c.name, lat: c.lat as number, lng: c.lng as number })), [candidates]);
+  const photos = usePlacePhotos(photoQueries);
   const canAnalyse = tab === "brief" ? text.trim().length >= 10 : text.trim().length > 0 || images.length > 0;
 
   return (
@@ -249,21 +254,16 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
                         onChange={() => toggle(c.key)}
                         className="mt-1 h-5 w-5 shrink-0 accent-[#1c7c6d]"
                       />
+                      <PlacePhoto photo={photos[c.key]} name={c.name} className="h-20 w-20 sm:h-24 sm:w-24" credit fallback={<CategoryGlyph category={c.category} size={28} />} />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-base font-semibold">
-                          <CategoryGlyph category={c.category} size={16} className="mr-1.5 inline align-text-bottom" />
-                          {c.name}
-                        </span>
+                        <span className="block text-base font-semibold">{c.name}</span>
                         {c.area && <span className="block text-sm text-ink-muted">{c.area}</span>}
                         <span className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full bg-sky px-2.5 py-1 font-semibold text-ink-muted">{c.source === "ai_suggestion" && <Glyph name="sparkles" size={12} className="mr-1 inline align-text-bottom" />}{sourceLabel[c.source]}</span>
-                          {addable && (
-                            <span className="font-mono text-ink-muted">{c.lat!.toFixed(3)}, {c.lng!.toFixed(3)}</span>
-                          )}
+                          <span className="rounded-full bg-sky px-2.5 py-1 font-semibold text-ink-muted">{c.source === "ai_suggestion" && <Glyph name="sparkles" size={12} className="mr-1 inline align-text-bottom" />}{sourceLabel[c.source]}{c.source === "ai_suggestion" ? " · double-check" : ""}</span>
                           {status && <SeasonBadge status={status} />}
                         </span>
                         {c.note && <span className="mt-1.5 block text-sm text-ink-muted">{c.note}</span>}
-                        {c.warnings.map((w) => (
+                        {c.warnings.filter((w) => !w.startsWith("AI suggestion")).map((w) => (
                           <span key={w} className="mt-1.5 flex items-start gap-1.5 text-sm font-medium text-clay-ink"><Glyph name="warn" size={14} className="mt-0.5" />{w}</span>
                         ))}
                       </span>

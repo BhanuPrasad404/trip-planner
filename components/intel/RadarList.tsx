@@ -1,10 +1,11 @@
 import { KIND_META } from "@/lib/poi/types";
+import type { PoiPhoto } from "@/lib/intel/poi-media";
 import type { RadarItem } from "@/lib/intel/types";
 import { PlaceRow } from "./PlaceRow";
 
 type Props = {
   radar: RadarItem[];
-  photos: Record<string, string>;
+  photos: Record<string, PoiPhoto>;
   mapping: boolean;
   trafficConnected: boolean;
   /** Offer "Add as next stop" (needs a day to add it to). */

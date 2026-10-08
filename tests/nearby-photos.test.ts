@@ -85,21 +85,25 @@ describe("Commons", () => {
 
 describe("attachPhotos", () => {
   const commons = [{ lat: 17.0005, lng: 80.0005, thumb: "https://upload.wikimedia.org/x.jpg", pageUrl: "https://commons.wikimedia.org/wiki/File:X.jpg" }];
-  const community = [{ lat: 17.0001, lng: 80.0001, url: "https://sb.example/p.jpg" }];
 
-  it("prefers community, then the place's own OSM photo, then Commons (sights only)", () => {
+  it("keeps the place's own OSM photo, then falls back to Commons (sights only)", () => {
     const osm = { url: "https://commons.wikimedia.org/o", source: "osm" as const };
-    const out = attachPhotos([place("a", 17.0, 80.0), place("b", 17.0, 80.0, "sights", osm), place("c", 17.0, 80.0)], { commons, community: [] });
+    const out = attachPhotos([place("a", 17.0, 80.0), place("b", 17.0, 80.0, "sights", osm), place("c", 17.0, 80.0)], { commons });
     expect(out[0].photo?.source).toBe("commons");
     expect(out[1].photo?.source).toBe("osm");
-    const withCommunity = attachPhotos([place("b", 17.0, 80.0, "sights", osm)], { commons, community });
-    expect(withCommunity[0].photo?.source).toBe("community");
+    expect(out[1].photo?.url).toBe(osm.url); // Commons never overrides the place's own photo
   });
 
   it("never invents a photo: far images and non-sight kinds get none", () => {
     const far = [{ ...commons[0], lat: 17.1 }];
     expect(attachPhotos([place("a", 17.0, 80.0)], { commons: far })[0].photo).toBeNull();
     expect(attachPhotos([place("pump", 17.0, 80.0, "fuel")], { commons })[0].photo).toBeNull();
-    expect(attachPhotos([place("pump", 17.0, 80.0, "fuel")], { commons, community })[0].photo?.source).toBe("community"); // a real traveler photo is fine for any kind
+  });
+
+  it("has no traveler-upload source at all: a nearby community photo can't become a place's picture", () => {
+    // Regression: one traveler photo used to be attached to every fuel/food/restroom/hospital within 300 m.
+    const withExtra = { commons, community: [{ lat: 17.0001, lng: 80.0001, url: "https://sb.example/waterfall.jpg" }] } as unknown as Parameters<typeof attachPhotos>[1];
+    const out = attachPhotos([place("pump", 17.0, 80.0, "fuel"), place("dhaba", 17.0, 80.0, "food"), place("loo", 17.0, 80.0, "essentials" as never)], withExtra);
+    expect(out.every((p) => p.photo === null)).toBe(true);
   });
 });

@@ -26,7 +26,7 @@ export async function parseBody<T>(
 /** Map a Postgres/PostgREST error to a safe client response — never leak raw DB messages. */
 export function dbError(error: { code?: string; message?: string }, context: string) {
   console.error(`[api] ${context}:`, error.code, error.message);
-  if (error.code === "42501") return jsonError("You don't have access to this trip", 403);
+  if (error.code === "42501") return jsonError("You don't have permission to do that", 403);
   if (error.code === "23503") return jsonError("Related record not found", 404);
   if (error.code === "23514" || error.code === "22P02") return jsonError("Invalid input", 400);
   return jsonError("Something went wrong. Please try again.", 500);

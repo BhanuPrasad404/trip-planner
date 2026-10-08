@@ -5,6 +5,8 @@ export const MEDIA_LIMITS = {
   imageBytes: 3_000_000,     // the browser downsizes photos first (lib/client/image.ts)
   videoBytes: 40_000_000,    // below the bucket cap; free Supabase plans cap single files lower than paid ones
   videoSeconds: 30,          // short clips only: keeps storage and mobile data sane until we transcode
+  /** The server accepts a hair over 30 s: a recorder stopped at exactly 30 s writes 30.0x s (audio padding, frame boundaries). */
+  videoToleranceS: 0.5,
   mediaPerPost: 4,
 } as const;
 

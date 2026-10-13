@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { rateLimiter } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { profileSchema } from "@/lib/social/schemas";
@@ -8,6 +9,7 @@ export async function PUT(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return jsonError("Please sign in", 401);
+  if (!rateLimiter.take(`profile-save:${user.id}`, 20, 60000)) return jsonError("Too many requests. Please slow down and try again shortly.", 429);
 
   const { data: input, error: bodyError } = await parseBody(req, profileSchema);
   if (bodyError) return bodyError;

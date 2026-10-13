@@ -113,6 +113,17 @@ export const movePlaceSchema = z.object({
 
 export const placePrioritySchema = z.object({ priority: z.enum(["must", "high", "normal", "optional"]) });
 
+/**
+ * Opening hours on a stop: set/replace them as typed by a member (value), clear them (value null), or confirm hours that were suggested
+ * from map data (confirm). The text is validated on the server with the real opening_hours parser before it is stored.
+ */
+export const placeHoursSchema = z.object({
+  hours: z.union([
+    z.object({ value: z.string().trim().min(1).max(255).nullable() }).strict(),
+    z.object({ confirm: z.literal(true) }).strict(),
+  ]),
+});
+
 export const builderSchema = z.object({
   end_mode: z.enum(["free", "start", "point"]).default("free"),
   styles: z.array(z.enum(["balanced", "relaxed", "explorer", "scenic", "photography", "family", "roadtrip"])).min(1).max(4).optional(),

@@ -27,7 +27,7 @@ export function NextBestAction({ advice, busy, onAccept, onKeep, fallback, onSta
 
   return (
     <section aria-labelledby="nba-heading" className="rounded-3xl bg-pine p-5 text-white shadow-sm sm:p-6">
-      <p id="nba-heading" className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">Next best action</p>
+      <p id="nba-heading" className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">Suggested next step</p>
       {advice ? (
         <>
           <h2 className="mt-2 break-words font-display text-2xl font-semibold leading-tight sm:text-3xl">{advice.title}</h2>

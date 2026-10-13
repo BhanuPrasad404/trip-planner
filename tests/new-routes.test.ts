@@ -127,8 +127,59 @@ describe("PATCH /api/places/[id]", () => {
   it("relocates a pin and clears stale drive/arrival data", async () => {
     const res = await patch({ lat: 16.62, lng: 80.53, address: "Kondapalli, Andhra Pradesh" });
     expect(res.status).toBe(200);
-    expect(last("places", "update")!.payload).toEqual({
+    const updates = state.log.filter((q) => q.table === "places" && q.op === "update");
+    expect(updates[0].payload).toEqual({
       lat: 16.62, lng: 80.53, address: "Kondapalli, Andhra Pradesh", drive_minutes: null, drive_km: null, arrival_time: null,
+    });
+    // Hours suggested from map data belonged to the feature at the OLD pin: they are dropped. Hours a member typed are kept.
+    expect(updates[1]).toMatchObject({ payload: { opening_hours: null }, filters: [["id", PLACE], ["hours_source", "map_data"]] });
+    expect(updates).toHaveLength(2);
+  });
+  describe("opening hours on a stop", () => {
+    const row = (o: Record<string, unknown> = {}) => ({ id: PLACE, lat: 17.51, lng: 78.88, opening_hours: null, hours_source: null, hours_confirmed_at: null, ...o });
+    it("typed hours are validated by the real parser and stored as the traveller's, confirmed by the database", async () => {
+      state.rows.places = row();
+      const res = await patch({ hours: { value: "Mo-Sa 09:00-17:30; Su off" } });
+      expect(res.status).toBe(200);
+      const u = last("places", "update")!;
+      expect(u.payload).toMatchObject({ opening_hours: "Mo-Sa 09:00-17:30; Su off", hours_source: "traveller", hours_ref: null });
+      expect(u.payload).not.toHaveProperty("hours_confirmed_by"); // who confirmed is set by the database trigger, never by the request
+      expect(u.filters).toContainEqual(["opening_hours", null]); // only if nobody changed them meanwhile
+    });
+    it("unreadable hours are refused with the parser's reason and nothing is written", async () => {
+      state.rows.places = row();
+      const res = await patch({ hours: { value: "whenever the priest is around" } });
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toMatch(/couldn't read these opening hours/);
+      expect(last("places", "update")).toBeUndefined();
+    });
+    it("holiday rules are accepted, with a warning that they can't be checked for India", async () => {
+      state.rows.places = row();
+      const res = await patch({ hours: { value: "Mo-Su 09:00-18:00; PH off" } });
+      expect(res.status).toBe(200);
+      expect((await res.json()).warnings[0]).toMatch(/Indian holiday calendar/);
+    });
+    it("confirming map-data hours only sets the confirmation (and only for the text that was read)", async () => {
+      state.rows.places = row({ opening_hours: "Mo-Su 09:00-18:00", hours_source: "map_data" });
+      expect((await patch({ hours: { confirm: true } })).status).toBe(200);
+      const u = last("places", "update")!;
+      expect(Object.keys(u.payload as object)).toEqual(["hours_confirmed_at"]);
+      expect(u.filters).toContainEqual(["opening_hours", "Mo-Su 09:00-18:00"]);
+    });
+    it("there is nothing to confirm on a stop with no hours", async () => {
+      state.rows.places = row();
+      expect((await patch({ hours: { confirm: true } })).status).toBe(409);
+    });
+    it("a stop you can't see is 'not found'; a concurrent change is a 409, not a silent overwrite", async () => {
+      state.rows.places = undefined as unknown as Record<string, unknown>;
+      expect((await patch({ hours: { value: "24/7" } })).status).toBe(404);
+      state.rows.places = row(); state.updateMatchesNothing = true;
+      expect((await patch({ hours: { value: "24/7" } })).status).toBe(409);
+    });
+    it("hours can't be smuggled in with another edit, or with extra fields", async () => {
+      expect((await patch({ hours: { value: "24/7" }, priority: "must" })).status).toBe(400);
+      expect((await patch({ hours: { value: "24/7", hours_source: "map_data" } })).status).toBe(400);
+      expect((await patch({ hours: { confirm: true, hours_confirmed_by: "someone-else" } })).status).toBe(400);
     });
   });
   it("rejects mixed or unknown fields instead of silently dropping half of them", async () => {

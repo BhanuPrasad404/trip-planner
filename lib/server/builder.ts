@@ -10,6 +10,16 @@ import { getMatrix } from "@/lib/routing";
 import { getSeasonStatus } from "@/lib/season";
 import { summarizeVotes } from "@/lib/votes";
 import { BUILDER_VERSION, MAX_BUILDER_PLACES, buildTrip, type BuilderInput, type BuilderPlace, type BuilderResult, type Priority, type StyleId } from "@/lib/trip-builder";
+import { hoursStatusAt, validateHours } from "@/lib/server/opening-hours";
+
+/** The hours fields a stop row carries, as the builder reads them. Unreadable stored text becomes null ("unknown"). */
+export function hoursOf(p: Record<string, unknown>): { hours: string | null; hoursSource: "traveller" | "map_data" | null; hoursConfirmed: boolean } {
+  const text = typeof p.opening_hours === "string" ? p.opening_hours : null;
+  const source = p.hours_source === "traveller" || p.hours_source === "map_data" ? p.hours_source : null;
+  if (!text || !source) return { hours: null, hoursSource: null, hoursConfirmed: false };
+  const ok = validateHours(text, typeof p.lat === "number" && typeof p.lng === "number" ? { lat: p.lat, lng: p.lng } : undefined).ok;
+  return ok ? { hours: text, hoursSource: source, hoursConfirmed: source === "traveller" || p.hours_confirmed_at != null } : { hours: null, hoursSource: null, hoursConfirmed: false };
+}
 import type { EndMode } from "@/lib/trip-builder/types";
 
 export type BuilderLoad =
@@ -26,7 +36,7 @@ const tagOf = (p: Row) => {
 export function inputSignature(input: BuilderInput): string {
   const stable = {
     v: BUILDER_VERSION, n: input.numDays, d: input.startDateISO, e: input.endMode, s: [input.start.lat, input.start.lng], x: input.end ? [input.end.lat, input.end.lng] : null,
-    p: input.places.map((p) => [p.id, p.lat, p.lng, p.category, p.priority, p.visitMin ?? null, p.hours ?? null, p.vote ?? 0]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    p: input.places.map((p) => [p.id, p.lat, p.lng, p.category, p.priority, p.visitMin ?? null, p.hours ?? null, p.hoursSource ?? null, p.hoursConfirmed ?? false, p.vote ?? 0]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   };
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
@@ -62,7 +72,9 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
       category: normalizeCategory((p.category as string | null) ?? tag?.category),
       priority: ((p.priority as Priority | undefined) ?? "normal"),
       visitMin: (p.visit_minutes as number | null | undefined) ?? null,
-      hours: null, // we only plan around opening hours we actually KNOW; user-added places have none
+      // Stored hours (typed by a member, or suggested from map data). The server re-validates them: text it can't read is treated
+      // as unknown, never as open or closed.
+      ...hoursOf(p),
       vote: votes[p.id as string]?.score ?? 0,
     };
   });
@@ -87,7 +99,7 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
 
   const start = { lat: trip.start_lat as number, lng: trip.start_lng as number, label: (trip.start_city as string) ?? "Start" };
   const matrix = await getMatrix([start, ...base, ...(end && endMode === "point" ? [end] : [])]);
-  const input: BuilderInput = { places: base, start, end, endMode, numDays, startDateISO: startDate, utcOffsetMin: opts.utcOffsetMin ?? 330, matrix };
+  const input: BuilderInput = { places: base, start, end, endMode, numDays, startDateISO: startDate, utcOffsetMin: opts.utcOffsetMin ?? 330, matrix, evalHours: hoursStatusAt };
   const result = buildTrip(input, opts.styles);
   return { ok: true, input, result, signature: inputSignature(input), unscheduledIds: places.filter((p) => p.day_number == null).map((p) => p.id as string) };
 }

@@ -33,6 +33,13 @@ export function scheduleDay(ctx: Ctx, day: number, order: number[], prev: number
     } else if (o.state === "unknown") flags.push("hours_unknown");
 
     const visit = ctx.visitMin(idx);
+    // Open on arrival is not enough: a long visit that runs past the listed closing time is not feasible as planned.
+    if (o.state === "open" && o.at) {
+      const at = parseHHMM(o.at);
+      let close = arrive - (arrive % 1440) + at;
+      if (close <= arrive) close += 1440;
+      if (arrive + visit > close) { flags.push("closes_during_visit"); penalty += Math.min(240, arrive + visit - close) * 0.5; }
+    }
     if (GOLDEN_CATEGORIES.includes(place.category)) {
       const sunset = ctx.sunsetMin(idx, day);
       if (sunset !== null) {

@@ -66,6 +66,7 @@ export function assembleDays(ctx: Ctx, days: number[][], clusters: ClusterMap): 
       if (t.flags.includes("waited_for_opening")) reasons.push(`Opens later than your arrival: you wait ${duration(t.waitMin)} (it opens at ${hhmm(t.arriveMin)})`);
       if (t.flags.includes("closed_at_arrival")) reasons.push(`Known opening hours say it is CLOSED when you arrive (${hhmm(t.arriveMin)})`);
       else if (!t.flags.includes("hours_unknown") && !t.flags.includes("waited_for_opening")) reasons.push(`Open when you arrive (${hhmm(t.arriveMin)})`);
+      if (t.flags.includes("closes_during_visit")) reasons.push(`Its listed hours end before a ${duration(t.visitMin)} visit would finish (${hhmm(t.departMin)})`);
       if (t.flags.includes("golden_ok") || t.flags.includes("golden_missed")) {
         const sunset = ctx.sunsetMin(idx, day);
         if (sunset !== null) reasons.push(t.flags.includes("golden_ok") ? `You arrive ${hhmm(t.arriveMin)}, ${duration(sunset - t.arriveMin)} before sunset (${hhmm(sunset)}): golden-hour light` : `Sunset is ${hhmm(sunset)}; you arrive ${hhmm(t.arriveMin)}, outside the golden hour`);
@@ -119,7 +120,12 @@ export function planWarnings(ctx: Ctx, days: DayPlan[], numDays: number): Warnin
     if (d.driveMin > 180 && d.driveMin / Math.max(1, d.loadMin) > 0.65) w.push({ code: "mostly_driving", severity: "info", day: d.day, message: `Day ${d.day} is mostly in the car: ${duration(d.driveMin)} driving for ${duration(d.visitMin)} at places.` });
     if (d.longTransfer) w.push({ code: "long_transfer", severity: "warn", day: d.day, message: `Day ${d.day} is mainly one long transfer (${duration(d.driveMin)}). There is no better place to break it in your list.` });
     for (const st of d.stops) {
-      if (st.flags.includes("closed_at_arrival")) w.push({ code: "closed_at_arrival", severity: "risk", day: d.day, placeId: st.placeId, message: `${st.name} is closed at ${hhmm(st.arriveMin)} (its listed opening hours).` });
+      // Hours from map data that nobody on the trip has confirmed: say so, and never raise the highest alarm on them alone.
+      const place = ctx.places.find((p) => p.id === st.placeId);
+      const unconfirmed = place?.hoursSource === "map_data" && !place.hoursConfirmed;
+      const per = unconfirmed ? "according to map data (OpenStreetMap), not yet confirmed" : "its listed opening hours";
+      if (st.flags.includes("closed_at_arrival")) w.push({ code: "closed_at_arrival", severity: unconfirmed ? "warn" : "risk", day: d.day, placeId: st.placeId, message: `${st.name} is likely closed at ${hhmm(st.arriveMin)} (${per}).` });
+      if (st.flags.includes("closes_during_visit")) w.push({ code: "closes_during_visit", severity: "warn", day: d.day, placeId: st.placeId, message: `${st.name} closes (${per}) before a ${duration(st.visitMin)} visit starting at ${hhmm(st.arriveMin)} would finish. Shorten the visit or go earlier.` });
       if (st.flags.includes("late_arrival")) w.push({ code: "late_arrival", severity: "warn", day: d.day, placeId: st.placeId, message: `You would reach ${st.name} at ${hhmm(st.arriveMin)}, after the planned day end (${hhmm(s.dayEndMin)}).` });
       if (st.flags.includes("weather_poor")) { const fit = ctx.fit(ctx.places.findIndex((p) => p.id === st.placeId) + 1, d.day); w.push({ code: "weather_poor", severity: "warn", day: d.day, placeId: st.placeId, message: `Weather looks poor for ${st.name} on Day ${d.day}${fit !== null ? ` (fit ${fit}/100)` : ""}.` }); }
     }

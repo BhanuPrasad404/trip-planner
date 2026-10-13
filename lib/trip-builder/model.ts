@@ -87,9 +87,9 @@ export function makeCtx(input: BuilderInput, style: StyleConfig = STYLES.balance
     utcAt, sunsetMin,
     open: (i, day, minute) => {
       const ms = utcAt(day, minute);
-      const hours = input.places[i - 1].hours;
-      if (ms === null || !hours) return { state: "unknown" };
-      return openStatus(hours, ms, input.utcOffsetMin);
+      const p = input.places[i - 1];
+      if (ms === null || !p.hours) return { state: "unknown" };
+      return input.evalHours ? input.evalHours(p.hours, ms, input.utcOffsetMin, { lat: p.lat, lng: p.lng }) : openStatus(p.hours, ms, input.utcOffsetMin);
     },
     fit: (i, day) => input.places[i - 1].fit?.[day - 1] ?? null,
   };

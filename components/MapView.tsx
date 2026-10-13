@@ -100,7 +100,7 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
       {/* One-line autopilot ribbon */}
       {top && !navBusy && !ended && (
         <Link href={`/trips/${trip.id}/live`} className="absolute inset-x-3 top-16 mx-auto max-w-xl rounded-2xl bg-pine/95 px-4 py-3 text-white shadow-lg backdrop-blur md:left-auto md:right-16 md:top-3 md:mx-0 md:max-w-sm">
-          <span className="block font-mono text-[10px] font-semibold uppercase tracking-widest text-marigold">Next best action</span>
+          <span className="block font-mono text-[10px] font-semibold uppercase tracking-widest text-marigold">Suggested next step</span>
           <span className="block truncate text-sm font-semibold">{top.title}</span>
         </Link>
       )}

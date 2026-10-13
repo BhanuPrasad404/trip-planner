@@ -64,6 +64,14 @@ export type Place = {
   priority?: "must" | "high" | "normal" | "optional";
   /** The traveller's own time at the place (minutes); null = the category's usual time. */
   visit_minutes?: number | null;
+  /** OpenStreetMap opening_hours text, validated by the server. null = unknown (never assumed open). */
+  opening_hours?: string | null;
+  /** "traveller" = typed by a trip member; "map_data" = suggested from OpenStreetMap (unconfirmed until hours_confirmed_at). */
+  hours_source?: "traveller" | "map_data" | null;
+  hours_ref?: string | null;
+  hours_fetched_at?: string | null;
+  hours_confirmed_at?: string | null;
+  hours_confirmed_by?: string | null;
   added_by: string | null;
   created_at: string;
 };

@@ -120,7 +120,8 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
         .slice(0, 5),
     [enriched]
   );
-  const readiness = scored.length ? Math.round(scored.reduce((s, e) => s + e.score!.score, 0) / scored.length) : null;
+  // No averaged number: an average hides one bad stop and the stops with no data. Plain counts instead.
+  const wellTimed = scored.filter((e) => e.score!.tone === "great" || e.score!.tone === "good").length;
 
   const stopCounts = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -363,12 +364,16 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
           <aside className="space-y-6" aria-label="Trip overview">
             <section aria-labelledby="overview-heading" className="rounded-2xl border border-line bg-white p-5">
               <div className="flex items-start justify-between gap-3">
-                <h2 id="overview-heading" className="font-display text-lg font-semibold text-pine">Trip readiness</h2>
-                {readiness !== null && (
-                  <span className="font-mono text-2xl font-semibold text-pine">{readiness}<span className="text-sm text-ink-muted">/100</span></span>
-                )}
+                <h2 id="overview-heading" className="font-display text-lg font-semibold text-pine">Season and weather fit</h2>
               </div>
 
+              <p className="mt-1 text-xs text-ink-muted">How well your dates suit the season and weather at each stop. It doesn&apos;t cover bookings, opening hours or driving time.</p>
+              {scored.length > 0 && (
+                <p className="mt-2 text-sm text-ink-muted">
+                  <strong className="text-pine">{wellTimed} of {places.length}</strong> {places.length === 1 ? "stop looks" : "stops look"} well timed
+                  {places.length - scored.length > 0 ? ` · ${places.length - scored.length} with no season or weather data` : ""}.
+                </p>
+              )}
               {places.length === 0 ? (
                 <p className="mt-2 text-sm text-ink-muted">Add places and Trailmate scores each one for the day you&apos;ll be there — season, weather and more.</p>
               ) : scored.length === 0 ? (
@@ -395,7 +400,7 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
                         >
                           <span className="font-semibold text-clay-ink">{place.name}</span>
                           <span className="block text-ink-muted">
-                            {score ? `Go score ${score.score} · ${score.reasons[score.reasons.length - 1]}` : "Outside its best season"}
+                            {score ? `${score.basis === "season+weather" ? `Go score ${score.score}` : score.basis === "weather" ? "Weather" : "Season"} · ${score.reasons[score.reasons.length - 1]}` : "Outside its best season"}
                             {place.day_number ? ` — Day ${place.day_number}` : " — in Ideas"}
                           </span>
                         </button>

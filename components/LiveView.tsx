@@ -30,6 +30,7 @@ import { TripMapLazy } from "./TripMapLazy";
 import { FormError } from "./ui/Field";
 import { Glyph } from "@/components/ui/Glyph";
 import { dayWithDate } from "@/lib/time-context";
+import { withoutSuggested } from "@/lib/intel/radar";
 import { useMapTheme } from "@/lib/client/use-map-theme";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
@@ -143,7 +144,7 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
         <div className="space-y-5">
           <div className="relative h-[52vh] min-h-[22rem] overflow-hidden rounded-3xl border border-line bg-white shadow-sm lg:h-[62vh]">
-            <TripMapLazy theme={mapTheme} places={mapPlaces} start={start} destination={dest} activeDay={driveDay} numDays={trip.num_days} fit="day" frameStartDest={false} live={live.liveMarkers} pois={live.poiMarkers} driveLine={drive.active && !navUi.navBusy ? drive.route?.line ?? null : null} nav={navUi.nav} headingUp={navUi.headingUp} viewRequest={navUi.viewRequest} recenter={navUi.recenter} onCompass={navUi.onCompass} onSelectRoute={live.navigation.choose} follow={drive.active && follow} onUserPan={() => setFollow(false)} />
+            <TripMapLazy theme={mapTheme} places={mapPlaces} start={start} destination={dest} activeDay={driveDay} numDays={trip.num_days} fit="day" frameStartDest={false} live={live.liveMarkers} pois={live.poiMarkers} driveLine={drive.active && !navUi.navBusy ? drive.route?.source === "osrm" ? drive.route.line : null : null} nav={navUi.nav} headingUp={navUi.headingUp} viewRequest={navUi.viewRequest} recenter={navUi.recenter} onCompass={navUi.onCompass} onSelectRoute={live.navigation.choose} follow={drive.active && follow} onUserPan={() => setFollow(false)} />
             <NavigationBanner ui={navUi.ui} />
             <Link href={`/trips/${trip.id}/map`} className="absolute left-3 top-3 min-h-10 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-pine shadow">Full-screen map</Link>
             {drive.active && !follow && <button type="button" onClick={navUi.ui.onRecenter} className="absolute bottom-3 left-3 min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow"><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Follow me</span></button>}
@@ -182,13 +183,13 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
             )}
           </section>
 
-          <RadarList radar={result?.radar ?? []} photos={intel.photos} mapping={mapping} trafficConnected={false} onAdd={live.remaining.length > 0 || drive.active ? addRadar : undefined} busy={busy} />
+          <RadarList radar={withoutSuggested(result?.radar ?? [], advice.slice(0, 5))} photos={intel.photos} mapping={mapping} trafficConnected={false} onAdd={live.remaining.length > 0 || drive.active ? addRadar : undefined} busy={busy} />
 
           <AheadBrowser aheadByKind={result?.aheadByKind ?? {}} photos={intel.photos} />
 
           {advice.length > 1 && (
             <section aria-labelledby="auto-heading">
-              <h2 id="auto-heading" className="mb-2 font-display text-lg font-semibold text-pine">More from Autopilot</h2>
+              <h2 id="auto-heading" className="mb-2 font-display text-lg font-semibold text-pine">More suggestions for this drive</h2>
               <ul className="space-y-3">{advice.slice(1, 5).map((a) => <AutopilotCard key={a.id} advice={a} photos={intel.photos} busy={busy} onAccept={(x, k) => void accept(x, k)} onKeep={keep} />)}</ul>
             </section>
           )}

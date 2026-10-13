@@ -73,6 +73,9 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   const lastPublished = useRef<Fix | null>(null);
   const lastEta = useRef<{ lat: number; lng: number; at: number; key: string } | null>(null);
   const etaBusy = useRef(false);
+  const etaGen = useRef(0); // bumped on stop/clear: an answer that arrives after that is stale and is dropped
+  const etaFailures = useRef(0);
+  const etaRetryAt = useRef(0); // failed requests back off instead of retrying on every GPS fix
   useEffect(() => {
     stopsRef.current = stops;
     shareRef.current = share;
@@ -91,6 +94,12 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
     [tripId, userId]
   );
 
+  const backOffEta = (at: number, quota: boolean) => {
+    etaFailures.current += 1;
+    const wait = quota ? 10 * 60_000 : Math.min(5 * 60_000, 15_000 * 2 ** (etaFailures.current - 1));
+    etaRetryAt.current = at + wait;
+  };
+
   const refreshRoute = useCallback(async (m: Me) => {
     if (!allowLive.current) return; // not confirmed yet, or the position is too rough for exact ETAs
     const targets = stopsRef.current.slice(0, MAX_ETA_STOPS);
@@ -105,22 +114,27 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
     const moved = !last || distanceKm(last, m) >= ETA_MOVE_KM;
     const old = !last || m.at - last.at >= ETA_MAX_AGE_MS;
     if (etaBusy.current || !(changed || moved || old)) return;
+    if (m.at < etaRetryAt.current) return;
 
     etaBusy.current = true;
+    const gen = etaGen.current;
     try {
       const res = await fetch("/api/eta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ points: [{ lat: m.lat, lng: m.lng }, ...targets.map((t) => ({ lat: t.lat, lng: t.lng }))] }),
       });
-      if (!res.ok) return;
+      if (gen !== etaGen.current) return;
+      if (!res.ok) { backOffEta(m.at, res.status === 429); return; }
       const body = (await res.json()) as { legs: RouteLeg[]; line: [number, number][]; source: "osrm" | "estimate" };
+      if (gen !== etaGen.current) return;
+      etaFailures.current = 0;
       lastEta.current = { lat: m.lat, lng: m.lng, at: m.at, key };
       setRoute({ ...body, stopIds: targets.map((t) => t.id), at: m.at });
     } catch {
-      /* keep showing the last route */
+      if (gen === etaGen.current) backOffEta(m.at, false); // keep showing the last route
     } finally {
-      etaBusy.current = false;
+      if (gen === etaGen.current) etaBusy.current = false;
     }
   }, [allowLive]);
 
@@ -238,6 +252,8 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
       if (shareRef.current) void createClient().from("live_locations").delete().eq("trip_id", tripId).eq("user_id", userId);
       lastPublished.current = null;
       lastEta.current = null;
+      etaGen.current += 1;
+      etaBusy.current = false;
       driveStart.current = null;
       lastMoved.current = null;
     };
@@ -283,6 +299,11 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   const stop = useCallback(() => {
     manualRef.current = false;
     setManualPlace(null);
+    etaGen.current += 1; // drop any ETA answer still in flight
+    etaBusy.current = false;
+    lastEta.current = null;
+    etaFailures.current = 0;
+    etaRetryAt.current = 0;
     setActive(false);
     setMe(null);
     setRoute(null);

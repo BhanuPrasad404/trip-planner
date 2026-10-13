@@ -197,7 +197,7 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
             <p className="mt-1.5 text-sm text-ink-muted">
               {tab === "paste"
                 ? "Instagram and YouTube block automatic link reading — paste the caption or add a screenshot of the reel."
-                : "We suggest real places that suit your travel month and start city. You review everything before it's added."}
+                : "AI-suggested places for your travel month and start city. They may be wrong, so check each one. Nothing is added until you confirm."}
             </p>
           </div>
 

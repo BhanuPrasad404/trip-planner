@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { rateLimiter } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { dbError, jsonError } from "@/lib/api";
 import { uuid } from "@/lib/validation/schemas";
@@ -13,6 +14,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return jsonError("Please sign in", 401);
+  if (!rateLimiter.take(`report-flag:${user.id}`, 30, 60000)) return jsonError("Too many requests. Please slow down and try again shortly.", 429);
 
   const { error } = await supabase.from("report_flags").insert({ report_id: id, user_id: user.id });
   if (error) {

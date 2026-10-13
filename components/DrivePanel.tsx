@@ -59,7 +59,7 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
           </p>
           <label className="mt-3 inline-flex min-h-9 items-start gap-2 text-sm">
             <input type="checkbox" checked={share} onChange={(e) => drive.setShare(e.target.checked)} className="mt-1" />
-            <span>Share my live location with this trip&apos;s members while I drive</span>
+            <span>Share my live location with this trip&apos;s members while I drive <span className="block text-xs text-ink-muted">Only people on this trip can see it, and it stops when you stop. Starting asks your phone for location (Precise works best).</span></span>
           </label>
           <div className="mt-3">
             <Button onClick={drive.start} className="w-full sm:w-auto"><span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />Start drive</span></Button>

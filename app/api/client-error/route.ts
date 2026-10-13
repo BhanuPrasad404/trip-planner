@@ -20,7 +20,11 @@ const ip = (req: Request) => (req.headers.get("x-forwarded-for") ?? "").split(",
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
-  if (origin && host && new URL(origin).host !== host) return jsonError("Not allowed", 403);
+  if (origin && host) {
+    let originHost: string | null = null;
+    try { originHost = new URL(origin).host; } catch { /* "null" or malformed Origin */ }
+    if (originHost !== host) return jsonError("Not allowed", 403);
+  }
   if (Number(req.headers.get("content-length") ?? 0) > 6_000) return jsonError("Too large", 413);
   if (!rateLimiter.take(`client-error:${ip(req)}`, 10, 60_000)) return new NextResponse(null, { status: 204 }); // quietly ignore a noisy browser
   const { data, error } = await parseBody(req, bodySchema);

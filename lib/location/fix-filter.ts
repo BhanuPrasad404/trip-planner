@@ -23,7 +23,9 @@ export const WEAK_ACCEPT = { readings: 3, ms: 6_000 } as const;
 /** A reading must be this many times vaguer than the last precise one (and at least this vague) to count as "weaker". */
 export const WEAKER = { factor: 3, minM: 300 } as const;
 
-const validCoord = (f: RawFix) => Number.isFinite(f.lat) && Number.isFinite(f.lng) && Math.abs(f.lat) <= 90 && Math.abs(f.lng) <= 180;
+const validCoord = (f: RawFix) => Number.isFinite(f.lat) && Number.isFinite(f.lng) && Math.abs(f.lat) <= 90 && Math.abs(f.lng) <= 180
+  // 0,0 with no accuracy is the classic "no position yet" placeholder, not a real place.
+  && !(f.lat === 0 && f.lng === 0 && !(f.accuracyM !== null && f.accuracyM > 0));
 
 export function filterFix(state: FilterState, next: RawFix): FixVerdict {
   if (!validCoord(next)) return { accept: false, reason: "invalid", state };

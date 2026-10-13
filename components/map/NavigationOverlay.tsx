@@ -159,7 +159,7 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
       <Shell floating={floating}>
         <p role="status" className="font-display text-lg font-semibold text-pine"><Glyph name="flag" size={18} className="mr-2 inline align-text-bottom text-[#d93025]" />You have arrived at {target.name}</p>
         <div className="mt-3 flex gap-2">
-          {ui.onArrivedDone && <Button onClick={() => { ui.onArrivedDone?.(); }}>Mark as done & go on</Button>}
+          {ui.onArrivedDone && <Button onClick={() => { ui.onArrivedDone?.(); }}>Mark done and continue</Button>}
           <Button variant={ui.onArrivedDone ? "secondary" : "primary"} onClick={nav.stop}>{target.kind === "destination" ? "Finish" : "End navigation"}</Button>
         </div>
       </Shell>
@@ -169,7 +169,7 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
   const p = nav.progress;
   const expanded = more || nav.alternatives.length > 0 || nav.altLoading;
   const etaText = journey ? formatDuration(Math.max(1, journey.remainingMin)) : p ? formatDuration(Math.max(1, Math.round(p.remainingS / 60))) : "—";
-  const subText = journey ? `${kmN(journey.remainingKm)} · arrive ${clock(journey.etaMs, ui.nowMs)}` : p ? `${km(p.remainingM)} · arrive ${clock(p.etaMs, ui.nowMs)}` : "Working out your position…";
+  const subText = journey ? `${kmN(journey.remainingKm)} · arrive about ${clock(journey.etaMs, ui.nowMs)}` : p ? `${km(p.remainingM)} · arrive about ${clock(p.etaMs, ui.nowMs)}` : "Working out your position…";
   return (
     <Shell floating={floating}>
       {/* Always visible: where, how long, how far — and the two controls you may need in a hurry. */}

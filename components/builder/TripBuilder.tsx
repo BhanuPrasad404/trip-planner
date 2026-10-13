@@ -126,7 +126,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
     return (
       <section id="plan-assistant" className="scroll-mt-24 rounded-3xl border border-line bg-white p-5">
         <h2 className="font-display text-xl font-semibold text-pine">Plan my trip</h2>
-        <p className="mt-1 text-sm text-ink-muted">Set a starting point for this trip first. We measure real road distances from it.</p>
+        <p className="mt-1 text-sm text-ink-muted">Set a starting point to use the planner: we measure real road distances from it. This trip has none, and a starting point can currently only be chosen when a trip is created, so create a new trip to plan this route.</p>
       </section>
     );
   }

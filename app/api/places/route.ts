@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { rateLimiter } from "@/lib/rate-limit";
 import { NextResponse, type NextRequest } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { matchSeasonTag } from "@/lib/season-match";
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
     data: { user },
   } = await authP;
   if (!user) return jsonError("Please sign in", 401);
+  if (!rateLimiter.take(`place-add:${user.id}`, 120, 60000)) return jsonError("Too many requests. Please slow down and try again shortly.", 429);
   if (parsed.error || !input) return parsed.error!;
   const [{ data: tags }, { data: last }] = await Promise.all([tagsP!, lastP!]);
   const match = matchSeasonTag(input, tags ?? []);

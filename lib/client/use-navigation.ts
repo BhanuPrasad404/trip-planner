@@ -72,9 +72,15 @@ export function speak(text: string) {
 }
 
 class RoutingUnavailable extends Error {}
+/** The daily/rate quota answered 429: asking again soon only burns the rest of it. */
+class RoutingQuota extends Error {}
+
+/** 15 s, 30 s, 1 min … capped at 5 min. */
+const backoffMs = (failures: number, baseMs: number) => Math.min(5 * 60_000, baseMs * 2 ** Math.max(0, failures - 1));
 
 async function fetchDirections(from: { lat: number; lng: number }, to: { lat: number; lng: number }, alternatives: number, signal: AbortSignal) {
   const res = await fetch("/api/directions", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: { lat: from.lat, lng: from.lng }, to: { lat: to.lat, lng: to.lng }, alternatives }) });
+  if (res.status === 429) throw new RoutingQuota("Too many route requests right now — try again in a few minutes.");
   const body = (await res.json().catch(() => null)) as { routes?: NavRoute[]; choices?: RouteChoice[]; notes?: string[]; error?: string } | null;
   if (!res.ok || !body?.routes?.length) throw new Error(body?.error ?? "Couldn't get directions right now.");
   // A straight line is NOT a route. If the routing service could not answer, say so instead of drawing one.
@@ -109,6 +115,10 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
   const altAbort = useRef<AbortController | null>(null);
   const busyRef = useRef(false); // a routing request is in flight
   const errorAt = useRef(0);
+  const errorFailures = useRef(0); // consecutive failed route loads → growing wait before the next automatic try
+  const errorQuota = useRef(false); // the quota answered: no automatic retries
+  const rerouteFailures = useRef(0);
+  const rerouteBlockedUntil = useRef(0);
   const lastBearing = useRef(0);
   useEffect(() => {
     targetRef.current = target;
@@ -160,6 +170,8 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
     fetchDirections(here, t, auto ? 0 : 2, ctrl.signal).then((r) => {
       if (id !== reqId.current) return; // a newer request (or a stop) replaced this one
       busyRef.current = false;
+      errorFailures.current = 0;
+      errorQuota.current = false;
       if (auto) {
         startRoute(r.routes[0], r.choices, r.notes);
         // Show distance/ETA at once, even if no further GPS reading arrives (e.g. a start point the traveller chose).
@@ -169,6 +181,8 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
     }).catch((e: unknown) => {
       if (id !== reqId.current || (e instanceof DOMException && e.name === "AbortError")) return;
       busyRef.current = false;
+      errorFailures.current += 1;
+      errorQuota.current = e instanceof RoutingQuota;
       setPhase("error", { error: e instanceof Error ? e.message : "Couldn't get directions right now." });
     });
   }, [cancelRequest, fixRef, setPhase, startRoute]);
@@ -190,9 +204,12 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
       navRef.current = indexRoute(route);
       offRef.current = { ...initialOffRoute(), lastRerouteAt: m.at };
       lastSpoken.current = null;
+      rerouteFailures.current = 0;
       patch({ routes: [route], selectedId: route.id, rerouting: false, offRouteSuspected: false, notice: "Route updated", notes: r.notes });
     } catch (e) {
       if (id !== reqId.current || (e instanceof DOMException && e.name === "AbortError")) return;
+      rerouteFailures.current += 1;
+      rerouteBlockedUntil.current = m.at + (e instanceof RoutingQuota ? 10 * 60_000 : backoffMs(rerouteFailures.current, 10_000));
       patch({ rerouting: false, notice: "Couldn't find a new route yet — keeping the old line. We'll try again." });
     } finally {
       if (id === reqId.current) busyRef.current = false;
@@ -218,7 +235,7 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
     // Drive now → route, by itself.
     if (armedRef.current && readyRef.current && targetRef.current) {
       if (phaseRef.current === "idle") { load(true); return; }
-      if (phaseRef.current === "error" && Date.now() - errorAt.current >= RETRY_AFTER_MS) { load(true); return; } // a temporary routing outage heals itself
+      if (phaseRef.current === "error" && !errorQuota.current && Date.now() - errorAt.current >= backoffMs(errorFailures.current, RETRY_AFTER_MS)) { load(true); return; } // a temporary routing outage heals itself
     }
 
     const nav = navRef.current;
@@ -247,7 +264,7 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
       lastSpoken.current = banner.announceKey;
       speak(banner.spoken);
     }
-    if (verdict.reroute) void reroute(m);
+    if (verdict.reroute && m.at >= rerouteBlockedUntil.current) void reroute(m);
   }, [cancelRequest, load, patch, reroute, setPhase]);
 
   useEffect(() => {

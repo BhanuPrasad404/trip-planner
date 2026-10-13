@@ -12,6 +12,10 @@ export type BuilderPlace = {
   visitMin?: number | null;
   /** OpenStreetMap-style opening hours when we actually know them; otherwise null → "unknown", never assumed open. */
   hours?: string | null;
+  /** Where the hours came from: typed by a member, or suggested from OpenStreetMap map data. */
+  hoursSource?: "traveller" | "map_data" | null;
+  /** Map data counts as confirmed only once a member has confirmed it. */
+  hoursConfirmed?: boolean;
   /** Group preference −1..1 from votes (optional). */
   vote?: number;
   /** Weather fit 0–100 for each trip day (index 0 = day 1). null = unknown for that day. */
@@ -35,9 +39,14 @@ export type BuilderInput = {
   utcOffsetMin: number;
   /** Road driving matrix over [start, ...places (input order), end?]. Seconds and metres. */
   matrix: { durations: number[][]; distances: number[][]; source: string; /** Pairs with no road found (filled by estimate). */ estimatedPairs?: number };
+  /**
+   * Reads opening hours at an instant. The server passes the full opening_hours parser here (lib/server/opening-hours.ts); without it
+   * the basic reader in lib/intel/hours.ts is used. Not part of the plan's identity (never serialised).
+   */
+  evalHours?: (hours: string, utcMs: number, utcOffsetMin: number, where: { lat: number; lng: number }) => { state: "open" | "closed" | "unknown"; at?: string };
 };
 
-export type StopFlag = "closed_at_arrival" | "waited_for_opening" | "hours_unknown" | "golden_ok" | "golden_missed" | "late_arrival" | "weather_poor" | "long_transfer";
+export type StopFlag = "closed_at_arrival" | "closes_during_visit" | "waited_for_opening" | "hours_unknown" | "golden_ok" | "golden_missed" | "late_arrival" | "weather_poor" | "long_transfer";
 
 export type PlannedStop = {
   placeId: string;
@@ -83,7 +92,7 @@ export type DayPlan = {
   longTransfer: boolean;
 };
 
-export type WarningCode = "too_much_driving" | "backtracking" | "closed_at_arrival" | "tight_day" | "late_arrival" | "mostly_driving" | "weather_poor" | "hours_unknown" | "over_capacity" | "must_do_dropped" | "heavy_streak" | "estimated_times" | "long_transfer" | "empty_days";
+export type WarningCode = "too_much_driving" | "backtracking" | "closed_at_arrival" | "closes_during_visit" | "tight_day" | "late_arrival" | "mostly_driving" | "weather_poor" | "hours_unknown" | "over_capacity" | "must_do_dropped" | "heavy_streak" | "estimated_times" | "long_transfer" | "empty_days";
 export type Warning = { code: WarningCode; severity: "info" | "warn" | "risk"; message: string; day?: number; placeId?: string };
 
 export type RemovedStop = { placeId: string; name: string; savedMin: number; savedDriveMin: number; reason: string };

@@ -150,7 +150,10 @@ describe("TripPlanner render", () => {
     const html = render(places, trip, { p2: dry, p1: dry });
     expect(html).toContain("Go score");
     expect(html).toContain("Likely dry");
-    expect(html).toContain("Trip readiness");
+    expect(html).toContain("Season and weather fit");
+    // Counts of what is known, not an averaged 0-100 that hides a bad stop or the stops with no data.
+    expect(html).toContain('1 of 3</strong> stops look well timed · 1 with no season or weather data.');
+    expect(html).not.toMatch(/average of/);
   });
 
   it("shows no Go Score (rather than a fake one) when nothing is known", () => {

@@ -108,12 +108,14 @@ export function estimateDirections(from: GeoPoint, to: GeoPoint): NavRoute {
   const distanceM = km * 1000;
   const line: [number, number][] = [[from.lng, from.lat], [to.lng, to.lat]];
   const lineM = buildRoute(line).totalM;
-  const mk = (index: number, type: string, startAlongM: number, endAlongM: number, p: GeoPoint, instruction: string): NavStep => ({
-    index, instruction, name: "", ref: null, maneuver: { type, location: p, bearingAfter: null }, distanceM: endAlongM - startAlongM, durationS: 0, startAlongM, endAlongM,
+  const durationS = (km / 45) * 3600;
+  // The whole estimated duration belongs to the first step, so progress on this route never reads "0 s left".
+  const mk = (index: number, type: string, startAlongM: number, endAlongM: number, p: GeoPoint, instruction: string, stepS: number): NavStep => ({
+    index, instruction, name: "", ref: null, maneuver: { type, location: p, bearingAfter: null }, distanceM: endAlongM - startAlongM, durationS: stepS, startAlongM, endAlongM,
   });
   return {
-    id: "estimate", distanceM, durationS: (km / 45) * 3600, line, via: "", source: "estimate",
-    steps: [mk(0, "depart", 0, lineM, from, "Head toward your destination (road directions are unavailable)"), mk(1, "arrive", lineM, lineM, to, "You have arrived at your destination")],
+    id: "estimate", distanceM, durationS, line, via: "", source: "estimate",
+    steps: [mk(0, "depart", 0, lineM, from, "Head toward your destination (road directions are unavailable)", durationS), mk(1, "arrive", lineM, lineM, to, "You have arrived at your destination", 0)],
   };
 }
 

@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TripCheck } from "@/components/TripCheck";
 import type { Place, Trip } from "@/lib/types";
+import { openIntervals, validateHours } from "@/lib/server/opening-hours";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,7 +27,7 @@ describe("TripCheck — first screen", () => {
   });
   it("nothing is checked until the traveller asks (no results, no alerts yet)", () => {
     const h = html(trip(), [place()]);
-    expect(h).not.toContain("Alerts for this trip"); expect(h).not.toContain("Nothing in your day looks");
+    expect(h).not.toContain("Alerts for this trip"); expect(h).not.toContain("Nothing in the stops we could check looks");
     expect(h).toContain("Will it be open when I arrive?"); expect(h).toContain("Check my departure");
   });
   it("is honest about what it assumes: car, India time, no live traffic, and that it only suggests", () => {
@@ -37,112 +38,207 @@ describe("TripCheck — first screen", () => {
 
 describe("TripCheck — checking a departure", () => {
   let store: Record<string, string>;
+  let calls: { url: string; method: string; body: unknown }[];
+  let hoursFails: boolean;
   beforeEach(() => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-12T06:00:00Z")); // 11:30 in India
-    store = {};
-    vi.stubGlobal("window", { localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } }, addEventListener: () => undefined, removeEventListener: () => undefined });
+    store = {}; calls = []; hoursFails = false;
+    vi.stubGlobal("window", { localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } }, addEventListener: () => undefined, removeEventListener: () => undefined, setTimeout: () => 0 });
     vi.stubGlobal("document", { getElementById: () => null });
+    // The server side, for real: /hours expands the stops' hours with the actual opening_hours parser; PATCH validates with it too.
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      calls.push({ url, method, body });
+      const json = (data: unknown, status = 200) => ({ ok: status < 400, status, json: async () => data });
+      if (url.startsWith("/api/trips/t1/hours?")) {
+        if (hoursFails) return json({ error: "boom" }, 500);
+        const date = new URL(url, "https://x").searchParams.get("date")!;
+        const mid = Date.parse(`${date}T00:00:00+05:30`);
+        const fromMs = mid - DAY, toMs = mid + 3 * DAY;
+        const stops = Object.fromEntries(serverPlaces.filter((p) => p.opening_hours).map((p) => [p.id, openIntervals(p.opening_hours!, fromMs, toMs, 330, p)]));
+        return json({ fromMs, toMs, utcOffsetMin: 330, stops });
+      }
+      if (url.startsWith("/api/places/") && method === "PATCH") {
+        const h = body.hours;
+        if ("confirm" in h) return json({ ok: true, opening_hours: "Mo-Su 09:00-18:00", hours_source: "map_data", hours_ref: "osm/node/1", hours_fetched_at: null, hours_confirmed_at: "2026-10-12T06:00:00Z", warnings: [] });
+        if (h.value === null) return json({ ok: true, opening_hours: null, hours_source: null, hours_ref: null, hours_fetched_at: null, hours_confirmed_at: null, warnings: [] });
+        const v = validateHours(h.value);
+        if (!v.ok) return json({ error: v.reason }, 422);
+        return json({ ok: true, opening_hours: v.value, hours_source: "traveller", hours_ref: null, hours_fetched_at: null, hours_confirmed_at: "2026-10-12T06:00:00Z", warnings: v.warnings });
+      }
+      return json({ error: "unexpected" }, 404);
+    }));
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+  const DAY = 24 * 3_600_000;
+  let serverPlaces: Place[] = [];
   const saved = (o: object) => { store[KEY] = JSON.stringify({ date: "2026-10-14", time: "21:00", day: 1, ran: true, hours: {}, states: {}, seen: {}, ...o }); };
-  const hoursFor = (typed = "9am-6pm", hours = "Mo-Su 09:00-18:00") => ({ p1: { hours, typed, at: Date.now() } });
+  /** A stop whose hours are stored on the trip (typed by a member unless said otherwise). */
+  const withHours = (hours = "Mo-Su 09:00-18:00", source: "traveller" | "map_data" = "traveller", confirmed = source === "traveller", o: Partial<Place> = {}) =>
+    place({ opening_hours: hours, hours_source: source, hours_confirmed_at: confirmed ? "2026-10-10T06:00:00Z" : null, ...o });
   let r: TestRenderer.ReactTestRenderer;
-  const mount = (t = trip(), places = [place()]) => { act(() => { r = TestRenderer.create(createElement(TripCheck, { tripId: "t1", trip: t, places, activeDay: 1, today: "2026-10-12" })); }); };
+  const mount = async (t = trip(), places = [place()]) => {
+    serverPlaces = places;
+    await act(async () => { r = TestRenderer.create(createElement(TripCheck, { tripId: "t1", trip: t, places, activeDay: 1, today: "2026-10-12" })); });
+    await act(async () => {}); // let the hours request finish
+  };
   afterEach(() => { act(() => r?.unmount()); });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- walking the renderer's own tree
   const textOf = (j: any): string => (j == null ? "" : typeof j === "string" ? j : Array.isArray(j) ? j.map(textOf).join("") : (j.children ?? []).map(textOf).join(""));
   const page = () => textOf(r.toJSON());
   // The visible words inside a React element's children (never JSON.stringify them: elements point back at the renderer).
   const propText = (c: unknown): string => (c == null || typeof c === "boolean" ? "" : typeof c === "string" || typeof c === "number" ? String(c) : Array.isArray(c) ? c.map(propText).join("") : typeof c === "object" && "props" in (c as object) ? propText((c as { props: { children?: unknown } }).props.children) : "");
-  const clickText = (label: string) => {
+  const clickText = async (label: string) => {
     const el = r.root.findAll((n) => n.type === "button" && propText(n.props.children).includes(label))[0];
-    if (!el) throw new Error(`no button "${label}" in: ${page().slice(0, 200)}`);
-    act(() => { el.props.onClick(); });
+    if (!el) throw new Error(`no button "${label}" in: ${page().slice(0, 300)}`);
+    await act(async () => { el.props.onClick(); });
+    await act(async () => {});
+  };
+  const blur = async (value: string) => {
+    await act(async () => { r.root.findByProps({ id: "hours-p1" }).props.onBlur({ target: { value } }); });
+    await act(async () => {});
   };
 
-  it("leaving at 21:00 for a fort the traveller says closes at 6 PM: says it is likely closed, with arrival time, and why", () => {
-    saved({ hours: hoursFor() }); mount();
+  it("leaving at 21:00 for a fort a trip member says closes at 6 PM: says it is likely closed, with arrival time, and why", async () => {
+    saved({}); await mount(trip(), [withHours()]);
     const p = page();
-    expect(p).toContain("Likely closed when you arrive"); expect(p).toContain("arrive 22:45"); expect(p).toContain("closes at 18:00"); expect(p).toContain("Based on the hours you entered.");
+    expect(p).toContain("Likely closed when you arrive"); expect(p).toContain("arrive 22:45"); expect(p).toContain("closes at 18:00"); expect(p).toContain("Based on hours entered by a trip member.");
     expect(p).toContain("1 stop needs a look.");
+    expect(p).toContain("Opening hours don't guarantee entry");
   });
-  it("the fix is a button that only changes the what-if time, not the trip", () => {
-    saved({ hours: hoursFor() }); mount();
-    clickText("Try leaving");
+  it("the hours are read on the server for the chosen date (the parser never runs in the browser)", async () => {
+    saved({}); await mount(trip(), [withHours()]);
+    expect(calls.some((c) => c.url === "/api/trips/t1/hours?date=2026-10-14")).toBe(true);
+  });
+  it("the fix is a button that only changes the what-if time, not the trip", async () => {
+    saved({}); await mount(trip(), [withHours()]);
+    await clickText("Try leaving");
     const after = JSON.parse(store[KEY]);
     expect(`${after.date} ${after.time}`).not.toBe("2026-10-14 21:00"); expect(after.ran).toBe(true);
     expect(page()).not.toContain("Likely closed when you arrive"); // leaving early enough fixes it
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false); // the trip itself was not changed
   });
-  it("the problem becomes an alert with what it means and what to do, and it can be dismissed", () => {
-    saved({ hours: hoursFor() }); mount();
+  it("the problem becomes an alert with what it means and what to do, and it can be dismissed", async () => {
+    saved({}); await mount(trip(), [withHours()]);
     expect(page()).toContain("Alerts for this trip"); expect(page()).toContain("Bhongir Fort: likely closed when you arrive"); expect(page()).toContain("Leave earlier");
-    clickText("Dismiss");
-    expect(page()).not.toContain("Alerts for this trip"); expect(page()).toContain("Alert history (1)"); expect(page()).toContain("dismissed");
+    await clickText("Dismiss");
+    expect(page()).not.toContain("Alerts for this trip"); expect(page()).toContain("Dismissed and snoozed alerts (1)"); expect(page()).toContain("dismissed");
     expect(JSON.parse(store[KEY]).states["arrival_after_closing:t1:p1"].dismissedAtSeverity).toBe("high");
   });
-  it("a dismissed alert can be brought back", () => {
-    saved({ hours: hoursFor() }); mount();
-    clickText("Dismiss"); clickText("Show again");
+  it("a dismissed alert can be brought back", async () => {
+    saved({}); await mount(trip(), [withHours()]);
+    await clickText("Dismiss"); await clickText("Show again");
     expect(page()).toContain("Alerts for this trip");
   });
-  it("an alert can be snoozed; the snooze is saved with a time", () => {
-    saved({ hours: hoursFor() }); mount();
-    clickText("Remind me in 2 hours");
+  it("an alert can be snoozed; the snooze is saved with a time", async () => {
+    saved({}); await mount(trip(), [withHours()]);
+    await clickText("Remind me in 2 hours");
     expect(JSON.parse(store[KEY]).states["arrival_after_closing:t1:p1"].snoozedUntil).toBeGreaterThan(Date.now());
     expect(page()).toContain("snoozed");
   });
-  it("with NO hours entered, nothing is called closed: it says 'hours unverified' and raises no alert (acceptance)", () => {
-    saved({ hours: {} }); mount();
+  it("with NO hours, nothing is called closed: it says 'hours unavailable' and raises no alert (acceptance)", async () => {
+    saved({}); await mount();
     const p = page();
-    expect(p).toContain("Hours unverified"); expect(p).toContain("can&#x27;t say whether it will be open".replace("&#x27;", "'"));
+    expect(p).toContain("Hours unavailable"); expect(p).toContain("can't say whether it will be open");
     expect(p).not.toContain("Likely closed"); expect(p).not.toContain("Alerts for this trip");
-    expect(p).toContain("1 has no hours we can check.");
+    expect(p).toContain("1 stop has no hours we can check.");
+    expect(p).toContain("We can't tell yet whether your stops will be open."); expect(p).not.toContain("Nothing in the stops we could check looks impractical"); // not an all-clear
+    expect(p).toContain("Add its opening hours");
+    expect(calls).toHaveLength(0); // no hours on the day: nothing to ask the server
   });
-  it("hours that are fine produce a calm 'nothing looks impractical' and no alert", () => {
-    saved({ time: "10:00", hours: hoursFor("24 hours", "24/7") }); mount();
-    expect(page()).toContain("Nothing in your day looks impractical at this time."); expect(page()).not.toContain("Alerts for this trip");
+  it("hours that are fine produce a calm 'nothing looks impractical' and no alert", async () => {
+    saved({ time: "10:00" }); await mount(trip(), [withHours("24/7")]);
+    expect(page()).toContain("Nothing in the stops we could check looks impractical at this time."); expect(page()).not.toContain("Alerts for this trip");
   });
-  it("a missing departure time stops the check and says what is needed, instead of guessing one", () => {
-    saved({ time: "" }); mount();
+  it("a weekly closing day is judged on the actual weekday", async () => {
+    // 2026-10-14 is a Wednesday. Closed on Wednesdays: leaving at 10:00 must say closed that day, not 'unverified'.
+    saved({ time: "10:00" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00; We off")]);
+    expect(page()).toContain("Closed that day");
+  });
+  it("seasonal hours (months), which the old basic reader could only call 'unverified', are now judged", async () => {
+    // October falls in the Oct-Mar season (09:00-18:00): arriving ~11:45 is open, and the closing time is the season's.
+    saved({ time: "10:00" }); await mount(trip(), [withHours("Apr-Sep 10:00-17:00; Oct-Mar 09:00-18:00")]);
+    const p = page();
+    expect(p).toContain("Open when you arrive"); expect(p).toContain("open until 18:00");
+  });
+  it("hours that depend on public holidays are 'unable to verify', never treated as an ordinary day", async () => {
+    saved({ time: "10:00" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00; PH off")]);
+    const p = page();
+    expect(p).toContain("Unable to verify the hours"); expect(p).toContain("Indian holiday calendar"); expect(p).not.toContain("Open when you arrive");
+  });
+  it("hours from map data that nobody confirmed: the problem is shown, labelled, and never raised to the highest alarm", async () => {
+    saved({}); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "map_data", false)]);
+    const p = page();
+    expect(p).toContain("Likely closed when you arrive"); expect(p).toContain("haven't been confirmed"); expect(p).toContain("Based on map data (OpenStreetMap), not confirmed.");
+    const alert = r.root.findAll((n) => n.type === "li" && n.props.role === "alert");
+    expect(alert).toHaveLength(0); // softened: no urgent alert from unconfirmed map data alone
+  });
+  it("confirming map-data hours asks the server, and the result then counts as confirmed", async () => {
+    saved({ ran: false }); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "map_data", false)]);
+    await clickText("Opening hours for this day");
+    expect(page()).toContain("From map data (OpenStreetMap)"); expect(page()).toContain("Not confirmed yet");
+    await clickText("These hours are right");
+    expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/places/p1", body: { hours: { confirm: true } } });
+    expect(page()).toContain("confirmed by a trip member");
+  });
+  it("if the hours can't be loaded, the check says so instead of guessing", async () => {
+    hoursFails = true; saved({}); await mount(trip(), [withHours()]);
+    const p = page();
+    expect(p).toContain("couldn't load the opening hours"); expect(p).not.toContain("Likely closed"); expect(p).not.toContain("Open when you arrive");
+  });
+  it("a missing departure time stops the check and says what is needed, instead of guessing one", async () => {
+    saved({ time: "" }); await mount();
     const p = page();
     expect(p).toContain("Needs 1 thing first"); expect(p).toContain("Choose the time you plan to leave"); expect(p).not.toContain("arrive 2");
   });
-  it("missing driving times send the traveller to Plan my trip", () => {
-    saved({ time: "09:00" }); mount(trip(), [place({ drive_minutes: null })]);
+  it("missing driving times send the traveller to Plan my trip", async () => {
+    saved({ time: "09:00" }); await mount(trip(), [place({ drive_minutes: null })]);
     expect(page()).toContain("Some stops have no driving time yet"); expect(page()).toContain("Plan my trip");
   });
-  it("a trip with no dates can still be checked when a date is typed into the check", () => {
-    saved({ date: "2026-10-14", hours: hoursFor() }); mount(trip({ start_date: null }));
+  it("a trip with no dates can still be checked when a date is typed into the check", async () => {
+    saved({ date: "2026-10-14" }); await mount(trip({ start_date: null }), [withHours()]);
     expect(page()).toContain("Likely closed when you arrive");
   });
-  it("opening hours the traveller types: unreadable or ambiguous entries are refused with a reason; good ones are saved", () => {
-    saved({ ran: false }); mount();
-    clickText("Opening hours I know");
-    const input = r.root.findByProps({ id: "hours-p1" });
-    act(() => { input.props.onBlur({ target: { value: "9-6" } }); });
+  it("typed hours: an ambiguous entry is refused here with a reason; a good one is saved ON THE TRIP via the server", async () => {
+    saved({ ran: false }); await mount();
+    await clickText("Opening hours for this day");
+    await blur("9-6");
     expect(page()).toContain("Add am or pm");
-    act(() => { input.props.onBlur({ target: { value: "9am-6pm" } }); });
-    expect(JSON.parse(store[KEY]).hours.p1).toMatchObject({ hours: "Mo-Su 09:00-18:00", typed: "9am-6pm" });
-    expect(page()).not.toContain("Add am or pm");
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+    await blur("9am-6pm");
+    expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/places/p1", body: { hours: { value: "Mo-Su 09:00-18:00" } } });
+    expect(page()).not.toContain("Add am or pm"); expect(page()).toContain("Entered by a trip member");
   });
-  it("clearing the hours removes them (we go back to 'unverified')", () => {
-    saved({ ran: false, hours: hoursFor() }); mount();
-    clickText("Opening hours I know");
-    act(() => { r.root.findByProps({ id: "hours-p1" }).props.onBlur({ target: { value: "" } }); });
-    expect(JSON.parse(store[KEY]).hours).toEqual({});
+  it("text the server can't read is refused with the server's reason, and nothing is stored", async () => {
+    saved({ ran: false }); await mount();
+    await clickText("Opening hours for this day");
+    await blur("open whenever the priest is around");
+    expect(page()).toContain("We couldn't read these opening hours");
+    expect(page()).not.toContain("Entered by a trip member");
   });
-  it("hours entered long ago are shown as possibly out of date (freshness is source-specific)", () => {
-    saved({ ran: false, hours: { p1: { hours: "Mo-Su 09:00-18:00", typed: "9am-6pm", at: Date.now() - 400 * 24 * 3_600_000 } } }); mount();
-    clickText("Opening hours I know");
-    expect(page()).toContain("They may be out of date.");
+  it("clearing the hours removes them on the trip (we go back to 'unavailable')", async () => {
+    saved({ ran: false }); await mount(trip(), [withHours()]);
+    await clickText("Opening hours for this day");
+    await blur("");
+    expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ body: { hours: { value: null } } });
   });
-  it("damaged saved data never breaks the card", () => {
-    store[KEY] = "{not json"; mount();
+  it("hours typed on this device before they were saved to trips are offered for saving, and no longer used by the check", async () => {
+    saved({ hours: { p1: { hours: "Mo-Su 09:00-18:00", typed: "9am-6pm", at: Date.now() } } }); await mount();
+    expect(page()).toContain("Hours unavailable"); // the device-only copy is not used
+    await clickText("Opening hours for this day");
+    expect(page()).toContain("kept only on this device");
+    await clickText("Save “9am-6pm” to the trip");
+    expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ body: { hours: { value: "Mo-Su 09:00-18:00" } } });
+    expect(JSON.parse(store[KEY]).hours).toEqual({}); // the local copy is gone once it is on the trip
+  });
+  it("damaged saved data never breaks the card", async () => {
+    store[KEY] = "{not json"; await mount();
     expect(page()).toContain("Trip check");
   });
-  it("the check only looks at the chosen day's stops", () => {
-    saved({ hours: hoursFor(), day: 2 }); mount(trip(), [place(), place({ id: "p2", name: "Other", day_number: 2 })]);
+  it("the check only looks at the chosen day's stops", async () => {
+    saved({ day: 2 }); await mount(trip(), [withHours(), place({ id: "p2", name: "Other", day_number: 2 })]);
     expect(page()).toContain("Other"); expect(page()).not.toContain("Bhongir Fort");
   });
 });

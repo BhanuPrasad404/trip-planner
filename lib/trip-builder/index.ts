@@ -12,7 +12,8 @@ export { BUILDER_VERSION, MAX_BUILDER_PLACES, PRIORITIES, PRIORITY_LABEL, STYLES
 export type { Priority, StyleId } from "./config";
 export { duration, hhmm } from "./model";
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// Unicode-aware: Devanagari/Tamil/etc. names must not all normalise to "" (which silently skips duplicate detection).
+const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /** Plain statements about the input itself: likely duplicates, missing hours. Never changes the plan. */
 export function inputNotes(input: BuilderInput): string[] {

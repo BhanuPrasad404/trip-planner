@@ -43,7 +43,7 @@ export function TripPrefsForm({ tripId, tripType, rangeKm, isOwner }: { tripId: 
   return (
     <section aria-labelledby="prefs-heading" className="rounded-2xl border border-line bg-white p-5">
       <h2 id="prefs-heading" className="font-display text-lg font-semibold text-pine">How you travel</h2>
-      <p className="mt-1 text-sm text-ink-muted">This tunes what Travel Radar and Smart Stops recommend. {BLURB[type]}</p>
+      <p className="mt-1 text-sm text-ink-muted">This tunes which fuel, food and rest stops we suggest along your route. {BLURB[type]}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-semibold text-pine">Who is travelling?
           <select value={type} onChange={(e) => setType(e.target.value as TripType)} disabled={!isOwner} className="mt-1 block min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base font-normal disabled:bg-sky">

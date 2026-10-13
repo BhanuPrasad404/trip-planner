@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { rateLimiter } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { dbError, jsonError } from "@/lib/api";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
@@ -20,6 +21,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return jsonError("Please sign in", 401);
+  if (!rateLimiter.take(`trip-optimize:${user.id}`, 20, 60000)) return jsonError("Too many requests. Please slow down and try again shortly.", 429);
 
   const { data: trip, error: tripError } = await supabase
     .from("trips")

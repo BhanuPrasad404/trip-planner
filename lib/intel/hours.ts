@@ -91,7 +91,19 @@ export function openStatus(text: string | null | undefined, utcMs: number, utcOf
   // Today's intervals, plus yesterday's that run past midnight.
   for (const [iv, shift] of [[rules.get(dow) ?? [], 0], [rules.get((dow + 6) % 7) ?? [], 1440]] as const) {
     for (const [s, e] of iv) {
-      if (minute + shift >= s && minute + shift < e) return { state: "open", at: label(e - shift) };
+      if (minute + shift >= s && minute + shift < e) {
+        // An interval that ends at midnight and is followed by one that starts at midnight is the SAME opening (24-hour places):
+        // follow it to the real closing time, or report no closing time if the place never closes.
+        const startDow = shift === 0 ? dow : (dow + 6) % 7;
+        let end = e, d = startDow;
+        for (let hop = 0; hop < 7 && end % 1440 === 0; hop++) {
+          d = (d + 1) % 7;
+          const next = (rules.get(d) ?? []).find(([ns]) => ns === 0);
+          if (!next) break;
+          end += next[1];
+        }
+        return end - shift >= 7 * 1440 ? { state: "open" } : { state: "open", at: label(end - shift) };
+      }
     }
   }
   const later = (rules.get(dow) ?? []).filter(([s]) => s > minute).sort((a, b) => a[0] - b[0])[0];

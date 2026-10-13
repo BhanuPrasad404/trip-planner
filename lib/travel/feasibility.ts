@@ -5,7 +5,7 @@
 //   • Opening hours are judged at the earliest, the expected and the latest arrival. If those disagree we say "it depends", we do not
 //     pick a side. If we don't have hours (or can't read them) the answer is "unverified": that is NEVER reported as "closed".
 // Pure: same input, same output. It never changes the itinerary; it only describes and suggests.
-import { openStatus } from "@/lib/intel/hours";
+import { openStatus, type OpenStatus } from "@/lib/intel/hours";
 import { clockOf, dateOf, dayShiftLabel, durationLabel, minuteOfDay, minutesUntilClock, clockToMinutes } from "./clock";
 
 export type HoursSource = "user" | "osm" | "official" | null;
@@ -22,7 +22,14 @@ export type FeasStop = {
   visitMin: number;
   /** OpenStreetMap-style opening hours, only when we really know them. */
   hours: string | null;
+  /** "user" = typed by a trip member; "osm" = suggested from OpenStreetMap map data. */
   hoursSource?: HoursSource;
+  /** Map-data hours count as confirmed only after a member confirms them. Unconfirmed map data never produces the highest severity. */
+  hoursConfirmed?: boolean;
+  /** Judges open/closed at an instant. Supplied when the server has read the hours (full syntax); otherwise the basic reader is used. */
+  evaluate?: (utcMs: number) => OpenStatus;
+  /** Why the hours can't be checked, when we know (e.g. they depend on public holidays). */
+  hoursNote?: string | null;
 };
 
 export type FeasConfig = {
@@ -80,8 +87,9 @@ export function checkDeparture(input: { departureMs: number; stops: FeasStop[]; 
   let variance = 0;
 
   for (const s of input.stops) {
-    if (cursor === null || s.driveMin === null) {
-      verdicts.push(blank(s, "needs_drive_time", "info", "Driving time needed", cursor === null && s.driveMin !== null ? `The time you reach ${s.name} depends on an earlier stop's driving time, which isn't calculated yet.` : `We don't have the driving time to ${s.name} yet. Use Plan my trip to calculate it.`, ["check_before_going"]));
+    const driveOk = typeof s.driveMin === "number" && Number.isFinite(s.driveMin) && s.driveMin >= 0;
+    if (cursor === null || !driveOk || s.driveMin === null) {
+      verdicts.push(blank(s, "needs_drive_time", "info", "Driving time needed", cursor === null && driveOk ? `The time you reach ${s.name} depends on an earlier stop's driving time, which isn't calculated yet.` : `We don't have the driving time to ${s.name} yet. Use Plan my trip to calculate it.`, ["check_before_going"]));
       cursor = null;
       continue;
     }
@@ -106,7 +114,18 @@ function blank(s: FeasStop, state: StopState, severity: Verdict, headline: strin
   return { stopId: s.id, name: s.name, state, severity, arriveMs: null, earliestMs: null, latestMs: null, arriveClock: null, windowClock: null, dayShift: null, closesAt: null, opensAt: null, headline, detail, fix: null, options, hoursSource: s.hoursSource ?? null, night: false };
 }
 
+const UNCONFIRMED_NOTE = "These hours come from map data (OpenStreetMap) and haven't been confirmed by anyone on this trip, so treat this as likely, not certain.";
+
 function judge(s: FeasStop, arrive: number, early: number, late: number, departureMs: number, c: FeasConfig): StopVerdict {
+  const v = judgeHours(s, arrive, early, late, departureMs, c);
+  // Unconfirmed map data can suggest a problem but never raise the highest alarm on its own.
+  if (s.hours && s.hoursSource === "osm" && !s.hoursConfirmed && v.state !== "hours_unverified") {
+    return { ...v, severity: v.severity === "risk" ? "warn" : v.severity, detail: `${v.detail} ${UNCONFIRMED_NOTE}` };
+  }
+  return v;
+}
+
+function judgeHours(s: FeasStop, arrive: number, early: number, late: number, departureMs: number, c: FeasConfig): StopVerdict {
   const off = c.utcOffsetMin;
   const arriveClock = clockOf(arrive, off);
   const windowClock = `${clockOf(early, off)}–${clockOf(late, off)}`;
@@ -116,11 +135,13 @@ function judge(s: FeasStop, arrive: number, early: number, late: number, departu
   const base = { ...blank(s, "hours_unverified", "info", "", "", []), arriveMs: arrive, earliestMs: early, latestMs: late, arriveClock, windowClock, dayShift, night: m >= 22 * 60 || m < 5 * 60 };
 
   if (!s.hours) {
-    return { ...base, headline: "Hours unverified", detail: `We don't have opening hours for ${s.name}, so we can't say whether it will be open around ${when}. Check before you go, or add the hours you know.`, options: ["enter_hours", "check_before_going", "continue"] };
+    return { ...base, headline: "Hours unavailable", detail: `We don't have opening hours for ${s.name}, so we can't say whether it will be open around ${when}. Look them up from map data or add the hours you know, or check before you go.`, options: ["enter_hours", "check_before_going", "continue"] };
   }
-  const at = [early, arrive, late].map((t) => openStatus(s.hours, t, off));
+  const hours = s.hours;
+  const ev = s.evaluate ?? ((t: number) => openStatus(hours, t, off));
+  const at = [early, arrive, late].map(ev);
   if (at.some((x) => x.state === "unknown")) {
-    return { ...base, headline: "Hours unverified", detail: `We couldn't read the opening hours for ${s.name} reliably (for example holidays or seasons), so we won't guess. Check before you go.`, options: ["enter_hours", "check_before_going", "continue"] };
+    return { ...base, headline: "Unable to verify the hours", detail: `${s.hoursNote ?? `We couldn't check the opening hours for ${s.name} at that time (for example holidays, seasons or a note such as "last entry"), so we won't guess.`} Check before you go.`, options: ["enter_hours", "check_before_going", "continue"] };
   }
   const [e, a, l] = at;
   const states = [e.state, a.state, l.state];
@@ -143,7 +164,7 @@ function judge(s: FeasStop, arrive: number, early: number, late: number, departu
       return { ...base, state: "opens_later", severity: "warn", opensAt: a.at, headline: "You'd arrive before it opens", detail: `You'd arrive around ${when}, but ${s.name} opens at ${a.at}, about ${durationLabel(waitMin)} later.`, options: ["adjust_departure", "reorder", "add_overnight", "continue"], fix: { kind: "leave_later", minutes: roundUp5(waitMin) } };
     }
     // Closed for the rest of that day: find when it last closed, to say how much earlier you would need to leave.
-    const last = lastOpenBefore(s.hours, arrive, off);
+    const last = lastOpenBefore(ev, arrive, off);
     if (last) {
       const closesMs = last.ms + minutesUntilClock(last.ms, last.closeClock, off) * MIN;
       const shiftMin = Math.max(5, roundUp5((late - (closesMs - c.marginBeforeCloseMin * MIN)) / MIN));
@@ -164,12 +185,12 @@ function judge(s: FeasStop, arrive: number, early: number, late: number, departu
  * The last moment EARLIER THAT SAME DAY when the place was open, with the time it was due to close. Only the arrival day is searched:
  * a place that was open yesterday but is closed all of today is "closed that day", and the advice is a different day, not "leave earlier".
  */
-function lastOpenBefore(hours: string, fromMs: number, off: number): { ms: number; closeClock: string } | null {
+function lastOpenBefore(ev: (utcMs: number) => OpenStatus, fromMs: number, off: number): { ms: number; closeClock: string } | null {
   const day = dateOf(fromMs, off);
   for (let k = 1; k <= 96; k++) {
     const t = fromMs - k * 15 * MIN;
     if (dateOf(t, off) !== day) return null;
-    const st = openStatus(hours, t, off);
+    const st = ev(t);
     if (st.state === "open" && st.at && clockToMinutes(st.at) >= 0) return { ms: t, closeClock: st.at };
     if (st.state === "open") return null; // open all day: nothing to report
   }

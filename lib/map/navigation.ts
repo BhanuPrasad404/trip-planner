@@ -27,6 +27,8 @@ export type NavProgress = {
 export const ARRIVE_RADIUS_M = 30;
 
 export type NavIndex = { route: NavRoute; index: RouteIndex };
+/** Sideways slack allowed when the projected position is at the end of the line (GPS error, driveway vs road centre). */
+const ARRIVE_OFFSET_M = 50;
 export const indexRoute = (route: NavRoute): NavIndex => ({ route, index: buildRoute(route.line) });
 
 export function progressOn(nav: NavIndex, pos: GeoPoint, nowMs: number): NavProgress {
@@ -51,7 +53,9 @@ export function progressOn(nav: NavIndex, pos: GeoPoint, nowMs: number): NavProg
   const routeBearing = bearingDeg(alongM + 25 > index.totalM ? behind : snapped, alongM + 25 > index.totalM ? snapped : ahead);
 
   const destination = pointAt(index, index.totalM);
-  const arrived = remainingM <= ARRIVE_RADIUS_M || haversineM(pos, destination) <= ARRIVE_RADIUS_M;
+  // Arrival needs the traveller to actually BE at the destination. "Remaining along the line" alone is not enough: the position is
+  // projected onto the line, so a driver on a parallel road (or far past the end) would otherwise count as arrived.
+  const arrived = haversineM(pos, destination) <= ARRIVE_RADIUS_M || (remainingM <= ARRIVE_RADIUS_M && proj.offsetM <= ARRIVE_OFFSET_M);
   return {
     alongM, offsetM: proj.offsetM, snapped, routeBearing, remainingM, remainingS, etaMs: nowMs + remainingS * 1000,
     step, nextStep, distanceToManeuverM: Math.max(0, step.endAlongM - alongM), arrived,
@@ -131,7 +135,9 @@ export const initialOffRoute = (): OffRouteState => ({ strikes: 0, since: null, 
 export type OffRouteVerdict = { state: OffRouteState; reroute: boolean; uncertain: boolean; thresholdM: number };
 
 export function checkOffRoute(prev: OffRouteState, f: { offsetM: number; accuracyM: number | null; nowMs: number }): OffRouteVerdict {
-  const acc = f.accuracyM ?? 0;
+  // A non-finite reading says nothing about where we are: never count it as a "bad fix" strike.
+  if (!Number.isFinite(f.offsetM)) return { state: { ...prev, strikes: 0, since: null }, reroute: false, uncertain: true, thresholdM: OFF_ROUTE.baseM };
+  const acc = f.accuracyM !== null && Number.isFinite(f.accuracyM) ? f.accuracyM : 0;
   const thresholdM = Math.max(OFF_ROUTE.baseM, OFF_ROUTE.accuracyFactor * acc);
   if (acc > OFF_ROUTE.blindAboveAccuracyM) return { state: { ...prev, strikes: 0, since: null }, reroute: false, uncertain: true, thresholdM };
   if (f.offsetM <= thresholdM) return { state: { ...prev, strikes: 0, since: null }, reroute: false, uncertain: false, thresholdM };

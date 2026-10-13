@@ -47,6 +47,8 @@ export function assessObservation<T>(o: Observation<T>, now: number): Assessment
   if (o.value === null) return { status: "unverified", ageMs: null, reason: `We don't have ${p.label.toLowerCase()} for this.`, usableForAlert: false };
   const stamp = o.sourceUpdatedAt ?? o.retrievedAt;
   if (stamp === null || stamp === undefined) return { status: "unverified", ageMs: null, reason: `We can't tell how recent this ${p.label.toLowerCase()} is.`, usableForAlert: false };
+  // An unparseable timestamp, or one in the future (device clock skew), proves nothing about freshness.
+  if (!Number.isFinite(stamp) || stamp - now > 5 * 60_000) return { status: "unverified", ageMs: null, reason: `We can't tell how recent this ${p.label.toLowerCase()} is.`, usableForAlert: false };
   const ageMs = Math.max(0, now - stamp);
   if (o.validTo != null && now > o.validTo) return { status: "potentially_outdated", ageMs, reason: `This ${p.label.toLowerCase()} applied to a period that has ended.`, usableForAlert: false };
   if (ageMs > p.staleMs) return { status: "potentially_outdated", ageMs, reason: `${p.label} was last updated ${ageLabel(ageMs)} ago: too old to rely on.`, usableForAlert: false };

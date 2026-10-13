@@ -71,8 +71,14 @@ export function buildIntel(input: IntelInput): IntelResult {
   const stopEtas: StopEta[] = [];
   const legMinutes: number[] = [];
   let cum = 0;
+  let legMissingAt: number | null = null; // first stop with no routed driving time: nothing after it can be dated honestly
   input.stops.forEach((s, i) => {
-    const leg = input.route.legs[i]?.minutes ?? 0;
+    const legRaw = input.route.legs[i]?.minutes;
+    if (legMissingAt !== null || typeof legRaw !== "number" || !Number.isFinite(legRaw) || legRaw < 0) {
+      legMissingAt ??= i;
+      return; // no ETA for this stop (a missing leg must not read as "0 minutes of driving")
+    }
+    const leg = legRaw;
     legMinutes.push(leg);
     cum += leg;
     const arriveMs = input.nowMs + cum * 60_000;
@@ -87,7 +93,8 @@ export function buildIntel(input: IntelInput): IntelResult {
     cum += s.visitMin;
   });
   const last = input.stops[input.stops.length - 1];
-  const finishAtMs = last ? input.nowMs + cum * 60_000 : null;
+  const finishAtMs = last && legMissingAt === null ? input.nowMs + cum * 60_000 : null;
+  if (legMissingAt !== null) notes.push(`We don't have the driving time to ${input.stops[legMissingAt].name}, so arrival times from there on are not shown.`);
 
   const sun = sunTimes(input.position.lat, input.position.lng, input.nowMs, input.utcOffsetMin);
   const remainingKm = Math.max(0, (route.totalM - userAlongM) / 1000);

@@ -141,7 +141,7 @@ describe("Autopilot", () => {
   it("hero card: the one thing to do now, with the place's numbers and a Google Maps link", () => {
     const opp: Advice = { id: "detour", kind: "detour", priority: 40, urgency: "soon", title: "Better opportunity found", detail: "Hill Viewpoint is 16 min ahead with clear weather.", action: { type: "insert_stop", key: "k" }, options: [{ key: "k", kind: "viewpoint", name: "Hill Viewpoint", lat: 17, lng: 80, brand: null, hours: null, alongM: 1, offsetM: 1, aheadKm: 12, detourMin: 9, etaMin: 16, arriveClock: "17:10", open, score: 80, reasons: [], tags: {}, fetchedAt: "" }] };
     const html = renderToStaticMarkup(<NextBestAction advice={opp} busy={false} onAccept={() => {}} onKeep={() => {}} onStartDrive={() => {}} fallback={{ title: "x", detail: "y", navigateTo: null, action: null }} />);
-    expect(html).toContain("Next best action");
+    expect(html).toContain("Suggested next step");
     expect(html).toContain("Better opportunity found");
     expect(html).toContain("Go there");
     expect(html).toContain("Keep my plan");
@@ -225,7 +225,7 @@ describe("Live and Map pages render", () => {
 
   it("Live: one clear next action, trip health area, radar, up next, Google Maps navigation, drive controls", () => {
     const html = renderToStaticMarkup(<LiveView {...props} places={[place("a"), place("b", { sequence_order: 2, arrival_time: "12:00:00" })]} />);
-    expect(html).toContain("Next best action");
+    expect(html).toContain("Suggested next step");
     expect(html).toContain("Next: Stop a");
     expect(html).toContain("Navigate in Google Maps");
     expect(html).toContain("Travel Radar");

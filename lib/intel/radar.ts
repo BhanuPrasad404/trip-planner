@@ -7,6 +7,15 @@ type Args = { ranked: RankedPoi[]; nowMs: number; utcOffsetMin: number; sunsetMi
 
 const RADAR_KINDS = ["fuel", "food", "cafe", "restroom", "viewpoint", "sight", "pharmacy", "stay", "ev", "hospital", "atm", "repair"] as const;
 
+/**
+ * On a page that already shows suggestion cards, a place offered there is not listed again in the Radar. Pages without the cards (the
+ * full-screen map) keep the whole Radar, so nothing disappears from them.
+ */
+export function withoutSuggested(radar: RadarItem[], advice: { action?: { type: string; key?: string } }[]): RadarItem[] {
+  const suggested = new Set(advice.flatMap((a) => (a.action && "key" in a.action && a.action.key ? [a.action.key] : [])));
+  return radar.filter((r) => !suggested.has(r.key));
+}
+
 export function buildRadar({ ranked, nowMs, utcOffsetMin, sunsetMin, limit = 6 }: Args): RadarItem[] {
   const out: RadarItem[] = [];
   for (const kind of RADAR_KINDS) {

@@ -39,7 +39,7 @@ export function NextBestAction({ advice, busy, onAccept, onKeep, fallback, onSta
             </p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {accept && <Button onClick={() => onAccept(advice)} disabled={busy}>{busy ? "Working…" : accept}</Button>}
+            {accept && <Button onClick={() => onAccept(advice)} loading={busy} loadingLabel="Working…">{accept}</Button>}
             <Button variant="secondary" onClick={() => onKeep(advice)} disabled={busy}>Keep my plan</Button>
             {advice.why && advice.why.length > 0 && <button type="button" onClick={() => setWhy((v) => !v)} aria-expanded={why} className="min-h-11 px-2 text-sm font-semibold text-white underline underline-offset-2">{why ? "Hide why" : "Why?"}</button>}
           </div>

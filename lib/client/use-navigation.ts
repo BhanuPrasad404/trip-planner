@@ -13,7 +13,7 @@ import type { NavRoute } from "@/lib/providers/types";
 import type { Me } from "./use-drive";
 
 export type NavPhase = "idle" | "loading" | "choosing" | "navigating" | "arrived" | "error";
-export type NavTarget = { id: string; name: string; lat: number; lng: number };
+export type NavTarget = { id: string; name: string; lat: number; lng: number; /** "destination" = the end of the trip, which is not a stop that can be marked done. */ kind?: "stop" | "destination" };
 /** Where to draw the "you" puck: snapped to the road when you are on it, at the raw GPS position when you are not. */
 export type Puck = {
   lat: number; lng: number; bearing: number | null; onRoute: boolean;

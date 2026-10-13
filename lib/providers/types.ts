@@ -97,8 +97,11 @@ export type ConditionsRequest = { id: string; lat: number; lng: number; date: Da
 
 export interface WeatherProvider {
   readonly id: string;
-  /** Forecast (soon) or typical climate (later) for each place on its visit date. Best-effort: missing entries are fine. */
-  conditionsFor(requests: ConditionsRequest[], todayISO: string): Promise<Record<string, Conditions>>;
+  /**
+   * Forecast (soon) or typical climate (later) for each place on its visit date. Best-effort: missing entries are fine.
+   * `budgetMs`: stop starting new lookups after this long and return what has arrived (a page must not wait on a slow service).
+   */
+  conditionsFor(requests: ConditionsRequest[], todayISO: string, budgetMs?: number): Promise<Record<string, Conditions>>;
   /** Hour-by-hour forecast for the next `hours` hours at a point. Returns [] when unavailable. */
   hourly(point: GeoPoint, hours: number, fetchImpl?: typeof fetch): Promise<HourlyWeather[]>;
 }
@@ -153,4 +156,12 @@ export interface MapProvider {
   readonly attribution: string;
   /** The free OSM tile server forbids heavy use; production needs a real tile provider. */
   readonly production: boolean;
+}
+
+/** Height above sea level for points on the ground. Returns null for a point it has no value for; throws when the service is down. */
+export interface ElevationProvider {
+  readonly id: string;
+  /** At most `maxPoints` per call. */
+  readonly maxPoints: number;
+  elevations(points: { lat: number; lng: number }[], fetchImpl?: typeof fetch): Promise<(number | null)[]>;
 }

@@ -146,7 +146,7 @@ export function AddPlaceForm({ tripId, dayNumber, near, onAdded, onCancel }: Add
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
-        <Button type="submit" disabled={loading}>{loading ? "Adding…" : `Add to Day ${dayNumber}`}</Button>
+        <Button type="submit" loading={loading} loadingLabel="Adding…">{`Add to Day ${dayNumber}`}</Button>
       </div>
     </form>
   );

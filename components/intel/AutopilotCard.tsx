@@ -49,7 +49,7 @@ export function AutopilotCard({ advice: a, photos, busy, onAccept, onKeep }: Pro
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {accept && <Button size="sm" onClick={() => onAccept(a)} disabled={busy}>{busy ? "Working…" : accept}</Button>}
+        {accept && <Button size="sm" onClick={() => onAccept(a)} loading={busy} loadingLabel="Working…">{accept}</Button>}
         <Button size="sm" variant="secondary" onClick={() => onKeep(a)} disabled={busy}>Keep my plan</Button>
         {options.length > 1 && <button type="button" onClick={() => setAlts((v) => !v)} aria-expanded={alts} className="min-h-10 px-2 text-sm font-semibold text-pine underline underline-offset-2">{alts ? "Hide alternatives" : `Show ${options.length - 1} alternative${options.length > 2 ? "s" : ""}`}</button>}
         {a.why && a.why.length > 0 && <button type="button" onClick={() => setWhy((v) => !v)} aria-expanded={why} className="min-h-10 px-2 text-sm font-semibold text-ink-muted underline underline-offset-2">{why ? "Hide why" : "Why?"}</button>}

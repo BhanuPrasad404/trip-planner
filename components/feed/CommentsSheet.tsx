@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/ui/Spinner";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { FeedItemDTO } from "@/lib/feed/map";
@@ -83,7 +84,7 @@ export function CommentsSheet({ item, onClose, onPosted }: { item: FeedItemDTO; 
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
                 className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-line px-3.5 py-2.5 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/40" />
               <button type="button" onClick={() => void send()} disabled={sending || !text.trim()} aria-label="Post comment"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal text-white disabled:opacity-50"><SendIcon size={20} /></button>
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal text-white disabled:opacity-50">{sending ? <Spinner size={18} /> : <SendIcon size={20} />}</button>
             </div>
           ) : <p className="text-center text-sm text-ink-muted">Comments are turned off for this post.</p>}
         </div>

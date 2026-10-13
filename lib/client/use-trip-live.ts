@@ -10,8 +10,9 @@ import type { Enriched } from "@/lib/client/enrich";
 import { safeColor } from "@/lib/format";
 import { checkStart } from "@/lib/location/start-check";
 import { journeySummary } from "@/lib/map/journey";
+import { DESTINATION_ID, planDriveTargets, type PlanTarget } from "@/lib/map/drive-targets";
 import { tripTiming } from "@/lib/time-context";
-import { tripDayForDate } from "@/lib/replan";
+import { liveDayFor } from "@/lib/trip-state";
 import type { PlaceWithSeason, Trip, TripMember } from "@/lib/types";
 import type { VoteSummary } from "@/lib/votes";
 import type { LiveMarker, PoiMarker } from "@/components/TripMap";
@@ -37,17 +38,28 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   const localNow = nowMinute ? new Date(nowMs) : null;
   const localDate = localNow ? `${localNow.getFullYear()}-${pad(localNow.getMonth() + 1)}-${pad(localNow.getDate())}` : null;
   const localTime = localNow ? `${pad(localNow.getHours())}:${pad(localNow.getMinutes())}` : null;
-  const todayDay = localDate ? tripDayForDate(trip.start_date, localDate, trip.num_days) : null;
-  const driveDay = todayDay ?? focusDay;
+  // Which day is this drive on? Inside the planned dates: today's day. Just AFTER the planned end (an overnight drive that
+  // crosses midnight on the last day) it is still the last day — the trip is not "in the past" while you are travelling it.
+  const liveDay = localDate ? liveDayFor(trip, localDate) : null;
+  const todayDay = liveDay?.mode === "today" ? liveDay.day : null;
+  const overrun = liveDay?.mode === "overrun";
+  const driveDay = todayDay ?? (overrun && liveDay?.day ? liveDay.day : focusDay);
 
   const dayPlaces = useMemo(() => places.filter((p) => p.day_number === driveDay).sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0)), [places, driveDay]);
   const remaining = useMemo(() => dayPlaces.filter((p) => (p.status ?? "planned") === "planned"), [dayPlaces]);
   const done = dayPlaces.filter((p) => p.status === "done").length;
 
-  const driveStops = useMemo<DriveTarget[]>(
-    () => remaining.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, plannedArrival: p.arrival_time?.slice(0, 5) ?? null })),
-    [remaining]
+  // Everything this drive heads for, in order: the day's remaining stops and, when it belongs to this drive, the trip's
+  // destination. A trip with a start and a destination but no stops used to have nothing to navigate to.
+  const finishedToday = useMemo(() => dayPlaces.filter((p) => p.status === "done" || p.status === "skipped"), [dayPlaces]);
+  const scheduledStopCount = useMemo(() => places.filter((p) => p.day_number !== null).length, [places]);
+  const targets = useMemo<PlanTarget[]>(
+    () => planDriveTargets({ remaining, finished: finishedToday, destination: { lat: trip.dest_lat, lng: trip.dest_lng, name: trip.dest_name }, driveDay, numDays: trip.num_days, scheduledStopCount }),
+    [remaining, finishedToday, trip.dest_lat, trip.dest_lng, trip.dest_name, driveDay, trip.num_days, scheduledStopCount]
   );
+  const driveStops = useMemo<DriveTarget[]>(() => targets.map((t) => ({ id: t.id, name: t.name, lat: t.lat, lng: t.lng, plannedArrival: t.plannedArrival })), [targets]);
+  /** Real planned stops only: the autopilot and radar reason about places to visit, not about "the destination". */
+  const stopTargets = useMemo(() => driveStops.filter((_, i) => targets[i].kind === "stop"), [driveStops, targets]);
   // Live features (ETA, advice from where you are, sharing) switch on only when the drive is confirmed AND the position is precise.
   const allowLive = useRef(false);
   const fixRef = useRef<((m: Me) => void) | null>(null); // navigation listens to every GPS fix through this
@@ -56,7 +68,7 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
 
   const intelStops = useMemo<IntelStopInput[]>(
     () =>
-      driveStops.map((d) => {
+      stopTargets.map((d) => {
         const e = enriched.find((x) => x.place.id === d.id);
         const v = votes[d.id];
         const goScore = e?.score?.score ?? null;
@@ -70,7 +82,7 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
           outdoor: cat ? !["museum", "food", "stay"].includes(cat) : true,
         };
       }),
-    [driveStops, enriched, votes]
+    [stopTargets, enriched, votes]
   );
 
   // Before the trip (or with GPS off) the advice is a PREVIEW from the planned starting point.
@@ -97,7 +109,7 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   useEffect(() => {
     allowLive.current = liveOk;
   });
-  const weatherNote = timing?.state === "before" ? `This is the weather right now, not your trip-day forecast. ${timing.headline} The forecast for each trip day is in the Go score on every stop.` : timing?.state === "after" ? "This is the weather right now. The planned dates of this trip have passed." : null;
+  const weatherNote = timing?.state === "before" ? `This is the weather right now, not your trip-day forecast. ${timing.headline} The forecast for each trip day is in the Go score on every stop.` : timing?.state === "after" ? (overrun ? "This is the weather right now. You're continuing past the planned end of the trip." : "This is the weather right now. The planned dates of this trip have passed.") : null;
   // "You're near Warangal": the town around you, asked once (only when you are somewhere other than the planned start).
   const away = startCheck?.issues.find((i) => i.kind === "away-from-start");
   const awayHere = away && drive.me ? { lat: drive.me.lat, lng: drive.me.lng } : null;
@@ -116,14 +128,23 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   const hereLabel = hereName?.session === drive.session ? hereName.name : null;
   // The ACTUAL start of this drive, kept apart from the PLANNED start (which is never changed).
   const startedFrom = confirmed && away ? { label: hereLabel, plannedLabel: away.startLabel, km: away.km } : null;
-  const gate = { open: gateOpen, confirmed, check: startCheck, confirm: () => setConfirmedSession(drive.session), plannedStart, today: localDate, driveDay, hereLabel };
+  const gate = { open: gateOpen, confirmed, check: startCheck, confirm: () => setConfirmedSession(drive.session), plannedStart, today: localDate, driveDay, hereLabel, tripId: trip.id };
 
   // Turn-by-turn to the next stop (needs a confirmed drive and a precise position).
-  const nextTarget = useMemo(() => (remaining[0] ? { id: remaining[0].id, name: remaining[0].name, lat: remaining[0].lat, lng: remaining[0].lng } : null), [remaining]);
+  const nextTarget = useMemo(() => (targets[0] ? { id: targets[0].id, name: targets[0].name, lat: targets[0].lat, lng: targets[0].lng, kind: targets[0].kind } : null), [targets]);
   const navigation: Navigation = useNavigation({ target: nextTarget, ready: liveOk, fixRef });
   useEffect(() => {
     endRef.current = navigation.stop;
   });
+
+  // The autopilot reasons about the real stops only. When the destination was appended to the drive's road route, hand it
+  // the same route without that last leg, so its own consistency check (legs ↔ stops) keeps passing.
+  const intelRoute = useMemo(() => {
+    const r = drive.route;
+    if (!r) return null;
+    const withDest = r.stopIds[r.stopIds.length - 1] === DESTINATION_ID; // the route only reaches it when it fits the ETA's stop limit
+    return withDest ? { ...r, legs: r.legs.slice(0, -1), stopIds: r.stopIds.slice(0, -1) } : r;
+  }, [drive.route]);
 
   const intel: IntelState = useIntel({
     tripId: trip.id,
@@ -131,7 +152,7 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
     live: liveOk && drive.me ? { lat: drive.me.lat, lng: drive.me.lng, heading: drive.me.heading, speedKmh: drive.me.speedKmh } : null,
     preview: previewFrom ? { lat: previewFrom.lat, lng: previewFrom.lng, heading: null, speedKmh: null } : null,
     stops: intelStops,
-    route: drive.route,
+    route: intelRoute,
     comparePlan: todayDay !== null && driveDay === todayDay,
     drivingMin: drive.drivingMin,
     canMoveNextDay: driveDay < trip.num_days,
@@ -145,14 +166,16 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   // The end of today's journey ("Vizag · 624 km · arrive 8:42 PM"), from the same road legs as everything else.
   const journey = useMemo(() => {
     const p = navigation.progress;
-    const legs = drive.route && remaining[0] && drive.route.stopIds[0] === remaining[0].id ? drive.route.legs.slice(1) : [];
+    const legs = drive.route && targets[0] && drive.route.stopIds[0] === targets[0].id ? drive.route.legs.slice(1) : [];
     if (navigation.phase !== "navigating" || !p || legs.length === 0 || !drive.me) return null;
-    const finalStop = remaining[remaining.length - 1];
+    const finalTarget = targets[targets.length - 1];
+    // A stay is counted at every target except the last (you do not "visit" the end of the journey on the way to it).
+    const visitMinutes = targets.map((t) => (t.kind === "stop" ? intelStops.find((s) => s.id === t.id)?.visitMin ?? 0 : 0));
     return journeySummary({
       nowMs: drive.me.at, currentLegRemainingM: p.remainingM, currentLegRemainingS: p.remainingS, laterLegs: legs,
-      visitMinutes: intelStops.map((s) => s.visitMin), finalName: finalStop?.name ?? "your destination",
+      visitMinutes, finalName: finalTarget?.name ?? "your destination",
     });
-  }, [navigation.phase, navigation.progress, drive.route, drive.me, remaining, intelStops]);
+  }, [navigation.phase, navigation.progress, drive.route, drive.me, targets, intelStops]);
 
   const liveMarkers = useMemo<LiveMarker[]>(() => {
     const out: LiveMarker[] = [];
@@ -182,5 +205,5 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
     return e ? Math.round(CATEGORIES[e.category].hours * 60) : 0;
   };
 
-  return { journey, startedFrom, navigation, gate, liveOk, timing, weatherNote, nowMs, localDate, localTime, todayDay, driveDay, dayPlaces, remaining, done, driveStops, drive: driveWithNav, intel, intelStops, previewFrom, liveMarkers, poiMarkers, stayMinutes, nextStop: remaining[0] ?? null };
+  return { journey, startedFrom, navigation, gate, liveOk, timing, weatherNote, nowMs, localDate, localTime, todayDay, overrun, driveDay, dayPlaces, remaining, done, driveStops, targets, nextTarget, drive: driveWithNav, intel, intelStops, previewFrom, liveMarkers, poiMarkers, stayMinutes, nextStop: remaining[0] ?? null };
 }

@@ -26,27 +26,25 @@ export async function GET(req: NextRequest) {
 // appends it to the end of the chosen day.
 export async function POST(req: Request) {
   const supabase = await createClient();
+  // The sign-in check overlaps with reading the body and the two lookups below (they are reads under Row Level Security and do
+  // not need the user). Nothing is written until the Auth server has confirmed the person; a bad body or no user still ends
+  // the request exactly as before (401 first, then 400).
+  const authP = supabase.auth.getUser();
+  const parsed = await parseBody(req, createPlaceSchema);
+  const input = parsed.data;
+  // Match against curated season data (similar name AND geographically close, see lib/season-match) and find the next position within the day.
+  // Promise.resolve(...) STARTS each request now: a query builder is lazy and would otherwise wait until it is awaited.
+  const tagsP = input ? Promise.resolve(supabase.from("season_tags").select("id, place_name, lat, lng, category, good_months, reason")) : null;
+  const lastP = input
+    ? Promise.resolve(supabase.from("places").select("sequence_order").eq("trip_id", input.trip_id).eq("day_number", input.day_number).order("sequence_order", { ascending: false, nullsFirst: false }).limit(1).maybeSingle())
+    : null;
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await authP;
   if (!user) return jsonError("Please sign in", 401);
-
-  const { data: input, error: bodyError } = await parseBody(req, createPlaceSchema);
-  if (bodyError) return bodyError;
-
-  // Match against curated season data: similar name AND geographically close (see lib/season-match).
-  const { data: tags } = await supabase.from("season_tags").select("id, place_name, lat, lng, category, good_months, reason");
+  if (parsed.error || !input) return parsed.error!;
+  const [{ data: tags }, { data: last }] = await Promise.all([tagsP!, lastP!]);
   const match = matchSeasonTag(input, tags ?? []);
-
-  // Next position within the day.
-  const { data: last } = await supabase
-    .from("places")
-    .select("sequence_order")
-    .eq("trip_id", input.trip_id)
-    .eq("day_number", input.day_number)
-    .order("sequence_order", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
 
   const { data: place, error } = await supabase
     .from("places")

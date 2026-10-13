@@ -13,12 +13,17 @@ export async function AppShell({ children }: { children: ReactNode }) {
   let initial = "?";
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // The sign-in check and the trips list go out together (they used to be two round trips in a row on every full page load).
+    // Without a signed-in user the list is simply not used; Row Level Security decides what the list can contain.
+    const [auth, list, today] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.from("trips").select("id, name, start_date, num_days").order("created_at", { ascending: false }).limit(30),
+      todayISO(),
+    ]);
+    const user = auth.data.user;
     if (user) {
       initial = (user.user_metadata?.display_name ?? user.email ?? "?").toString()[0]?.toUpperCase() ?? "?";
-      const today = await todayISO();
-      const { data } = await supabase.from("trips").select("id, name, start_date, num_days").order("created_at", { ascending: false }).limit(30);
-      trips = (data ?? []).map((t) => ({ id: t.id as string, name: t.name as string, state: tripState(t as { start_date: string | null; num_days: number }, today) }));
+      trips = (list.data ?? []).map((t) => ({ id: t.id as string, name: t.name as string, state: tripState(t as { start_date: string | null; num_days: number }, today) }));
     }
   } catch {
     /* navigation still renders; pages show their own errors */

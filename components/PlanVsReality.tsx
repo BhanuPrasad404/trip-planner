@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useSyncExternalStore } from "react";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { addDays, parseISODate } from "@/lib/dates";
@@ -20,7 +21,7 @@ export function PlanVsReality({ trip }: { trip: LearnTrip }) {
   const offset = useSyncExternalStore(subscribe, browserOffset, () => null);
   const scheduled = trip.places.filter((p) => p.day_number !== null);
   if (scheduled.length === 0) return <p className="rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">Nothing was scheduled on this trip, so there is nothing to compare.</p>;
-  if (offset === null) return <div className="h-40 animate-pulse rounded-2xl bg-line/60" aria-hidden="true" />;
+  if (offset === null) return <Skeleton className="h-40 rounded-2xl" />;
 
   const r = tripReality(trip, offset);
   const start = trip.start_date ? parseISODate(trip.start_date) : null;

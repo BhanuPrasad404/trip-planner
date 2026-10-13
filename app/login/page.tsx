@@ -8,9 +8,9 @@ export const metadata: Metadata = { title: "Log in" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; error?: string; deleted?: string }>;
 }) {
-  const { next, error } = await searchParams;
+  const { next, error, deleted } = await searchParams;
   return (
     <>
       <SiteHeader />
@@ -19,6 +19,7 @@ export default async function LoginPage({
           mode="login"
           next={safeNextPath(next)}
           initialError={error ? "We couldn't verify that link. Please try again." : null}
+          initialNotice={deleted ? "Your account and data have been deleted. Thank you for trying Trailmate." : null}
         />
       </main>
     </>

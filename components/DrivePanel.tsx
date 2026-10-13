@@ -7,6 +7,7 @@ import type { TripMember } from "@/lib/types";
 import type { Drive, DriveTarget } from "@/lib/client/use-drive";
 import { Button } from "./ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
+import { DESTINATION_ID } from "@/lib/map/drive-targets";
 
 type DrivePanelProps = {
   drive: Drive;
@@ -77,12 +78,12 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
               </div>
             ) : !summary ? (
               <p className="text-sm text-white/85">
-                {stops.length === 0 ? `No stops left on ${dayLabel}. Add or schedule a stop to see distance and arrival time.` : "Working out the route…"}
+                {stops.length === 0 ? `No stops left on ${dayLabel}. Add a stop or set a destination to see distance and arrival time.` : "Working out the route…"}
                 {me.speedKmh != null && <span className="ml-2 font-mono">{me.speedKmh} km/h</span>}
               </p>
             ) : (
               <>
-                <p className="font-mono text-xs uppercase tracking-widest text-white/70">Next stop</p>
+                <p className="font-mono text-xs uppercase tracking-widest text-white/70">{summary.next.id === DESTINATION_ID ? "Destination" : "Next stop"}</p>
                 <div className="mt-1 flex items-start justify-between gap-3">
                   <p className="min-w-0 break-words font-display text-xl font-semibold leading-tight">{summary.next.name}</p>
                   {me.speedKmh != null && (

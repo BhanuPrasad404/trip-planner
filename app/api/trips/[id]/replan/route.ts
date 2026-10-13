@@ -130,7 +130,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     warnings.push(
       nextDay === null
         ? "This was the last day, so those stops went back to Ideas."
-        : `Day ${nextDay} now has extra stops — run Auto-plan to re-balance it.`
+        : `Day ${nextDay} now has extra stops — use Plan my trip to re-balance it.`
     );
   }
 

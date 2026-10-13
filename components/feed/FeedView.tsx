@@ -1,5 +1,7 @@
 "use client";
 
+import { FeedSkeleton } from "@/components/ui/Skeleton";
+import { Spinner } from "@/components/ui/Spinner";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createEventQueue, type FeedEventType, type QueuedEvent } from "@/lib/client/feed-events";
@@ -197,7 +199,7 @@ export function FeedView({ tripId, trips, hasProfile }: { tripId: string | null;
         </div>
 
         {state.status === "loading" && (
-          <section className={SECTION} aria-label="Loading the feed"><div className={COLUMN}><div className="h-full animate-pulse bg-gradient-to-b from-pine/70 to-pine md:rounded-3xl" role="status"><span className="sr-only">Loading</span></div></div></section>
+          <section className={SECTION} aria-label="Loading the feed"><div className={COLUMN}><div className="h-full overflow-hidden md:rounded-3xl" role="status"><FeedSkeleton /><span className="sr-only">Loading</span></div></div></section>
         )}
 
         {state.status === "error" && items.length === 0 && (
@@ -223,7 +225,7 @@ export function FeedView({ tripId, trips, hasProfile }: { tripId: string | null;
         ))}
 
         {state.status === "loadingMore" && (
-          <section className={SECTION}><div className={`${COLUMN} flex items-center justify-center`} role="status"><span className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white" /><span className="sr-only">Loading more</span></div></section>
+          <section className={SECTION}><div className={`${COLUMN} flex items-center justify-center`} role="status"><Spinner size={40} label="Loading more" className="text-white" /></div></section>
         )}
         {state.status === "error" && items.length > 0 && (
           <section className={SECTION}><div className={`${COLUMN} flex flex-col items-center justify-center gap-4 px-8 text-center text-white`} role="alert">

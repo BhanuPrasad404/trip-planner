@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/PageHeader";
 import { SetupCheck } from "@/components/SetupCheck";
+import { AccountDataPanel } from "@/components/AccountDataPanel";
 import { ContributionCard } from "@/components/ContributionCard";
 import { TravelerProfileForm } from "@/components/TravelerProfileForm";
 import { TravelStyleClient } from "@/components/TravelStyleClient";
@@ -40,6 +41,8 @@ export default async function ProfilePage() {
           <li>You can switch location off in your browser at any time — Trailmate still works for planning, and Google Maps links keep working.</li>
         </ul>
       </section>
+
+      <AccountDataPanel email={user.email ?? ""} />
 
       <SetupCheck items={setup} />
     </main>

@@ -55,7 +55,7 @@ export function TripPrefsForm({ tripId, tripType, rangeKm, isOwner }: { tripId: 
         </label>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button size="sm" onClick={save} disabled={!isOwner || busy}>{busy ? "Saving…" : "Save"}</Button>
+        <Button size="sm" onClick={save} disabled={!isOwner} loading={busy} loadingLabel="Saving…">Save</Button>
         {!isOwner && <p className="text-sm text-ink-muted">Only the trip owner can change this.</p>}
         {msg && <p role={msg.ok ? "status" : "alert"} className={`text-sm font-semibold ${msg.ok ? "text-teal-ink" : "text-clay-ink"}`}>{msg.text}</p>}
       </div>

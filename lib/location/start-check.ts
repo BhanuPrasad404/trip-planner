@@ -4,12 +4,14 @@
 //   • today's real date
 import { distanceKm, type GeoPoint } from "@/lib/geo";
 import { tripTiming } from "@/lib/time-context";
+import { liveDayFor } from "@/lib/trip-state";
 import type { FixQuality } from "./quality";
 
 /** Farther than this from the planned start (and sure about it) → ask what to do. */
 export const FAR_FROM_START_KM = 5;
 
 export type StartIssue =
+  | { kind: "no-dates" }
   | { kind: "early"; daysUntil: number; plannedDate: string }
   | { kind: "late"; plannedDate: string }
   | { kind: "away-from-start"; km: number; startLabel: string }
@@ -34,8 +36,12 @@ export function checkStart(args: {
   const issues: StartIssue[] = [];
   const timing = tripTiming(trip, todayISO);
 
+  // No dates: the drive can still go ahead, but date-based checks (season, weather, opening days) cannot be made. Say so, once.
+  if (timing.state === "no-dates") issues.push({ kind: "no-dates" });
+
   if (timing.state === "before" && timing.firstDate) issues.push({ kind: "early", daysUntil: timing.daysUntil ?? 0, plannedDate: timing.firstDate });
-  if (timing.state === "after" && timing.lastDate) issues.push({ kind: "late", plannedDate: timing.lastDate });
+  // Still finishing the last day after midnight is not "late" — only a drive well after the planned end needs the question.
+  if (timing.state === "after" && timing.lastDate && liveDayFor(trip, todayISO).mode !== "overrun") issues.push({ kind: "late", plannedDate: timing.lastDate });
 
   let kmFromStart: number | null = null;
   if (here && plannedStart) {

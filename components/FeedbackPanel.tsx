@@ -85,8 +85,8 @@ export function FeedbackPanel({ tripId }: { tripId: string }) {
             />
           </div>
           <FormError message={error} />
-          <Button type="submit" size="sm" disabled={sending || message.trim().length < 3}>
-            {sending ? "Sending…" : "Send feedback"}
+          <Button type="submit" size="sm" loading={sending} loadingLabel="Sending…" disabled={message.trim().length < 3}>
+            Send feedback
           </Button>
         </form>
       )}

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { NewTripForm } from "@/components/NewTripForm";
 import { PageHeader } from "@/components/PageHeader";
 import { TripCard } from "@/components/TripCard";
-import { requireUser } from "@/lib/auth";
+import { requireUserAnd } from "@/lib/auth";
 import { summarizeTrips } from "@/lib/server/trip-summaries";
 import { todayISO } from "@/lib/server/trip-data";
 import type { TripState } from "@/lib/trip-state";
@@ -17,8 +17,8 @@ const TABS: { id: "all" | TripState; label: string }[] = [
 
 export default async function TripsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { tab } = await searchParams;
-  const { supabase, user } = await requireUser("/trips");
-  const { data, error } = await supabase.from("trips").select("*").order("created_at", { ascending: false }).limit(100);
+  const { supabase, user, loaded } = await requireUserAnd("/trips", async (sb) => await sb.from("trips").select("*").order("created_at", { ascending: false }).limit(100));
+  const { data, error } = loaded;
   if (error) console.error("[trips] list failed:", error.message);
   const trips = await summarizeTrips(supabase, (data ?? []) as Trip[], await todayISO());
 

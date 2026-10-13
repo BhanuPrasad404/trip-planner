@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_TRIP_DAYS } from "@/lib/types";
+import { isRealISODate } from "@/lib/dates";
 import { REPORT_TAG_IDS } from "@/lib/reports";
 import { NEARBY_KIND_IDS } from "@/lib/nearby";
 import { TRIP_TYPES } from "@/lib/intel/types";
@@ -282,3 +283,16 @@ export const placePhotosSchema = z.object({
     lng: longitude,
   })).min(1, "No places").max(30, "Too many places at once"),
 });
+
+/** Change a trip's dates or length. Only what is sent changes; start_date null means "no dates". */
+export const updateTripSchema = z
+  .object({
+    start_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the format YYYY-MM-DD")
+      .refine((v) => isRealISODate(v), "That is not a real calendar date")
+      .nullable()
+      .optional(),
+    num_days: z.number().int("Use a whole number of days").min(1, "At least 1 day").max(MAX_TRIP_DAYS, `Max ${MAX_TRIP_DAYS} days`).optional(),
+  })
+  .refine((v) => v.start_date !== undefined || v.num_days !== undefined, { message: "Nothing to change" });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { jsonError, parseBody } from "@/lib/api";
 import { consumeQuota } from "@/lib/quota";
 import { loadBuilder } from "@/lib/server/builder";
+import { adviseDuration } from "@/lib/trip-builder/duration";
 import { todayISO } from "@/lib/server/trip-data";
 import { builderSchema, uuid } from "@/lib/validation/schemas";
 
@@ -21,5 +22,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: input.styles, todayISO: await todayISO(), userId: user.id });
   if (!r.ok) return jsonError(r.error, r.status);
-  return NextResponse.json({ result: r.result, signature: r.signature, unscheduledIds: r.unscheduledIds });
+  // How many days these places really need (from actually planning them), so the traveller does not have to work it out. Advice only.
+  return NextResponse.json({ result: r.result, signature: r.signature, unscheduledIds: r.unscheduledIds, duration: adviseDuration(r.input) });
 }

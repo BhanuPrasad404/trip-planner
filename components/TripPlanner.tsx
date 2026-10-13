@@ -22,14 +22,20 @@ import { RouteThread } from "./RouteThread";
 import { StopCard } from "./StopCard";
 import { TripMapLazy } from "./TripMapLazy";
 import { TripAlerts } from "./TripAlerts";
-import { Button } from "./ui/Button";
+import { Button, buttonClasses } from "./ui/Button";
+import { TripDatesPanel } from "./TripDatesPanel";
+import { TripCheck } from "./TripCheck";
+import { weatherVisual } from "@/lib/travel/weather-visual";
+import { usePlanRoad } from "@/lib/client/use-plan-road";
+import { planLine } from "@/lib/map/plan-line";
 import { FormError } from "./ui/Field";
 import { Glyph } from "@/components/ui/Glyph";
 import { describeDistance, summarizeDay, summarizeTrip } from "@/lib/trip-distance";
 import { dayWithDate, isoDate, relativeDay, tripTiming } from "@/lib/time-context";
 import { WhenChip } from "@/components/ui/WhenChip";
 import { TripBuilder } from "@/components/builder/TripBuilder";
-import type { PlanOption } from "@/lib/trip-builder";
+import { NO_OVERRIDES, applyPlaceOverrides, applyVoteOverrides, dropOverride, withPlaceOverride, withVoteOverride, type Overrides } from "@/lib/optimistic";
+import { duration, hhmm, type PlanOption } from "@/lib/trip-builder";
 
 type TripPlannerProps = {
   trip: Trip;
@@ -46,25 +52,28 @@ type TripPlannerProps = {
   reports?: Record<string, ReportView[]>;
 };
 
-type PlanReport = { warnings: string[]; routing: "osrm" | "estimate"; daysUsed: number };
-
 const monthName = (m: number) => new Date(2000, m - 1, 1).toLocaleString("en-IN", { month: "long" });
 
-export function TripPlanner({ trip, places, today, conditions, userId, votes, reports = {} }: TripPlannerProps) {
+export function TripPlanner({ trip, places: serverPlaces, today, conditions, userId, votes: serverVotes, reports = {} }: TripPlannerProps) {
   const router = useRouter();
-  const [isRefreshing, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [activeDay, setActiveDay] = useState(1);
   const [showAddForm, setShowAddForm] = useState(false);
   const [importState, setImportState] = useState<{ open: boolean; brief?: string; nonce: number }>({ open: false, nonce: 0 });
   const [mapFit, setMapFit] = useState<"day" | "all">("all");
-  // A plan option from the Trip builder being previewed on the map (nothing is saved until the traveller applies it).
+  // A plan option from the Plan my trip assistant being previewed on the map (nothing is saved until the traveller applies it).
   const [preview, setPreview] = useState<PlanOption | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [planning, setPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [report, setReport] = useState<PlanReport | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const nowMinute = useNowMinute(); // 0 on the server, real time after hydration
+
+  // Done / skip / undo, votes and remove show their result the instant you tap (the card says "Saving…" until the server confirms;
+  // a failed save is taken back and the error shown). Fresh server data always replaces these local changes. See lib/optimistic.ts.
+  const [ov, setOv] = useState<Overrides>(NO_OVERRIDES);
+  const places = useMemo(() => applyPlaceOverrides(serverPlaces, ov, serverPlaces), [serverPlaces, ov]);
+  const votes = useMemo(() => applyVoteOverrides(serverVotes, ov, serverVotes), [serverVotes, ov]);
 
   const refresh = () => startTransition(() => router.refresh());
   useTripRealtime(trip.id, userId, refresh, (name) => setNotice(`A group member just added “${name}”.`));
@@ -120,10 +129,11 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
   }, [enriched]);
 
   const mapPlaces = useMemo(() => {
-    if (!preview) return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order }));
+    const drive = (p: (typeof places)[number]) => (p.drive_minutes ? `${formatDuration(p.drive_minutes)}${p.drive_km != null ? ` · ${Math.round(p.drive_km)} km` : ""} from the previous point` : null);
+    if (!preview) return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null, arrival: p.arrival_time?.slice(0, 5) ?? null, driveText: drive(p) }));
     // Preview: the option's days and order, on the same map. Places the plan leaves out show as unscheduled.
-    const slot = new Map(preview.days.flatMap((d) => d.stops.map((s) => [s.placeId, { day: s.day, order: s.order }] as const)));
-    return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: slot.get(p.id)?.day ?? null, order: slot.get(p.id)?.order ?? null }));
+    const slot = new Map(preview.days.flatMap((d) => d.stops.map((s) => [s.placeId, { day: s.day, order: s.order, arrive: hhmm(s.arriveMin), drive: `${duration(s.driveMin)} · ${Math.round(s.driveKm)} km from the previous point` }] as const)));
+    return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: slot.get(p.id)?.day ?? null, order: slot.get(p.id)?.order ?? null, status: p.status ?? null, arrival: slot.get(p.id)?.arrive ?? null, driveText: slot.get(p.id)?.drive ?? null }));
   }, [places, preview]);
   const mapStart = useMemo(
     () => (trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat, lng: trip.start_lng, label: trip.start_city ?? "Start" } : null),
@@ -135,6 +145,10 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
   );
   // Searches stay local to where the trip is GOING (falls back to the start city).
   const near = mapDest ?? mapStart;
+
+  // The real road for the day being looked at (the same points as the dashed plan line). Loads in the background.
+  const roadPoints = useMemo(() => planLine({ places: mapPlaces, start: mapStart, destination: mapDest, activeDay, numDays: trip.num_days }).map(([lng, lat]) => ({ lat, lng })), [mapPlaces, mapStart, mapDest, activeDay, trip.num_days]);
+  const road = usePlanRoad(roadPoints);
 
   // Pins that are suspiciously far from the trip area (usually a wrong-state match).
   const farPins = useMemo(
@@ -176,7 +190,6 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
   // Stable per render pass; "now" for report ages. (nowMinute is 0 until the browser clock is ready.)
   const reportNow = useMemo(() => new Date(nowMinute ? nowMinute * 60_000 : Date.parse(`${today}T12:00:00Z`)), [nowMinute, today]);
 
-  const canAutoPlan = trip.start_lat != null && trip.start_lng != null && places.length > 0;
   const activeDate = dateOfTripDay(trip.start_date, activeDay);
   const activeISO = activeDate ? isoDate(activeDate) : null;
 
@@ -199,7 +212,9 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
   async function removePlace(id: string) {
     setError(null);
     setBusyId(id);
+    setOv((cur) => withPlaceOverride(cur, serverPlaces, serverVotes, id, { removed: true }));
     if (await call(`/api/places/${id}`, { method: "DELETE" }, "Couldn't remove this stop.")) refresh();
+    else setOv((cur) => dropOverride(cur, id)); // it did not work: the stop comes back
     setBusyId(null);
   }
 
@@ -216,14 +231,18 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
   async function votePlace(id: string, vote: -1 | 0 | 1) {
     setError(null);
     setBusyId(id);
+    setOv((cur) => withVoteOverride(cur, serverPlaces, serverVotes, id, vote));
     if (await call(`/api/places/${id}/vote`, json("POST", { vote }), "Couldn't save your vote.")) refresh();
+    else setOv((cur) => dropOverride(cur, id)); // it did not work: your vote goes back to what it was
     setBusyId(null);
   }
 
   async function setStatus(id: string, status: "planned" | "done" | "skipped") {
     setError(null);
     setBusyId(id);
+    setOv((cur) => withPlaceOverride(cur, serverPlaces, serverVotes, id, { status }));
     if (await call(`/api/places/${id}`, json("PATCH", { status }), "Couldn't update this stop.")) refresh();
+    else setOv((cur) => dropOverride(cur, id)); // it did not work: the stop goes back to how it was
     setBusyId(null);
   }
 
@@ -231,7 +250,7 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
     setError(null);
     setBusyId(id);
     if (await call(`/api/places/${id}`, json("PATCH", { lat: to.lat, lng: to.lng, address: to.address }), "Couldn't move the pin.")) {
-      setNotice("Pin moved. Run Auto-plan again to refresh driving times.");
+      setNotice("Pin moved. Use Plan my trip again to refresh driving times.");
       refresh();
     }
     setBusyId(null);
@@ -249,21 +268,19 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
     setShowAddForm(false);
   }
 
-  async function autoPlan() {
-    const ok = window.confirm(
-      "Auto-plan will reorder ALL stops using real driving times, spread them across your days and set estimated arrival times. Continue?"
-    );
-    if (!ok) return;
-    setError(null);
-    setNotice(null);
-    setPlanning(true);
-    const body = await call(`/api/trips/${trip.id}/optimize`, { method: "POST" }, "Couldn't auto-plan this trip.");
-    if (body) {
-      setReport({ warnings: (body.warnings as string[]) ?? [], routing: body.routing as "osrm" | "estimate", daysUsed: Number(body.daysUsed) || 0 });
-      setActiveDay(1);
-      refresh();
-    }
-    setPlanning(false);
+  /** "Show on the map" on a stop card: highlight it, open its details on the map, and on a phone bring the map into view. */
+  function showOnMap(id: string) {
+    setSelectedId(id);
+    const day = places.find((x) => x.id === id)?.day_number;
+    if (day) setActiveDay(day);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) document.getElementById("plan-map")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  /** A pin was tapped on the map: show that day, highlight the stop and scroll to its card. */
+  function selectFromMap(id: string) {
+    setSelectedId(id);
+    const day = places.find((x) => x.id === id)?.day_number;
+    if (day) setActiveDay(day);
+    requestAnimationFrame(() => document.getElementById(`stop-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
 
   const cardProps = (e: (typeof enriched)[number]) => ({
@@ -271,7 +288,7 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
     status: e.status,
     category: e.category,
     score: e.score,
-    scoreFor: activeISO ? dayWithDate(activeISO, today) : undefined,
+    scoreFor: activeISO ? dayWithDate(activeISO, today) : "today (no trip dates set)",
     seasonReason: e.place.season_tags?.reason,
     moveDays: days,
     votes: votes[e.place.id],
@@ -287,6 +304,9 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
     reports: reports[e.place.id],
     reportCtx: { userId, now: reportNow, onChanged: refresh },
     busy: busyId === e.place.id,
+    selected: selectedId === e.place.id,
+    weather: weatherVisual(conditions[e.place.id] ?? null, e.category),
+    onShowOnMap: showOnMap,
   });
 
   return (
@@ -294,15 +314,15 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="text-sm text-ink-muted">Build the itinerary. Planning lives here; travelling happens on the <strong className="text-pine">Live</strong> page.</p>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" onClick={() => { setImportState((s) => ({ open: true, nonce: s.nonce + 1 })); setShowAddForm(false); }}><span className="inline-flex items-center gap-1.5"><Glyph name="sparkles" size={16} />Import places</span></Button>
-          <Button onClick={autoPlan} disabled={!canAutoPlan || planning || isRefreshing}>{planning ? "Planning route…" : <span className="inline-flex items-center gap-1.5"><Glyph name="navigate" size={16} />Auto-plan route</span>}</Button>
+          <Button variant="secondary" onClick={() => { setImportState((s) => ({ open: true, nonce: s.nonce + 1 })); setShowAddForm(false); }}><Glyph name="sparkles" size={16} />Import places</Button>
+          <a href="#plan-assistant" className={buttonClasses("primary", "md")}><Glyph name="navigate" size={16} />Plan my trip</a>
         </div>
-        {!canAutoPlan && <p className="text-sm text-ink-muted sm:basis-full">{places.length === 0 ? "Add a few places to enable auto-planning." : "This trip has no start point set."}</p>}
       </div>
 
       <main id="main" className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
-        {/* ───── Map ───── */}
-        <div className="relative h-80 overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:col-start-2 lg:row-start-1 lg:h-96">
+        {/* ───── Map (stays in view on a laptop while you read the days) + trip overview ───── */}
+        <div className="space-y-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-stretch">
+        <div id="plan-map" className="relative h-80 scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:sticky lg:top-4 lg:z-20 lg:h-[26rem]">
           {preview && (
             <p role="status" className="absolute inset-x-2 bottom-2 z-10 flex items-center justify-between gap-2 rounded-xl bg-pine/95 px-3 py-2 text-xs font-semibold text-white shadow">
               <span>Previewing the {preview.label} plan — not saved yet</span>
@@ -315,7 +335,17 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
             destination={mapDest}
             activeDay={activeDay}
             fit={mapFit}
+            numDays={trip.num_days}
+            selectedId={selectedId}
+            onSelectPlace={selectFromMap}
+            planRoad={road.line}
           />
+          {roadPoints.length >= 2 && (
+            <p role="status" className="pointer-events-none absolute left-2 top-14 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-ink-muted shadow">
+              <Glyph name="car" size={13} />
+              {road.line ? "Road route for this day" : road.loading ? "Finding the road…" : "Straight lines (road route not available)"}
+            </p>
+          )}
           <div role="group" aria-label="Map framing" className="absolute left-2 top-2 flex overflow-hidden rounded-lg border border-line bg-white text-xs font-semibold shadow">
             {(["day", "all"] as const).map((f) => (
               <button
@@ -330,14 +360,110 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
             ))}
           </div>
         </div>
+          <aside className="space-y-6" aria-label="Trip overview">
+            <section aria-labelledby="overview-heading" className="rounded-2xl border border-line bg-white p-5">
+              <div className="flex items-start justify-between gap-3">
+                <h2 id="overview-heading" className="font-display text-lg font-semibold text-pine">Trip readiness</h2>
+                {readiness !== null && (
+                  <span className="font-mono text-2xl font-semibold text-pine">{readiness}<span className="text-sm text-ink-muted">/100</span></span>
+                )}
+              </div>
+
+              {places.length === 0 ? (
+                <p className="mt-2 text-sm text-ink-muted">Add places and Trailmate scores each one for the day you&apos;ll be there — season, weather and more.</p>
+              ) : scored.length === 0 ? (
+                <p className="mt-2 text-sm text-ink-muted">We don&apos;t have season or weather data for these places yet, so we can&apos;t judge their timing.</p>
+              ) : attention.length === 0 ? (
+                <p className="mt-2 text-sm text-teal-ink">
+                  <Glyph name="check" size={15} className="mr-1.5 inline align-text-bottom" />Timing looks good for {scored.length === places.length ? "all" : `the ${scored.length} places we have data for`}
+                  {scored.length === places.length && ` ${places.length} ${places.length === 1 ? "stop" : "stops"}`}.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm text-clay-ink">
+                    <Glyph name="warn" size={15} className="mr-1.5 inline align-text-bottom" />
+                    {attention.length} {attention.length === 1 ? "stop needs" : "stops need"} a second look:
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {attention.map(({ place, score }) => (
+                      <li key={place.id}>
+                        <button
+                          type="button"
+                          onClick={() => place.day_number && setActiveDay(place.day_number)}
+                          disabled={!place.day_number}
+                          className="w-full rounded-xl bg-clay-light px-3 py-2.5 text-left text-sm hover:bg-[#f7d9cc] disabled:cursor-default"
+                        >
+                          <span className="font-semibold text-clay-ink">{place.name}</span>
+                          <span className="block text-ink-muted">
+                            {score ? `Go score ${score.score} · ${score.reasons[score.reasons.length - 1]}` : "Outside its best season"}
+                            {place.day_number ? ` — Day ${place.day_number}` : " — in Ideas"}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {tripStats.basis !== "none" && (
+                  <p className="mt-3 border-t border-line pt-3 text-sm text-ink-muted">
+                    <strong className="text-pine">Whole trip:</strong> {describeDistance(tripStats)}
+                    {tripStats.minutes !== null ? ` · ${formatDuration(tripStats.minutes)} driving` : ""}
+                    {tripStats.basis !== "road" && <span className="mt-1 block text-xs">Use <strong>Plan my trip</strong> to get distances and times by road.</span>}
+                  </p>
+                )}
+              </section>
+
+            {farList.length > 0 && (
+              <section aria-labelledby="pins-heading" className="rounded-2xl border border-clay/30 bg-clay-light/60 p-5">
+                <h2 id="pins-heading" className="font-display text-lg font-semibold text-clay-ink">Pins to double-check</h2>
+                <p className="mt-1 text-sm text-ink-muted">These look far from {mapDest ? mapDest.label : "your other stops"}. Open the stop and use “Wrong location?” if one is wrong.</p>
+                <ul className="mt-3 space-y-2">
+                  {farList.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => p.day_number && setActiveDay(p.day_number)}
+                        disabled={!p.day_number}
+                        className="w-full rounded-xl bg-white px-3 py-2.5 text-left text-sm hover:bg-sky disabled:cursor-default"
+                      >
+                        <span className="font-semibold">{p.name}</span>
+                        <span className="block text-ink-muted">
+                          {Math.round(farPins[p.id].km)} km away{p.day_number ? ` — Day ${p.day_number}` : " — in Ideas"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <p className="px-1 text-xs leading-relaxed text-ink-muted">
+              Go scores are estimates from season data plus a weather forecast (next 16 days) or typical conditions for your dates
+              (last 6 years). Driving times come from a routing service and may differ from your real trip. Pins come from a public
+              map search — if one looks wrong, use “Wrong location?” on the stop.
+            </p>
+          </aside>
+        </div>
 
         {/* ───── Itinerary + ideas ───── */}
         <div className="space-y-6 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+          <TripDatesPanel
+            tripId={trip.id}
+            startDate={trip.start_date}
+            numDays={trip.num_days}
+            canEdit={trip.owner_id === userId}
+            stopCountsByDay={stopCounts}
+            onChanged={refresh}
+          />
+          <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} conditions={conditions} roadLine={road.line} />
           <TripBuilder
             tripId={trip.id}
             places={places}
             hasStart={trip.start_lat != null && trip.start_lng != null}
             hasDestination={trip.dest_lat != null && trip.dest_lng != null}
+            startLabel={trip.start_city}
+            destLabel={trip.dest_name}
+            canEditTrip={trip.owner_id === userId}
             onPreview={(o) => { setPreview(o); if (o) setMapFit("all"); }}
             onChanged={refresh}
           />
@@ -351,7 +477,7 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
               onCancel={() => setImportState((s) => ({ ...s, open: false }))}
               onDone={(n) => {
                 setImportState((s) => ({ ...s, open: false }));
-                setNotice(`Added ${n} ${n === 1 ? "place" : "places"} to your Ideas. Vote on them, then let Auto-plan schedule them.`);
+                setNotice(`Added ${n} ${n === 1 ? "place" : "places"} to your Ideas. Vote on them, then use Plan my trip to schedule them.`);
                 refresh();
               }}
             />
@@ -360,19 +486,6 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
           <div aria-live="polite" className="space-y-3 empty:hidden">
             <FormError message={error} />
             {notice && <p role="status" className="rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">{notice}</p>}
-            {report && (
-              <div role="status" className="rounded-xl border border-line bg-white px-4 py-3 text-sm">
-                <p className="font-semibold text-pine">
-                  Planned across {report.daysUsed} {report.daysUsed === 1 ? "day" : "days"} using{" "}
-                  {report.routing === "osrm" ? "real driving times" : "estimated driving times"}.
-                </p>
-                {report.warnings.length > 0 && (
-                  <ul className="mt-2 space-y-1 text-clay-ink">
-                    {report.warnings.map((w) => <li key={w} className="flex items-start gap-1.5"><Glyph name="warn" size={14} className="mt-0.5" />{w}</li>)}
-                  </ul>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm shadow-pine/5">
@@ -420,7 +533,7 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
 
               {dayItems.length === 0 ? (
                 <p className="py-10 text-center text-base text-ink-muted">
-                  Nothing on Day {activeDay} yet. {ideas.length > 0 ? "Schedule something from your Ideas below, or run Auto-plan." : "Import places or add one below."}
+                  Nothing on Day {activeDay} yet. {ideas.length > 0 ? "Schedule something from your Ideas below, or use Plan my trip." : "Import places or add one below."}
                 </p>
               ) : (
                 <ol className="mt-2">
@@ -463,90 +576,6 @@ export function TripPlanner({ trip, places, today, conditions, userId, votes, re
           </section>
         </div>
 
-        {/* ───── Sidebar ───── */}
-        <aside className="space-y-6 lg:col-start-2 lg:row-start-2" aria-label="Trip overview">
-          <section aria-labelledby="overview-heading" className="rounded-2xl border border-line bg-white p-5">
-            <div className="flex items-start justify-between gap-3">
-              <h2 id="overview-heading" className="font-display text-lg font-semibold text-pine">Trip readiness</h2>
-              {readiness !== null && (
-                <span className="font-mono text-2xl font-semibold text-pine">{readiness}<span className="text-sm text-ink-muted">/100</span></span>
-              )}
-            </div>
-
-            {places.length === 0 ? (
-              <p className="mt-2 text-sm text-ink-muted">Add places and Trailmate scores each one for the day you&apos;ll be there — season, weather and more.</p>
-            ) : scored.length === 0 ? (
-              <p className="mt-2 text-sm text-ink-muted">We don&apos;t have season or weather data for these places yet, so we can&apos;t judge their timing.</p>
-            ) : attention.length === 0 ? (
-              <p className="mt-2 text-sm text-teal-ink">
-                <Glyph name="check" size={15} className="mr-1.5 inline align-text-bottom" />Timing looks good for {scored.length === places.length ? "all" : `the ${scored.length} places we have data for`}
-                {scored.length === places.length && ` ${places.length} ${places.length === 1 ? "stop" : "stops"}`}.
-              </p>
-            ) : (
-              <>
-                <p className="mt-2 text-sm text-clay-ink">
-                  <Glyph name="warn" size={15} className="mr-1.5 inline align-text-bottom" />
-                  {attention.length} {attention.length === 1 ? "stop needs" : "stops need"} a second look:
-                </p>
-                <ul className="mt-3 space-y-2">
-                  {attention.map(({ place, score }) => (
-                    <li key={place.id}>
-                      <button
-                        type="button"
-                        onClick={() => place.day_number && setActiveDay(place.day_number)}
-                        disabled={!place.day_number}
-                        className="w-full rounded-xl bg-clay-light px-3 py-2.5 text-left text-sm hover:bg-[#f7d9cc] disabled:cursor-default"
-                      >
-                        <span className="font-semibold text-clay-ink">{place.name}</span>
-                        <span className="block text-ink-muted">
-                          {score ? `Go score ${score.score} · ${score.reasons[score.reasons.length - 1]}` : "Outside its best season"}
-                          {place.day_number ? ` — Day ${place.day_number}` : " — in Ideas"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {tripStats.basis !== "none" && (
-                <p className="mt-3 border-t border-line pt-3 text-sm text-ink-muted">
-                  <strong className="text-pine">Whole trip:</strong> {describeDistance(tripStats)}
-                  {tripStats.minutes !== null ? ` · ${formatDuration(tripStats.minutes)} driving` : ""}
-                  {tripStats.basis !== "road" && <span className="mt-1 block text-xs">Run <strong>Auto-plan route</strong> to get distances and times by road.</span>}
-                </p>
-              )}
-            </section>
-
-          {farList.length > 0 && (
-            <section aria-labelledby="pins-heading" className="rounded-2xl border border-clay/30 bg-clay-light/60 p-5">
-              <h2 id="pins-heading" className="font-display text-lg font-semibold text-clay-ink">Pins to double-check</h2>
-              <p className="mt-1 text-sm text-ink-muted">These look far from {mapDest ? mapDest.label : "your other stops"}. Open the stop and use “Wrong location?” if one is wrong.</p>
-              <ul className="mt-3 space-y-2">
-                {farList.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => p.day_number && setActiveDay(p.day_number)}
-                      disabled={!p.day_number}
-                      className="w-full rounded-xl bg-white px-3 py-2.5 text-left text-sm hover:bg-sky disabled:cursor-default"
-                    >
-                      <span className="font-semibold">{p.name}</span>
-                      <span className="block text-ink-muted">
-                        {Math.round(farPins[p.id].km)} km away{p.day_number ? ` — Day ${p.day_number}` : " — in Ideas"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <p className="px-1 text-xs leading-relaxed text-ink-muted">
-            Go scores are estimates from season data plus a weather forecast (next 16 days) or typical conditions for your dates
-            (last 6 years). Driving times come from a routing service and may differ from your real trip. Pins come from a public
-            map search — if one looks wrong, use “Wrong location?” on the stop.
-          </p>
-        </aside>
       </main>
     </div>
   );

@@ -69,7 +69,7 @@ export function TravelerProfileForm({ initial }: { initial: Initial }) {
         </fieldset>
         <FormError message={error} />
         {saved && <p role="status" className="text-sm font-semibold text-teal-ink">Saved.</p>}
-        <Button type="submit" disabled={busy}>{busy ? "Saving…" : initial ? "Save profile" : "Create traveler profile"}</Button>
+        <Button type="submit" loading={busy} loadingLabel="Saving…">{initial ? "Save profile" : "Create traveler profile"}</Button>
       </form>
     </section>
   );

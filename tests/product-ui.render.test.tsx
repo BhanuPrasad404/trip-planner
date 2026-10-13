@@ -22,7 +22,7 @@ import { TravelStyle } from "@/components/TravelStyle";
 import { TripCard } from "@/components/TripCard";
 import { LiveView } from "@/components/LiveView";
 import { MapView } from "@/components/MapView";
-import { daysUntilStart, tripState } from "@/lib/trip-state";
+import { daysUntilStart, tripOutcome, tripState } from "@/lib/trip-state";
 import { learnFromTrips } from "@/lib/learning";
 import type { TripSummary } from "@/lib/server/trip-summaries";
 
@@ -184,7 +184,7 @@ describe("Trip health & Pulse", () => {
 });
 
 describe("Trips, learning, setup", () => {
-  const trip = (o: Partial<TripSummary> = {}): TripSummary => ({ id: ID, owner_id: "u", name: "Vizag", start_city: "Hyderabad", start_lat: 17, start_lng: 78, dest_name: "Visakhapatnam", dest_lat: 17.7, dest_lng: 83.2, start_date: "2026-10-10", num_days: 3, invite_code: "x", created_at: "", state: "active", daysUntil: null, stops: 6, ideas: 2, done: 2, skipped: 1, ...o });
+  const trip = (o: Partial<TripSummary> = {}): TripSummary => ({ id: ID, owner_id: "u", name: "Vizag", start_city: "Hyderabad", start_lat: 17, start_lng: 78, dest_name: "Visakhapatnam", dest_lat: 17.7, dest_lng: 83.2, start_date: "2026-10-10", num_days: 3, invite_code: "x", created_at: "", state: "active", outcome: tripOutcome(o.state ?? "active", { stops: 6, done: 2, skipped: 1 }), daysUntil: null, stops: 6, ideas: 2, done: 2, skipped: 1, ...o });
   it("a trip card has ONE obvious next action per state", () => {
     expect(renderToStaticMarkup(<TripCard trip={trip()} isOwner />)).toContain("Open live trip");
     expect(renderToStaticMarkup(<TripCard trip={trip({ state: "completed" })} isOwner />)).toContain("See memories");
@@ -236,8 +236,15 @@ describe("Live and Map pages render", () => {
     expect(html).toContain("Search nearby");
     expect(html).toContain("Full-screen map");
   });
-  it("Live with an empty day points to the plan instead of showing nothing", () => {
+  it("Live with no stops but a destination heads for the destination (a start → destination trip has a route to show)", () => {
     const html = renderToStaticMarkup(<LiveView {...props} places={[]} />);
+    expect(html).toContain("Next: Visakhapatnam");
+    expect(html).toContain("Start drive");
+    expect(html).not.toContain("Nothing planned for Day 1");
+  });
+  it("Live with no stops AND no destination points to the plan instead of showing nothing", () => {
+    const noDest = { ...props.trip, dest_name: null, dest_lat: null, dest_lng: null };
+    const html = renderToStaticMarkup(<LiveView {...props} trip={noDest} places={[]} />);
     expect(html).toContain("Nothing planned for Day 1");
     expect(html).toContain("Plan this day");
   });

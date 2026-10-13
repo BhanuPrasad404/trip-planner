@@ -1,6 +1,7 @@
 // "Which date is this about?" — one place for every label that tells the traveller WHEN a fact applies.
 // All inputs are plain calendar dates ("YYYY-MM-DD") in the traveller's own timezone; nothing here reads the clock.
-import { addDays, parseISODate } from "@/lib/dates";
+import { parseISODate } from "@/lib/dates";
+import { tripDates } from "@/lib/trip-state";
 
 /** A local Date → "YYYY-MM-DD" (local calendar date). */
 export const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -68,10 +69,9 @@ export type TripTiming = {
 
 /** Where "today" sits relative to the PLANNED trip dates. Planned dates are never changed by this. */
 export function tripTiming(trip: { start_date: string | null; num_days: number }, todayISO: string, locale = "en-IN"): TripTiming {
-  const start = trip.start_date ? parseISODate(trip.start_date) : null;
-  if (!start) return { state: "no-dates", daysUntil: null, todayDay: null, firstDate: null, lastDate: null, headline: "No dates set yet." };
-  const firstDate = isoDate(start);
-  const lastDate = isoDate(addDays(start, Math.max(1, trip.num_days) - 1));
+  const dates = tripDates(trip); // one rule for "the planned dates" everywhere (validated, never rolled over)
+  if (!dates) return { state: "no-dates", daysUntil: null, todayDay: null, firstDate: null, lastDate: null, headline: "No dates set yet." };
+  const { first: firstDate, last: lastDate } = dates;
   if (todayISO < firstDate) {
     const n = daysBetween(todayISO, firstDate) ?? 0;
     return { state: "before", daysUntil: n, todayDay: null, firstDate, lastDate, headline: `Your trip starts ${n === 1 ? "tomorrow" : `in ${n} days`} (${dayWithDate(firstDate, todayISO, locale).split(" · ").pop()}).` };

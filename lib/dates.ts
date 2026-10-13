@@ -21,3 +21,12 @@ export function dateOfTripDay(startDate: string | null | undefined, day: number)
   const start = parseISODate(startDate);
   return start ? addDays(start, day - 1) : null;
 }
+
+/** A real calendar date? `new Date(2026, 1, 31)` silently becomes 3 March; "2026-02-31" must be rejected, not rolled over. */
+export function isRealISODate(iso: string | null | undefined): iso is string {
+  const m = iso ? /^(\d{4})-(\d{2})-(\d{2})/.exec(iso) : null;
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}

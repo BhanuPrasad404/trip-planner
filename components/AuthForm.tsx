@@ -6,16 +6,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "./ui/Button";
 import { FormError, TextField } from "./ui/Field";
+import { LEGAL_VERSION } from "@/lib/legal";
 
-type AuthFormProps = { mode: "login" | "signup"; next: string; initialError?: string | null };
+type AuthFormProps = { mode: "login" | "signup"; next: string; initialError?: string | null; initialNotice?: string | null };
 
-export function AuthForm({ mode, next, initialError = null }: AuthFormProps) {
+export function AuthForm({ mode, next, initialError = null, initialNotice = null }: AuthFormProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(initialNotice);
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const isSignup = mode === "signup";
@@ -29,6 +31,10 @@ export function AuthForm({ mode, next, initialError = null }: AuthFormProps) {
       setError("Use at least 8 characters for your password.");
       return;
     }
+    if (isSignup && !agreed) {
+      setError("Please tick the box to confirm you agree to the Terms and the Privacy Policy.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -39,7 +45,8 @@ export function AuthForm({ mode, next, initialError = null }: AuthFormProps) {
           email: email.trim(),
           password,
           options: {
-            data: { display_name: name.trim() || undefined },
+            // The version of the Terms and Privacy Policy the person agreed to, kept with their own account record.
+            data: { display_name: name.trim() || undefined, accepted_terms_version: LEGAL_VERSION, accepted_terms_at: new Date().toISOString() },
             emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
           },
         });
@@ -114,6 +121,13 @@ export function AuthForm({ mode, next, initialError = null }: AuthFormProps) {
         hint={isSignup ? "At least 8 characters." : undefined}
       />
 
+      {isSignup && (
+        <label className="flex items-start gap-3 text-sm text-ink">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-teal" />
+          <span>I am 18 or older and I agree to the <Link href="/terms" target="_blank" className="font-semibold text-teal-ink underline underline-offset-2">Terms of Use</Link> and the <Link href="/privacy" target="_blank" className="font-semibold text-teal-ink underline underline-offset-2">Privacy Policy</Link>.</span>
+        </label>
+      )}
+
       <FormError message={error} />
       {notice && (
         <p role="status" className="rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">
@@ -121,8 +135,8 @@ export function AuthForm({ mode, next, initialError = null }: AuthFormProps) {
         </p>
       )}
 
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? (isSignup ? "Creating account…" : "Logging in…") : isSignup ? "Create account" : "Log in"}
+      <Button type="submit" loading={loading} loadingLabel={isSignup ? "Creating account…" : "Logging in…"} className="w-full">
+        {isSignup ? "Create account" : "Log in"}
       </Button>
 
       <p className="text-center text-sm text-ink-muted">

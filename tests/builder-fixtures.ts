@@ -29,7 +29,7 @@ export function makeInput(specs: Spec[], opts: Omit<Partial<BuilderInput>, "star
   const end = opts.end ?? null;
   const pts = [start, ...places, ...(opts.endMode === "point" && end ? [end] : [])];
   return {
-    places, start, end, endMode: opts.endMode ?? "free", numDays: opts.numDays ?? 5, startDateISO: opts.startDateISO ?? "2026-10-20", utcOffsetMin: opts.utcOffsetMin ?? 330,
+    places, start, end, endMode: opts.endMode ?? "free", numDays: opts.numDays ?? 5, startDateISO: "startDateISO" in opts ? (opts.startDateISO as string | null) : "2026-10-20", utcOffsetMin: opts.utcOffsetMin ?? 330,
     matrix: opts.matrix ?? roadMatrix(pts),
   };
 }

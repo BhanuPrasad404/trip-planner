@@ -1,0 +1,64 @@
+# CI = "Continuous Integration": every time code is pushed to GitHub, a fresh computer in the cloud rebuilds the project and
+# runs ALL the checks. If anything fails you see a red cross on the commit (and an email from GitHub), before real users do.
+# It costs nothing to set up; GitHub gives a monthly allowance of free minutes (this takes about 3-4 minutes per push).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Typecheck + lint + all tests
+        run: npm run check
+      - name: Production build
+        run: npx next build
+        env:
+          # Placeholders: the build only needs the variables to exist. No real secrets are ever put in CI.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-key
+
+  database:
+    name: Database migrations and SQL tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Postgres client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Rebuild the database from every migration and run the SQL tests
+        run: bash scripts/db-replay.sh

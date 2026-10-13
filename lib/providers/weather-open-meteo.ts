@@ -36,7 +36,7 @@ export const clearHourlyCache = () => cache.clear();
 export const openMeteoWeather: WeatherProvider = {
   id: "open-meteo",
 
-  conditionsFor: (requests, todayISO) => getConditionsFor(requests, todayISO),
+  conditionsFor: (requests, todayISO, budgetMs) => getConditionsFor(requests, todayISO, budgetMs),
 
   async hourly(point: GeoPoint, hours: number, fetchImpl = fetch) {
     const n = Math.min(FETCH_HOURS, Math.max(1, Math.round(hours)));

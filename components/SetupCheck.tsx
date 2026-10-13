@@ -40,7 +40,7 @@ export function SetupCheck({ items }: { items: Setup[] }) {
             {i.fallback && <p className="mt-1 text-xs text-ink-muted">{i.fallback}</p>}
             {i.id === "ai" && (
               <div className="mt-2">
-                <Button size="sm" variant="secondary" onClick={testAi} disabled={busy}>{busy ? "Testing…" : "Test my AI key"}</Button>
+                <Button size="sm" variant="secondary" onClick={testAi} loading={busy} loadingLabel="Testing…">Test my AI key</Button>
                 {result && <p role="status" className={`mt-2 text-sm font-semibold ${result.ok ? "text-teal-ink" : "text-clay-ink"}`}><Glyph name={result.ok ? "checkCircle" : "warn"} size={16} className="mr-1.5 inline align-text-bottom" />{result.message}</p>}
               </div>
             )}

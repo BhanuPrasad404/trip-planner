@@ -6,7 +6,12 @@ import type { Conditions } from "@/lib/weather";
 export type AlertStop = { id: string; name: string; category: PlaceCategory; conditions: Conditions | null };
 export type TripAlert = { id: string; placeId: string; severity: "warn" | "info"; text: string };
 
-const OUTDOOR_HEAT: PlaceCategory[] = ["trek", "beach", "fort", "wildlife", "viewpoint", "hill_station", "activity", "lake", "waterfall", "temple", "other"];
+/** The one set of weather thresholds. Alerts and the animated weather chips both read these, so they can never disagree. */
+export const RAIN_HEAVY_MM = 15;
+export const RAIN_LIKELY_MM = 6;
+export const HEAT_WARN_C = 38;
+
+export const OUTDOOR_HEAT: PlaceCategory[] = ["trek", "beach", "fort", "wildlife", "viewpoint", "hill_station", "activity", "lake", "waterfall", "temple", "other"];
 
 export function buildAlerts(stops: AlertStop[], limit = 5): TripAlert[] {
   const alerts: TripAlert[] = [];
@@ -16,15 +21,15 @@ export function buildAlerts(stops: AlertStop[], limit = 5): TripAlert[] {
     const rain = Math.round(c.precipMmPerDay);
     const hates = CATEGORIES[s.category].rain === "hates";
 
-    if (hates && c.precipMmPerDay >= 15) {
+    if (hates && c.precipMmPerDay >= RAIN_HEAVY_MM) {
       alerts.push({ id: `${s.id}:rain`, placeId: s.id, severity: "warn", text: `Heavy rain forecast near ${s.name} (about ${rain} mm). Outdoor spots can be unsafe or closed — consider another day, or use “Find alternatives”.` });
-    } else if (hates && c.precipMmPerDay >= 6) {
+    } else if (hates && c.precipMmPerDay >= RAIN_LIKELY_MM) {
       alerts.push({ id: `${s.id}:rain`, placeId: s.id, severity: "info", text: `Rain is likely near ${s.name} (about ${rain} mm). Carry rain gear${s.category === "trek" ? " and expect slippery trails" : ""}.` });
     }
     if (CATEGORIES[s.category].rain === "loves" && c.precipMmPerDay < 0.8) {
       alerts.push({ id: `${s.id}:dry`, placeId: s.id, severity: "info", text: `Almost no rain is forecast near ${s.name}, so the flow may be weak.` });
     }
-    if (c.tempMaxC >= 38 && OUTDOOR_HEAT.includes(s.category)) {
+    if (c.tempMaxC >= HEAT_WARN_C && OUTDOOR_HEAT.includes(s.category)) {
       alerts.push({ id: `${s.id}:heat`, placeId: s.id, severity: "warn", text: `It will be very hot near ${s.name} (${Math.round(c.tempMaxC)}°C). Go early morning or late afternoon, and carry water.` });
     }
   }

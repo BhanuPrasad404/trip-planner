@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { distanceKm } from "@/lib/geo";
 import { GRADE_LIMITS_M, assessFix, shouldPollForFix, type FixQuality } from "@/lib/location/quality";
+import { filterFix, initialFilter, type FilterState } from "@/lib/location/fix-filter";
+import { diagnoseLocation } from "@/lib/location/permission";
+import { readLocationEnv } from "./location-env";
 import { shouldPublish, type Fix } from "@/lib/live";
 import { createClient } from "@/lib/supabase/client";
 import type { RouteLeg } from "@/lib/eta";
@@ -57,6 +60,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   const [session, setSession] = useState(0);
   const [manualPlace, setManualPlace] = useState<string | null>(null);
   const manualRef = useRef(false);
+  const filterState = useRef<FilterState>(initialFilter()); // which readings may move the marker (lib/location/fix-filter.ts)
   const meRef = useRef<Me | null>(null);
   const lastFixWall = useRef<number | null>(null);
   const [clock, setClock] = useState(0); // ticks while driving so "how old is this position?" stays true
@@ -143,6 +147,11 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
           at: Date.now(),
           fixAt: pos.timestamp > 0 ? pos.timestamp : Date.now(),
         };
+        // A coarse network reading right after a precise one, an out-of-order reading or an impossible jump must not move the
+        // marker, the ETA, the route or what friends see. (If a weaker position persists, it IS accepted — the signal is gone.)
+        const verdict = filterFix(filterState.current, m);
+        filterState.current = verdict.state;
+        if (!verdict.accept) return;
         setMe(m);
         setError(null);
         fixRef?.current?.(m); // navigation decides for itself how much to trust each fix
@@ -166,22 +175,30 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
         meRef.current = m;
         lastFixWall.current = Date.now();
       };
-    const onErr = (err: GeolocationPositionError) => {
-        // 1 = denied (stop). 2 = no position available. 3 = timed out — keep trying, a signal often arrives a little later.
-        setError(
-          err.code === 1
-            ? "Location permission was denied. Allow it in your browser's site settings to use Drive mode."
-            : err.code === 3
-              ? "Still looking for your location… this can take a moment, especially indoors."
-              : "Can't read your location right now. Check that GPS / location is turned on."
-        );
-        if (err.code === 1) {
+    let disposed = false;
+    const fail = (err: { code?: number }) => {
+      // 1 = denied (stop). 2 = no position available. 3 = timed out — keep trying, a signal often arrives a little later.
+      // Ask the browser WHY (a block set earlier, a closed prompt, https, policy…) so the message says what to do.
+      void readLocationEnv().catch(() => null).then((env) => {
+        if (disposed) return;
+        const d = diagnoseLocation(err, env);
+        setError(d.message);
+        if (d.fatal) {
           setActive(false);
           endRef?.current?.(); // permission denied or revoked: navigation ends with the drive instead of showing a frozen route
         }
-      };
+      });
+    };
+    const onErr = (err: GeolocationPositionError) => fail(err);
     // maximumAge 0: never answer with a cached position from earlier — the map must show where you are NOW.
     const id = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 25_000 });
+    // Permission taken away while driving (in the browser's site settings): end the drive and say so, instead of a frozen dot.
+    let permStatus: PermissionStatus | null = null;
+    void Promise.resolve(navigator.permissions?.query({ name: "geolocation" as PermissionName })).then((st) => {
+      if (!st || disposed) return;
+      permStatus = st;
+      st.onchange = () => { if (st.state === "denied") fail({ code: 1 }); };
+    }).catch(() => undefined);
     // Laptops (Wi-Fi/IP positioning) report only when their guess changes, so silence is normal for them. If nothing has
     // arrived for a while and we have no precise reading, ask once more in normal (non-GPS) mode instead of crying "signal lost".
     const refresh = window.setInterval(() => {
@@ -200,11 +217,17 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
     };
     void requestLock();
     const onVisible = () => {
-      if (document.visibilityState === "visible") void requestLock();
+      if (document.visibilityState !== "visible") return;
+      void requestLock();
+      // Back in the app: phones pause location while hidden, so ask for a fresh reading at once instead of waiting for the next one.
+      navigator.geolocation.getCurrentPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 });
     };
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
+      disposed = true;
+      if (permStatus) permStatus.onchange = null;
+      filterState.current = initialFilter();
       navigator.geolocation.clearWatch(id);
       window.clearInterval(refresh);
       meRef.current = null;
@@ -229,9 +252,15 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
 
   const start = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setError("This browser can't share location, so Drive mode isn't available here.");
+      setError("This browser can't share your location with web pages, so Drive mode isn't available here. Try Chrome, Safari or Edge.");
       return;
     }
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      // Browsers refuse location on a plain http page; say that now instead of after a confusing "permission denied".
+      setError("Location only works on a secure (https) page, and this one isn't. Open the https address of the site.");
+      return;
+    }
+    filterState.current = initialFilter();
     setError(null);
     setMe(null); // never show an old position as if it were now
     setSession((n) => n + 1);
@@ -241,6 +270,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   const setManual = useCallback((p: { lat: number; lng: number; label: string } | null) => {
     if (!p) { manualRef.current = false; setManualPlace(null); setMe(null); return; } // back to GPS: wait for the next real reading
     const now = Date.now();
+    filterState.current = initialFilter(); // the first real reading after a chosen start point is always accepted
     manualRef.current = true;
     setManualPlace(p.label);
     setError(null);

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, type RefObject } from "react";
-import { cameraErrorMessage, elapsedAt, initialRec, pickRecorderMime, plainVideoMime, recReducer, reachedLimit, type CameraMode, type Facing } from "./recorder";
+import { readCameraEnv } from "./camera-env";
+import { diagnoseCamera, elapsedAt, initialRec, pickRecorderMime, plainVideoMime, recReducer, reachedLimit, type CameraMode, type Facing } from "./recorder";
 
 /** Everything that touches the real camera. The rules (30 s limit, states, messages) live in recorder.ts and are tested there. */
 export function useCamera(initialMode: CameraMode, videoRef: RefObject<HTMLVideoElement | null>) {
@@ -20,7 +21,7 @@ export function useCamera(initialMode: CameraMode, videoRef: RefObject<HTMLVideo
   const mimeRef = useRef<string>("video/webm");
 
   const stopStream = useCallback(() => {
-    stream.current?.getTracks().forEach((t) => t.stop());          // switches the camera light off
+    stream.current?.getTracks().forEach((t) => { t.onended = null; t.stop(); }); // switches the camera light off; our own stop is not an "ended" surprise
     stream.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
   }, [videoRef]);
@@ -32,17 +33,32 @@ export function useCamera(initialMode: CameraMode, videoRef: RefObject<HTMLVideo
     stopStream();
     try {
       const video = { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } };
-      const gum = (c: MediaStreamConstraints) => navigator.mediaDevices.getUserMedia(c);
+      // A camera that cannot do what we ask (OverconstrainedError) is asked again for "any camera" before giving up:
+      // an odd webcam must not mean "no camera".
+      const gum = async (c: { video: MediaTrackConstraints | boolean; audio: boolean }) => {
+        try { return await navigator.mediaDevices.getUserMedia(c); }
+        catch (e) {
+          const n = e && typeof e === "object" && "name" in e ? String((e as { name: unknown }).name) : "";
+          if ((n === "OverconstrainedError" || n === "ConstraintNotSatisfiedError") && c.video !== true) return navigator.mediaDevices.getUserMedia({ ...c, video: true });
+          throw e;
+        }
+      };
       let s: MediaStream; let notice: string | null = null;
       if (mode === "video") {
         try { s = await gum({ video, audio: true }); }
         catch (first) {
-          try { s = await gum({ video, audio: false }); notice = "Recording without sound — the microphone isn't available."; }
-          catch { throw first; }
+          // Only a microphone problem is worth retrying without sound; a camera refusal would just be refused again.
+          const n = first && typeof first === "object" && "name" in first ? String((first as { name: unknown }).name) : "";
+          if (n === "NotAllowedError" || n === "NotFoundError" || n === "NotReadableError" || n === "OverconstrainedError") {
+            try { s = await gum({ video, audio: false }); notice = "Recording without sound — the microphone isn't available."; }
+            catch { throw first; }
+          } else throw first;
         }
       } else s = await gum({ video, audio: false });
       if (!alive.current || mine !== generation.current) { s.getTracks().forEach((t) => t.stop()); return; }
       stream.current = s;
+      // If the camera is taken away (another app, the phone sleeping, the device unplugged) say so instead of freezing on a still frame.
+      s.getVideoTracks().forEach((t) => { t.onended = () => { if (alive.current && stream.current === s && recorder.current === null) dispatch({ type: "failed", message: "The camera stopped — another app may have taken it. Tap Try again." }); }; });
       const el = videoRef.current;
       if (el) { el.srcObject = s; await el.play().catch(() => undefined); }
       let cams = 1;
@@ -50,7 +66,10 @@ export function useCamera(initialMode: CameraMode, videoRef: RefObject<HTMLVideo
       if (!alive.current || mine !== generation.current) return;
       dispatch({ type: "ready", canSwitch: cams > 1, canPause: typeof MediaRecorder !== "undefined" && typeof MediaRecorder.prototype.pause === "function", notice });
     } catch (e) {
-      if (alive.current && mine === generation.current) dispatch({ type: "failed", message: cameraErrorMessage(e) });
+      if (!alive.current || mine !== generation.current) return;
+      // Ask the browser WHY (policy, a block set earlier, a closed prompt, https…) so the message can say what to do.
+      const env = await readCameraEnv().catch(() => null);
+      if (alive.current && mine === generation.current) dispatch({ type: "failed", message: diagnoseCamera(e, env).message });
     }
   }, [stopStream, videoRef]);
 
@@ -152,11 +171,18 @@ export function useCamera(initialMode: CameraMode, videoRef: RefObject<HTMLVideo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- opened once; later changes go through setMode/switchFacing/retake
   }, []);
 
+  const phaseRef = useRef(state.phase); const modeRef = useRef(state.mode); const facingRef = useRef(state.facing);
+  useEffect(() => { phaseRef.current = state.phase; modeRef.current = state.mode; facingRef.current = state.facing; });
   useEffect(() => {
-    const onHide = () => { if (document.visibilityState === "hidden") stopRecording("hidden"); };   // phones suspend the camera when you leave: keep what was recorded
-    document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
-  }, [stopRecording]);
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { stopRecording("hidden"); return; }   // phones suspend the camera when you leave: keep what was recorded
+      // Back in the app with the live preview but a dead camera (phones stop it while hidden): start it again by itself.
+      const dead = stream.current ? stream.current.getVideoTracks().every((t) => t.readyState === "ended") : false;
+      if (phaseRef.current === "live" && dead) void open(modeRef.current, facingRef.current);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [stopRecording, open]);
 
   return { state, takePhoto: finishPhoto, startRecording, stopRecording, pause, resume, setMode, switchFacing, retake, reopen: () => open(state.mode, state.facing) };
 }

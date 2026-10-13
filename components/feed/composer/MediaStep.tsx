@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { canAddMore } from "@/lib/feed/compose";
 import { MEDIA_LIMITS } from "@/lib/social/media";
+import { Spinner } from "@/components/ui/Spinner";
 import { CameraIcon, CloseIcon, PenIcon, PlusIcon, ShieldIcon, StarIcon, UploadIcon } from "../icons";
 import type { CameraSupport } from "@/lib/client/camera-support";
 import type { CameraMode } from "@/lib/client/recorder";
@@ -50,6 +51,11 @@ export function MediaStep({ items, dragging, busy, onFiles, onRemove, onMakeCove
             )}
             <button type="button" onClick={() => picker.current?.click()} className={`flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl border border-teal/40 bg-white px-3 text-sm font-semibold text-teal-ink active:scale-95 transition-transform ${cameraSupport.photo || cameraSupport.video ? "" : "sm:col-span-3"}`}><PlusIcon size={22} />Upload from device</button>
           </div>
+          {!cameraSupport.photo && cameraSupport.why && (
+            <p role="note" className="max-w-sm text-xs leading-relaxed text-ink-muted">
+              {cameraSupport.why === "insecure" ? "The in-app camera needs a secure (https) page, so it is off here." : "This browser doesn't offer in-app camera access."} Use <strong>Upload from device</strong>{" "}— on a phone, <strong>Take photo</strong> opens your camera app.
+            </p>
+          )}
           <p className="text-xs text-ink-muted">Up to {MEDIA_LIMITS.mediaPerPost} photos, or one video up to {MEDIA_LIMITS.videoSeconds} seconds — recorded or uploaded</p>
         </div>
       ) : (
@@ -67,7 +73,7 @@ export function MediaStep({ items, dragging, busy, onFiles, onRemove, onMakeCove
                 )}
                 {it.status === "preparing" && (
                   <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/80 text-xs font-semibold text-ink-muted backdrop-blur-sm" role="status">
-                    <span className="h-7 w-7 animate-spin rounded-full border-[3px] border-teal/25 border-t-teal" />Preparing…
+                    <Spinner size={28} className="text-teal" />Preparing…
                   </span>
                 )}
                 {it.status === "error" && (

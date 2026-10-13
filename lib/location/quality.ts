@@ -34,8 +34,8 @@ export function assessFix(fix: Fix | null, nowMs: number): FixQuality | null {
   if (acc === null || !Number.isFinite(acc) || acc <= 0) return { grade: "unknown", usable: false, radiusM: null, message: "Your device didn't say how accurate this position is, so we treat it as approximate.", ageMs };
   if (acc <= GRADE_LIMITS_M.good) return { grade: "good", usable: true, radiusM: acc, message: `Accurate to about ${Math.round(acc)} m.`, ageMs };
   if (acc <= GRADE_LIMITS_M.fair) return { grade: "fair", usable: true, radiusM: acc, message: `Accurate to about ${Math.round(acc)} m.`, ageMs };
-  if (acc <= GRADE_LIMITS_M.rough) return { grade: "rough", usable: false, radiusM: acc, message: `Rough position (±${Math.round(acc)} m). Move outdoors or turn on GPS for exact directions.`, ageMs };
-  return { grade: "poor", usable: false, radiusM: acc, message: `Only an approximate area (±${acc >= 10_000 ? `${Math.round(acc / 1000)} km` : `${(acc / 1000).toFixed(1)} km`}) — this looks like a network position, not GPS.`, ageMs };
+  if (acc <= GRADE_LIMITS_M.rough) return { grade: "rough", usable: false, radiusM: acc, message: `Rough position (±${Math.round(acc)} m). Move outdoors or turn on GPS for exact directions. If your phone offers “Precise location”, switch it on.`, ageMs };
+  return { grade: "poor", usable: false, radiusM: acc, message: `Only an approximate area (±${acc >= 10_000 ? `${Math.round(acc / 1000)} km` : `${(acc / 1000).toFixed(1)} km`}) — this looks like a network position, not GPS. If your phone asked “Precise or Approximate”, choose Precise.`, ageMs };
 }
 
 /** Map zoom that fits the uncertainty, so a rough fix is not shown as a street-level pin. */

@@ -7,7 +7,8 @@ import { nominatimGeocoding } from "./geocoding-nominatim";
 import { overpassPlaces } from "./places-overpass";
 import { osrmRouting } from "./routing-osrm";
 import { maplibreStyle, noEvents, noTraffic } from "./not-connected";
-import type { EventsProvider, GeocodingProvider, MapProvider, PlacesProvider, RoutingProvider, TrafficProvider, WeatherProvider } from "./types";
+import { openMeteoElevation } from "./elevation-open-meteo";
+import type { ElevationProvider, EventsProvider, GeocodingProvider, MapProvider, PlacesProvider, RoutingProvider, TrafficProvider, WeatherProvider } from "./types";
 import { openMeteoWeather } from "./weather-open-meteo";
 
 type Capabilities = {
@@ -18,6 +19,7 @@ type Capabilities = {
   traffic: TrafficProvider;
   events: EventsProvider;
   map: MapProvider;
+  elevation: ElevationProvider;
 };
 export type Capability = keyof Capabilities;
 
@@ -29,8 +31,9 @@ const ENV: Record<Capability, string> = {
   traffic: "TRAFFIC_PROVIDER",
   events: "EVENTS_PROVIDER",
   map: "MAP_PROVIDER",
+  elevation: "ELEVATION_PROVIDER",
 };
-const DEFAULT: Record<Capability, string> = { routing: "osrm", places: "osm", weather: "open-meteo", geocoding: "nominatim", traffic: "none", events: "none", map: "maplibre-style" };
+const DEFAULT: Record<Capability, string> = { routing: "osrm", places: "osm", weather: "open-meteo", geocoding: "nominatim", traffic: "none", events: "none", map: "maplibre-style", elevation: "open-meteo" };
 
 const registry: { [K in Capability]: Map<string, Capabilities[K]> } = {
   routing: new Map([[osrmRouting.id, osrmRouting]]),
@@ -40,6 +43,7 @@ const registry: { [K in Capability]: Map<string, Capabilities[K]> } = {
   traffic: new Map([[noTraffic.id, noTraffic]]),
   events: new Map([[noEvents.id, noEvents]]),
   map: new Map([[maplibreStyle.id, maplibreStyle]]),
+  elevation: new Map([[openMeteoElevation.id, openMeteoElevation]]),
 };
 
 /** Plug in another vendor, e.g. registerProvider("routing", mapboxRouting) then set ROUTING_PROVIDER=mapbox. */
@@ -64,3 +68,4 @@ export const geocodingProvider = () => getProvider("geocoding");
 export const trafficProvider = () => getProvider("traffic");
 export const eventsProvider = () => getProvider("events");
 export const mapProvider = () => getProvider("map");
+export const elevationProvider = () => getProvider("elevation");

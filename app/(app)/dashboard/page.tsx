@@ -4,20 +4,25 @@ import { PageHeader } from "@/components/PageHeader";
 import { TravelStyleClient } from "@/components/TravelStyleClient";
 import { TripCard } from "@/components/TripCard";
 import { LinkButton } from "@/components/ui/Button";
-import { requireUser } from "@/lib/auth";
-import { loadLearnTrips } from "@/lib/server/learning-data";
+import { requireUserAnd } from "@/lib/auth";
+import { learnTripsFrom } from "@/lib/server/learning-data";
 import { todayISO } from "@/lib/server/trip-data";
-import { primaryAction, summarizeTrips } from "@/lib/server/trip-summaries";
+import { loadPlaceRows, primaryAction, summarizeTripsFrom } from "@/lib/server/trip-summaries";
 import type { Trip } from "@/lib/types";
 import { Glyph } from "@/components/ui/Glyph";
 
 export const metadata: Metadata = { title: "Dashboard", robots: { index: false } };
 
 export default async function DashboardPage() {
-  const { supabase, user } = await requireUser("/dashboard");
+  // The sign-in check and the trips request go out together; then ONE request for every trip's stops serves both the list
+  // and "Plan vs reality" (they used to be four requests in a row).
   const today = await todayISO();
-  const { data } = await supabase.from("trips").select("*").order("created_at", { ascending: false }).limit(50);
-  const trips = await summarizeTrips(supabase, (data ?? []) as Trip[], today);
+  const { supabase, user, loaded: tripRows } = await requireUserAnd("/dashboard", async (sb) => {
+    const { data } = await sb.from("trips").select("*").order("created_at", { ascending: false }).limit(50);
+    return (data ?? []) as Trip[];
+  });
+  const placeRows = await loadPlaceRows(supabase, tripRows.map((t) => t.id));
+  const trips = summarizeTripsFrom(tripRows, placeRows, today);
 
   const active = trips.find((t) => t.state === "active");
   const upcoming = trips.filter((t) => t.state === "upcoming").sort((a, b) => (a.daysUntil ?? 999) - (b.daysUntil ?? 999));
@@ -31,10 +36,10 @@ export default async function DashboardPage() {
     if (t.state === "draft") attention.push({ text: `“${t.name}” has no start date — seasons, weather and sunset can't be checked.`, href: `/trips/${t.id}/plan` });
     else if (t.ideas > 0 && t.stops === 0) attention.push({ text: `“${t.name}” has ${t.ideas} idea${t.ideas === 1 ? "" : "s"} but nothing scheduled.`, href: `/trips/${t.id}/plan` });
     else if (t.ideas > 0) attention.push({ text: `“${t.name}” has ${t.ideas} idea${t.ideas === 1 ? "" : "s"} not on any day yet.`, href: `/trips/${t.id}/plan` });
-    if ((t.state === "upcoming" || t.state === "active") && t.start_lat == null) attention.push({ text: `“${t.name}” has no starting point, so Auto-plan and the live route can't work.`, href: `/trips/${t.id}` });
+    if ((t.state === "upcoming" || t.state === "active") && t.start_lat == null) attention.push({ text: `“${t.name}” has no starting point, so Plan my trip and the live route can't work.`, href: `/trips/${t.id}` });
   }
 
-  const learnTrips = await loadLearnTrips(supabase);
+  const learnTrips = learnTripsFrom(tripRows.slice(0, 30), placeRows);
 
   return (
     <main id="main" className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">

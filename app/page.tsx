@@ -23,7 +23,7 @@ const features = [
 const steps = [
   { n: "1", title: "Collect your places", body: "Add stops by hand or paste the reel that inspired them." },
   { n: "2", title: "Check the season", body: "See instantly which stops are worth it for your travel dates." },
-  { n: "3", title: "Auto-plan & share", body: "Get a day-by-day route, then invite your group in one tap." },
+  { n: "3", title: "Plan & share", body: "Get a day-by-day route, then invite your group in one tap." },
 ];
 
 const jsonLd = {
@@ -152,6 +152,8 @@ export default function Home() {
           <nav aria-label="Footer" className="flex gap-4">
             <Link href="/login" className="underline underline-offset-2">Log in</Link>
             <Link href="/signup" className="underline underline-offset-2">Sign up</Link>
+            <Link href="/privacy" className="underline underline-offset-2">Privacy</Link>
+            <Link href="/terms" className="underline underline-offset-2">Terms</Link>
           </nav>
         </div>
       </footer>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ComponentProps } from "react";
+import { Spinner } from "./Spinner";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "md" | "sm";
@@ -23,10 +24,30 @@ export function buttonClasses(variant: Variant = "primary", size: Size = "md", e
   return `${base} ${variants[variant]} ${sizes[size]} ${extra}`.trim();
 }
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size };
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  size?: Size;
+  /** The action is running: show a spinner at once, ignore further clicks (no double submit), keep the button where it is. */
+  loading?: boolean;
+  /** Replaces the label while loading ("Saving…"). Without it the normal label stays next to the spinner. */
+  loadingLabel?: string;
+};
 
-export function Button({ variant, size, className, type = "button", ...props }: ButtonProps) {
-  return <button type={type} className={buttonClasses(variant, size, className)} {...props} />;
+export function Button({ variant, size, className, type = "button", loading = false, loadingLabel, disabled, children, onClick, ...props }: ButtonProps) {
+  return (
+    <button
+      type={type}
+      className={buttonClasses(variant, size, className)}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      // `disabled` already blocks clicks; this also stops a second click that lands before the re-render.
+      onClick={loading ? (e) => e.preventDefault() : onClick}
+      {...props}
+    >
+      {loading && <Spinner size={size === "sm" ? 14 : 16} />}
+      {loading && loadingLabel ? loadingLabel : children}
+    </button>
+  );
 }
 
 type LinkButtonProps = ComponentProps<typeof Link> & { variant?: Variant; size?: Size };

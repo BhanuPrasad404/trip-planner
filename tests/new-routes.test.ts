@@ -8,6 +8,8 @@ const state = {
   error: null as { code?: string; message?: string } | null,
   log: [] as Q[],
   rpc: [] as string[],
+  /** The database changed no rows (the place is not yours, or does not exist): an UPDATE ... select("id") comes back empty. */
+  updateMatchesNothing: false,
 };
 
 function builder(table: string) {
@@ -26,7 +28,7 @@ function builder(table: string) {
     is: (k: string, v: unknown) => (q.filters.push([k, v]), b),
     maybeSingle: async () => (state.log.push(q), { data: state.rows[table] ?? null, error: null }),
     single: async () => (state.log.push(q), { data: state.rows[table] ?? { id: "new" }, error: state.error }),
-    then: (res: (v: unknown) => unknown) => (state.log.push(q), res({ data: [], error: state.error })),
+    then: (res: (v: unknown) => unknown) => (state.log.push(q), res({ data: q.op === "update" && !state.updateMatchesNothing ? [{ id: "row" }] : [], error: state.error })),
   });
   return b;
 }
@@ -58,6 +60,7 @@ beforeEach(() => {
   state.quotaOk = true;
   state.rows = { places: { id: PLACE, trip_id: TRIP, sequence_order: 4 } };
   state.error = null;
+  state.updateMatchesNothing = false;
   state.log = [];
   state.rpc = [];
   vi.mocked(searchPlaces).mockClear();
@@ -148,6 +151,45 @@ describe("PATCH /api/places/[id]", () => {
   it("401 signed out", async () => {
     state.user = null;
     expect((await patch({ day_number: 1 })).status).toBe(401);
+  });
+  it("signed out: NOTHING is written, for every kind of edit (the sign-in check overlaps with other work but always decides first)", async () => {
+    state.user = null;
+    for (const body of [{ status: "done" }, { priority: "must" }, { lat: 16.6, lng: 80.5 }, { day_number: 2 }]) {
+      expect((await patch(body)).status).toBe(401);
+    }
+    expect(last("places", "update")).toBeUndefined();
+  });
+  it("signed out with a broken body is still a 401 (not a 400 that reveals the route's shape)", async () => {
+    state.user = null;
+    expect((await patch({ status: "finished" })).status).toBe(401);
+  });
+  it("a status/pin/priority edit on a place you may not edit (the database changes no rows) is 'Place not found'", async () => {
+    state.updateMatchesNothing = true;
+    expect((await patch({ status: "done" })).status).toBe(404);
+    expect((await patch({ priority: "must" })).status).toBe(404);
+    expect((await patch({ lat: 16.6, lng: 80.5 })).status).toBe(404);
+  });
+  it("a status change is ONE database write (no extra lookup first)", async () => {
+    await patch({ status: "done" });
+    expect(state.log.filter((q) => q.table === "places").map((q) => q.op)).toEqual(["update"]);
+  });
+});
+
+describe("POST /api/places/[id]/vote", () => {
+  it("signed out: nothing is written", async () => {
+    state.user = null;
+    expect((await votePOST(req({ vote: 1 }), ctx())).status).toBe(401);
+    expect(last("place_votes", "upsert")).toBeUndefined();
+    expect(last("place_votes", "delete")).toBeUndefined();
+  });
+  it("a place that is not visible to you is 'Place not found' and nothing is written", async () => {
+    state.rows = {};
+    expect((await votePOST(req({ vote: 1 }), ctx())).status).toBe(404);
+    expect(last("place_votes", "upsert")).toBeUndefined();
+  });
+  it("casts a vote for the place's own trip, as the signed-in user", async () => {
+    expect((await votePOST(req({ vote: 1 }), ctx())).status).toBe(200);
+    expect(last("place_votes", "upsert")!.payload).toEqual({ trip_id: TRIP, place_id: PLACE, user_id: "me", vote: 1 });
   });
 });
 

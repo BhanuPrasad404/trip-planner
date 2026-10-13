@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
+import { reportClientError } from "@/lib/client/report-error";
 
 export default function GlobalRouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    // Hook up Sentry/LogRocket here when you add monitoring.
     console.error(error);
+    reportClientError("route-error", error); // tells the alert channel (lib/monitoring.ts); never includes what the person typed
   }, [error]);
 
   return (

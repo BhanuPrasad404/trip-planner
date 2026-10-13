@@ -117,8 +117,8 @@ export function PlaceSearch({ label, hint, placeholder, near, value, onChange, q
           aria-describedby={hint ? `${id}-hint` : undefined}
           className="min-h-12 w-full min-w-0 rounded-xl border border-line bg-white px-3.5 py-2.5 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/40"
         />
-        <Button variant="secondary" onClick={() => void search()} disabled={loading} className="shrink-0">
-          {loading ? "Searching…" : "Search"}
+        <Button variant="secondary" onClick={() => void search()} loading={loading} loadingLabel="Searching…" className="shrink-0">
+          Search
         </Button>
       </div>
       {hint && <p id={`${id}-hint`} className="mt-1.5 text-sm text-ink-muted">{hint}</p>}

@@ -77,30 +77,40 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
   const addRadar = (r: RadarItem) => actions.insertStop({ name: r.name, lat: r.lat, lng: r.lng, category: r.kind === "viewpoint" ? "viewpoint" : null }, driveDay);
 
   // What to say when there is nothing urgent.
-  const firstLeg = drive.route && nextStop && drive.route.stopIds[0] === nextStop.id ? drive.route.legs[0] : null;
-  const fallback = nextStop
+  // The next place to head for: the next planned stop or, with none left, the trip's destination.
+  const nextTarget = live.nextTarget;
+  const nextPlanned = nextStop?.arrival_time?.slice(0, 5) ?? null;
+  const firstLeg = drive.route && nextTarget && drive.route.stopIds[0] === nextTarget.id ? drive.route.legs[0] : null;
+  const fallback = nextTarget
     ? {
-        title: drive.active ? `Head to ${nextStop.name}` : `Next: ${nextStop.name}`,
+        title: drive.active ? `Head to ${nextTarget.name}` : `Next: ${nextTarget.name}`,
         detail: firstLeg
-          ? `${formatDistance(firstLeg.km)} · about ${firstLeg.minutes} min${nextStop.arrival_time ? ` · planned ${nextStop.arrival_time.slice(0, 5)}` : ""}. You're on track — nothing needs your attention.`
-          : `${nextStop.arrival_time ? `Planned for ${nextStop.arrival_time.slice(0, 5)}. ` : ""}${drive.active ? "Working out the route…" : "Start your drive to see distance, arrival time and what's ahead."}`,
-        navigateTo: { lat: nextStop.lat, lng: nextStop.lng },
+          ? `${formatDistance(firstLeg.km)} · about ${firstLeg.minutes} min${nextPlanned && nextTarget.kind === "stop" ? ` · planned ${nextPlanned}` : ""}. You're on track — nothing needs your attention.`
+          : `${nextPlanned && nextTarget.kind === "stop" ? `Planned for ${nextPlanned}. ` : ""}${drive.active ? "Working out the route…" : "Start your drive to see the route, distance and arrival time."}`,
+        navigateTo: { lat: nextTarget.lat, lng: nextTarget.lng },
         action: drive.active ? null : ("start-drive" as const),
       }
     : live.done > 0
       ? { title: "That's everything for today", detail: `${live.done} stop${live.done === 1 ? "" : "s"} done. Rest well — tomorrow's plan is ready.`, navigateTo: null, action: null }
       : { title: `Nothing planned for Day ${driveDay}`, detail: "Add or schedule a stop and this page starts helping.", navigateTo: null, action: "plan" as const, href: `/trips/${trip.id}/plan` };
 
-  const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order })), [places]);
+  const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null })), [places]);
   const start = useMemo(() => (trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat, lng: trip.start_lng, label: trip.start_city ?? "Start" } : null), [trip.start_lat, trip.start_lng, trip.start_city]);
   const dest = useMemo(() => (trip.dest_lat != null && trip.dest_lng != null ? { lat: trip.dest_lat, lng: trip.dest_lng, label: trip.dest_name ?? "Destination" } : null), [trip.dest_lat, trip.dest_lng, trip.dest_name]);
   const days = Array.from({ length: trip.num_days }, (_, i) => i + 1);
 
   return (
     <main id="main" className="mx-auto w-full max-w-7xl space-y-5 px-4 py-5 sm:px-6">
-      {todayDay === null && (
+      {live.overrun && (
+        <p role="status" className="rounded-xl border border-marigold/40 bg-marigold-light px-4 py-3 text-sm text-[#7a4a00]">
+          <strong>Running past the planned end.</strong> This trip was planned to finish on {live.timing?.lastDate && live.localDate ? dayWithDate(live.timing.lastDate, live.localDate) : "its last day"}; you&apos;re still on Day {driveDay}, so everything below keeps working.
+        </p>
+      )}
+      {todayDay === null && !live.overrun && (
         <p className="rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink-muted">
-          <strong className="text-pine">This trip isn&apos;t happening today</strong>, so this is a preview of Day {driveDay} from {live.previewFrom?.label ?? "the start"}.{" "}
+          {live.timing?.state === "after" && live.timing.lastDate && live.localDate
+            ? <><strong className="text-pine">This trip ended on {dayWithDate(live.timing.lastDate, live.localDate)}</strong>, so this is its saved Day {driveDay}. You can still start a drive to follow it again.{" "}</>
+            : <><strong className="text-pine">This trip isn&apos;t happening today</strong>, so this is a preview of Day {driveDay} from {live.previewFrom?.label ?? "the start"}.{" "}</>}
           <span className="inline-flex flex-wrap gap-1 align-middle">
             {days.map((d) => <button key={d} type="button" onClick={() => setFocusDay(d)} aria-pressed={d === focusDay} className={`min-h-8 rounded-full px-3 text-xs font-semibold ${d === focusDay ? "bg-pine text-white" : "bg-sky text-pine"}`}>Day {d}</button>)}
           </span>
@@ -133,7 +143,7 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
         <div className="space-y-5">
           <div className="relative h-[52vh] min-h-[22rem] overflow-hidden rounded-3xl border border-line bg-white shadow-sm lg:h-[62vh]">
-            <TripMapLazy theme={mapTheme} places={mapPlaces} start={start} destination={dest} activeDay={driveDay} fit="day" frameStartDest={false} live={live.liveMarkers} pois={live.poiMarkers} driveLine={drive.active && !navUi.navBusy ? drive.route?.line ?? null : null} nav={navUi.nav} headingUp={navUi.headingUp} viewRequest={navUi.viewRequest} recenter={navUi.recenter} onCompass={navUi.onCompass} onSelectRoute={live.navigation.choose} follow={drive.active && follow} onUserPan={() => setFollow(false)} />
+            <TripMapLazy theme={mapTheme} places={mapPlaces} start={start} destination={dest} activeDay={driveDay} numDays={trip.num_days} fit="day" frameStartDest={false} live={live.liveMarkers} pois={live.poiMarkers} driveLine={drive.active && !navUi.navBusy ? drive.route?.line ?? null : null} nav={navUi.nav} headingUp={navUi.headingUp} viewRequest={navUi.viewRequest} recenter={navUi.recenter} onCompass={navUi.onCompass} onSelectRoute={live.navigation.choose} follow={drive.active && follow} onUserPan={() => setFollow(false)} />
             <NavigationBanner ui={navUi.ui} />
             <Link href={`/trips/${trip.id}/map`} className="absolute left-3 top-3 min-h-10 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-pine shadow">Full-screen map</Link>
             {drive.active && !follow && <button type="button" onClick={navUi.ui.onRecenter} className="absolute bottom-3 left-3 min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow"><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Follow me</span></button>}

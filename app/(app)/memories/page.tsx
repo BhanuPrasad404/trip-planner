@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/PageHeader";
 import { TripCard } from "@/components/TripCard";
-import { requireUser } from "@/lib/auth";
+import { requireUserAnd } from "@/lib/auth";
 import { summarizeTrips } from "@/lib/server/trip-summaries";
 import { todayISO } from "@/lib/server/trip-data";
 import type { Trip } from "@/lib/types";
@@ -9,8 +9,8 @@ import type { Trip } from "@/lib/types";
 export const metadata: Metadata = { title: "Memories", robots: { index: false } };
 
 export default async function MemoriesPage() {
-  const { supabase, user } = await requireUser("/memories");
-  const { data } = await supabase.from("trips").select("*").order("start_date", { ascending: false }).limit(60);
+  const { supabase, user, loaded } = await requireUserAnd("/memories", async (sb) => await sb.from("trips").select("*").order("start_date", { ascending: false }).limit(60));
+  const { data } = loaded;
   const all = await summarizeTrips(supabase, (data ?? []) as Trip[], await todayISO());
   const past = all.filter((t) => t.state === "completed");
   const totalDone = past.reduce((s, t) => s + t.done, 0);

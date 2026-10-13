@@ -18,8 +18,9 @@ import { createPuck } from "./map/puck";
 import { indexRoute } from "@/lib/map/navigation";
 import { pointAt } from "@/lib/intel/route-geometry";
 import { contentKey as makeContentKey, fitKey as makeFitKey } from "@/lib/map/fit-key";
+import { planLine } from "@/lib/map/plan-line";
 
-export type MapPlace = { id: string; name: string; lat: number; lng: number; day: number | null; order: number | null };
+export type MapPlace = { id: string; name: string; lat: number; lng: number; day: number | null; order: number | null; /** done / skipped stops are drawn differently so a finished trip reads as what happened, not as a plan. */ status?: "planned" | "done" | "skipped" | null; /** Shown in the pin's details (time and drive from the previous point). */ arrival?: string | null; driveText?: string | null };
 type Anchor = { lat: number; lng: number; label: string };
 export type LiveMarker = { id: string; label: string; color: string; lat: number; lng: number; me: boolean; stale: boolean; /** How precise this position is (m). Drawn as a ring; null = unknown. */ accuracyM?: number | null };
 export type PoiMarker = { id: string; kind: string; name: string; lat: number; lng: number; highlight: boolean };
@@ -48,6 +49,10 @@ type Props = {
   poiMode?: PoiMode;
   /** Show the satellite underlay (only if NEXT_PUBLIC_SATELLITE_TILES_URL is set). */
   satellite?: boolean;
+  /** Length of the trip in days (decides whether the destination joins the plan line). */
+  numDays?: number;
+  /** A finished trip: draw its whole saved journey (every day, in order) instead of one day. */
+  journey?: boolean;
   /** Turn-by-turn navigation state; when present the map draws the route, the puck and the 3D driver camera. */
   nav?: NavMapProps | null;
   /** Tap an alternative route (line or time badge) to choose it. */
@@ -60,6 +65,12 @@ type Props = {
   recenter?: { n: number } | null;
   /** The compass was tapped while following (switch between heading-up and north-up). */
   onCompass?: () => void;
+  /** The stop to highlight (picked on the map or from its card). The map glides to it and opens its details. */
+  selectedId?: string | null;
+  /** A stop's pin was tapped. */
+  onSelectPlace?: (placeId: string) => void;
+  /** The real road for the active day, as [lng, lat] points. Replaces the straight dashed line while it is available. */
+  planRoad?: [number, number][] | null;
 };
 
 export type NavMapProps = {
@@ -82,13 +93,28 @@ const colorFor = (day: number | null) => (day ? DAY_COLORS[(day - 1) % DAY_COLOR
 const EMPTY_FEATURES = { type: "FeatureCollection", features: [] } as const;
 const EMPTY_LINE = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } } as const;
 
-function pin(label: string, color: string, dim: boolean, square = false) {
+/** The details shown when a stop's pin is tapped. Built from plain text nodes, so a place name can never inject markup. */
+function placePopup(p: MapPlace, state: string): HTMLElement {
+  const root = document.createElement("div");
+  root.style.cssText = "font:500 13px/1.4 system-ui,sans-serif;color:#1C2430;min-width:160px";
+  const line = (text: string, style: string) => { const d = document.createElement("div"); d.style.cssText = style; d.textContent = text; root.appendChild(d); };
+  line(p.name, "font-weight:700;color:#0B3D3A;font-size:14px;margin-bottom:2px");
+  const meta = [p.day ? `Day ${p.day}${p.order ? ` · stop ${p.order}` : ""}` : "In your Ideas", p.arrival ? `arrive ${p.arrival}` : null, state || null].filter(Boolean) as string[];
+  line(meta.join(" · "), "color:#1C7C6D;font-weight:600");
+  if (p.driveText) line(p.driveText, "color:#55625F");
+  line(`${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`, "color:#55625F;font-size:11px;margin-top:2px");
+  return root;
+}
+
+function pin(label: string, color: string, dim: boolean, square = false, status: MapPlace["status"] = null) {
   const el = document.createElement("div");
-  el.textContent = label;
+  // Done = green with a tick, skipped = grey with a dash; otherwise the plan's own number/colour.
+  const done = status === "done", skipped = status === "skipped";
+  el.textContent = done ? "✓" : skipped ? "–" : label;
   el.style.cssText = [
-    "width:28px", "height:28px", `border-radius:${square ? "8px" : "50%"}`, `background:${color}`, "color:#fff",
+    "width:28px", "height:28px", `border-radius:${square ? "8px" : "50%"}`, `background:${done ? "#1e8e3e" : skipped ? "#9aa0a6" : color}`, "color:#fff",
     "display:flex", "align-items:center", "justify-content:center", "font:600 12px ui-monospace,monospace",
-    "border:2px solid #fff", "box-shadow:0 1px 4px rgba(0,0,0,.4)", `opacity:${dim ? 0.5 : 1}`, "cursor:pointer",
+    "border:2px solid #fff", "box-shadow:0 1px 4px rgba(0,0,0,.4)", `opacity:${skipped ? 0.75 : dim ? 0.5 : 1}`, "cursor:pointer",
   ].join(";");
   return el;
 }
@@ -125,10 +151,14 @@ function applyDeclutter(map: maplibregl.Map, markers: Map<string, maplibregl.Mar
   }
 }
 
-export default function TripMap({ places, start, destination, activeDay, fit, live = [], driveLine = null, pois = [], frameStartDest = true, follow = false, onUserPan, theme = DEFAULT_THEME, poiMode = "trip", satellite = false, nav = null, onSelectRoute, headingUp = true, viewRequest = null, recenter = null, onCompass }: Props) {
+export default function TripMap({ places, start, destination, activeDay, fit, live = [], driveLine = null, pois = [], frameStartDest = true, follow = false, onUserPan, theme = DEFAULT_THEME, poiMode = "trip", satellite = false, nav = null, onSelectRoute, headingUp = true, viewRequest = null, recenter = null, onCompass, numDays = 1, journey = false, selectedId = null, onSelectPlace, planRoad = null }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const placeMarkers = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const lastSelected = useRef<string | null>(null);
+  const onSelectPlaceRef = useRef(onSelectPlace);
+  useEffect(() => { onSelectPlaceRef.current = onSelectPlace; });
   const liveMarkers = useRef<Map<string, maplibregl.Marker>>(new Map());
   const poiMarkers = useRef<Map<string, maplibregl.Marker>>(new Map());
   const lastFollow = useRef<string>("");
@@ -147,7 +177,7 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
   const navigating = nav?.phase === "navigating";
   const fitBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
   // Compared by VALUE: new object identities on every render must not redraw markers or re-frame the map.
-  const keyArgs = { places: places.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng, day: p.day, order: p.order ?? null })), start, destination, activeDay };
+  const keyArgs = { places: places.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng, day: p.day, order: p.order ?? null, status: p.status ?? null, arrival: p.arrival ?? null, drive: p.driveText ?? null })), start, destination, activeDay };
   const contentKey = makeContentKey(keyArgs);
   const fitKey = makeFitKey({ ...keyArgs, fit, frameStartDest });
   useEffect(() => {
@@ -256,6 +286,7 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
 
     markers.current.forEach((m) => m.remove());
     markers.current = [];
+    placeMarkers.current.clear();
     const bounds = new maplibregl.LngLatBounds();
 
     const add = (el: HTMLElement, lng: number, lat: number, label: string, anchor: "center" | "bottom" = "center") => {
@@ -278,15 +309,24 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
       if (frameStartDest) bounds.extend([destination.lng, destination.lat]);
     }
 
-    const dayStops = places.filter((p) => p.day === activeDay).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     for (const p of places) {
-      const active = p.day === activeDay;
-      add(pin(active ? String(p.order ?? "") : p.day ? String(p.day) : "•", colorFor(p.day), !active), p.lng, p.lat, `${p.name} (${p.lat.toFixed(3)}, ${p.lng.toFixed(3)})`);
+      const active = journey || p.day === activeDay; // a finished trip shows every day at full strength
+      const state = p.status === "done" ? " — done" : p.status === "skipped" ? " — skipped" : "";
+      const el = pin(active ? String(p.order ?? "") : p.day ? String(p.day) : "•", colorFor(p.day), !active, false, p.status ?? null);
+      el.setAttribute("title", p.name);
+      el.addEventListener("click", () => onSelectPlaceRef.current?.(p.id)); // the pin's own popup opens as well (MapLibre toggles it)
+      const marker = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([p.lng, p.lat])
+        .setPopup(new maplibregl.Popup({ offset: 18, closeButton: false, maxWidth: "260px" }).setDOMContent(placePopup(p, state.replace(" — ", ""))))
+        .addTo(map);
+      markers.current.push(marker);
+      placeMarkers.current.set(p.id, marker);
       if (fit === "all" || active) bounds.extend([p.lng, p.lat]);
     }
 
-    const line: [number, number][] = dayStops.map((p) => [p.lng, p.lat]);
-    if (activeDay === 1 && start) line.unshift([start.lng, start.lat]);
+    // start → stops → destination (the destination joins on the same rule as navigation); a finished trip draws every day in order.
+    // The real road when we have it; otherwise straight segments between the stops. Never a road that is not one.
+    const line = planRoad && planRoad.length >= 2 && !journey ? planRoad : planLine({ places, start, destination, activeDay, numDays, allDays: journey });
     // The dashed plan line is straight segments between stops; while real directions are shown it would only confuse.
     const planHidden = ["loading", "choosing", "navigating", "arrived"].includes(nav?.phase ?? "");
     (map.getSource("route") as maplibregl.GeoJSONSource | undefined)?.setData({
@@ -297,7 +337,27 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
 
     fitBoundsRef.current = bounds; // framing happens in its own effect, only when the framing KEY changes
     // eslint-disable-next-line react-hooks/exhaustive-deps -- redraw when the CONTENT (by value) changes, not on every new object identity
-  }, [contentKey, ready, nav?.phase, styleGen]);
+  }, [contentKey, ready, nav?.phase, styleGen, journey, numDays, planRoad]);
+
+  // The picked stop: ring around its pin, glide to it, show its details (and close the others).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    for (const [id, m] of placeMarkers.current) {
+      const on = id === selectedId;
+      const el = m.getElement();
+      el.style.zIndex = on ? "5" : "";
+      el.style.boxShadow = on ? "0 0 0 4px #E8A33D, 0 2px 8px rgba(0,0,0,.45)" : "0 1px 4px rgba(0,0,0,.4)";
+      if (!on && m.getPopup()?.isOpen()) m.togglePopup();
+    }
+    const m = selectedId ? placeMarkers.current.get(selectedId) : null;
+    if (m && selectedId !== lastSelected.current && !navigating) {
+      map.easeTo({ center: m.getLngLat(), zoom: Math.max(map.getZoom(), 11), duration: 600 });
+      if (!m.getPopup()?.isOpen()) m.togglePopup();
+    }
+    lastSelected.current = selectedId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-apply the ring after the pins are redrawn (contentKey), and when the road arrives
+  }, [selectedId, ready, contentKey, planRoad]);
 
   // Frame the stops — once per real change (a different day, new stops), never because of a re-render. While you navigate or
   // follow yourself, the camera belongs to you / the navigation, not to this.

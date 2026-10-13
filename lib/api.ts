@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { ZodType } from "zod";
+import { reportError } from "@/lib/monitoring";
 
 export function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -29,5 +30,7 @@ export function dbError(error: { code?: string; message?: string }, context: str
   if (error.code === "42501") return jsonError("You don't have permission to do that", 403);
   if (error.code === "23503") return jsonError("Related record not found", 404);
   if (error.code === "23514" || error.code === "22P02") return jsonError("Invalid input", 400);
+  // An unexpected database error is a real problem: tell the alert channel (message is cleaned of emails/tokens first).
+  reportError(new Error(`${context}: ${error.code ?? "?"} ${error.message ?? ""}`), { where: "api" });
   return jsonError("Something went wrong. Please try again.", 500);
 }

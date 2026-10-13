@@ -9,15 +9,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!uuid.safeParse(id).success) return jsonError("Invalid place id", 400);
 
   const supabase = await createClient();
+  // Sign-in check and place lookup go out together (the lookup is a read under Row Level Security and does not need the user);
+  // the vote itself is written only after the Auth server has confirmed the person.
+  const authP = supabase.auth.getUser();
+  // Promise.resolve(...) STARTS the request now: a query builder is lazy and would otherwise wait until it is awaited.
+  const findP = Promise.resolve(supabase.from("places").select("id, trip_id").eq("id", id).maybeSingle());
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await authP;
   if (!user) return jsonError("Please sign in", 401);
 
   const { data: input, error: bodyError } = await parseBody(req, voteSchema);
   if (bodyError) return bodyError;
 
-  const { data: place, error: findError } = await supabase.from("places").select("id, trip_id").eq("id", id).maybeSingle();
+  const { data: place, error: findError } = await findP;
   if (findError) return dbError(findError, "vote: find place");
   if (!place) return jsonError("Place not found", 404);
 

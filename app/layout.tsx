@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Suspense } from "react";
 import { getSiteUrl } from "@/lib/env";
+import { RouteProgress } from "@/components/shell/RouteProgress";
+import { ErrorReporter } from "@/components/shell/ErrorReporter";
 import "./globals.css";
 
 // Fonts are self-hosted (SIL OFL licensed) instead of fetched from Google at build time:
@@ -75,6 +78,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
+        <Suspense fallback={null}><RouteProgress /></Suspense>
+        <ErrorReporter />
         {children}
       </body>
     </html>

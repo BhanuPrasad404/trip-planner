@@ -21,7 +21,8 @@ function builder(table: string) {
     maybeSingle: async () => ({ data: table === "trips" ? state.trip : table === "places" ? { id: "p", trip_id: TRIP } : null, error: null }),
     then: (res: (v: unknown) => unknown) => {
       state.log.push(q);
-      return res({ data: table === "places" && q.op === "select" ? state.places : [], error: null });
+      // An UPDATE ... select("id") returns the rows it changed, like the real database does.
+      return res({ data: table === "places" && q.op === "select" ? state.places : q.op === "update" ? [{ id: "row" }] : [], error: null });
     },
   });
   return b;

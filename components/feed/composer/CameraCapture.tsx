@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useCamera } from "@/lib/client/use-camera";
 import { captureHints, formatClock, formatLimit, MAX_RECORD_MS, type CameraMode } from "@/lib/client/recorder";
+import { Spinner } from "@/components/ui/Spinner";
 import { CloseIcon, PlayIcon, UploadIcon } from "../icons";
 
 type Props = {
@@ -83,7 +84,7 @@ export function CameraCapture({ initialMode, onUse, onClose, onUpload }: Props) 
         </div>
 
         {state.phase === "starting" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black" role="status"><span className="h-10 w-10 animate-spin rounded-full border-4 border-white/25 border-t-white" /><p className="text-sm text-white/80">Starting camera…</p></div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black" role="status"><Spinner size={40} className="text-white" /><p className="text-sm text-white/80">Starting camera…</p><p className="max-w-xs px-6 text-center text-xs leading-relaxed text-white/60">Your browser will ask to use the camera{state.mode === "video" ? " and microphone" : ""}. Choose <strong className="text-white/80">Allow</strong> — it is used only for this {state.mode === "video" ? "clip" : "photo"} and switches off when you close this screen.</p></div>
         )}
 
         {state.phase === "error" && (

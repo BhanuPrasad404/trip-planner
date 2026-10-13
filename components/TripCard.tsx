@@ -12,7 +12,7 @@ export function TripCard({ trip, isOwner }: { trip: TripSummary; isOwner: boolea
     <li className="flex flex-col rounded-2xl border border-line bg-white p-5 shadow-sm transition hover:border-teal hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <Link href={`/trips/${trip.id}`} className="min-w-0 rounded-lg"><h3 className="break-words font-display text-xl font-semibold leading-snug text-pine">{trip.name}</h3></Link>
-        <StateChip state={trip.state} />
+        <StateChip state={trip.state} outcome={trip.outcome} />
       </div>
       <p className="mt-1 text-sm text-ink-muted">
         {trip.start_city ?? "Start not set"}{trip.dest_name && <> → {trip.dest_name}</>}
@@ -32,7 +32,10 @@ export function TripCard({ trip, isOwner }: { trip: TripSummary; isOwner: boolea
       )}
       <div className="mt-4 flex items-center justify-between gap-3">
         <Link href={action.href} className="inline-flex min-h-10 items-center rounded-xl bg-marigold px-4 text-sm font-bold text-pine hover:bg-[#f0b254]">{action.label}</Link>
-        <span className="rounded-full bg-teal-light px-2.5 py-0.5 text-xs font-semibold text-teal-ink">{isOwner ? "Owner" : "Member"}</span>
+        <span className="flex items-center gap-2">
+          {trip.state === "completed" && <Link href={`/trips/${trip.id}/map`} className="inline-flex min-h-10 items-center text-sm font-semibold text-teal-ink underline underline-offset-2">View on map</Link>}
+          <span className="rounded-full bg-teal-light px-2.5 py-0.5 text-xs font-semibold text-teal-ink">{isOwner ? "Owner" : "Member"}</span>
+        </span>
       </div>
     </li>
   );

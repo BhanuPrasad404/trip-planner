@@ -40,6 +40,43 @@ export function cameraErrorMessage(e: unknown): string {
   }
 }
 
+/** What the page knows about its own situation. Read once when a camera error happens (see camera-env.ts). */
+export type CameraEnv = {
+  secure: boolean;
+  hasApi: boolean;
+  /** The page sits inside another page (an iframe). Browsers then need the embedder's permission too. */
+  embedded: boolean;
+  /** Does the site's Permissions-Policy allow the camera at all? null = this browser can't tell. */
+  policyAllows: boolean | null;
+  /** The browser's saved answer for this site. null = this browser can't tell. */
+  permission: "granted" | "denied" | "prompt" | null;
+};
+export type CameraProblem = "insecure" | "unsupported" | "policy" | "embedded" | "denied" | "dismissed" | "no-camera" | "in-use" | "constraints" | "unknown";
+
+/**
+ * The real reason the camera failed, and what the person can do about it. "Blocked" used to cover five different things
+ * (a site-wide policy, a block they chose earlier, a prompt they closed, an embedded frame, a missing permission API),
+ * and the advice for each is different — so they are told apart here.
+ */
+export function diagnoseCamera(e: unknown, env: CameraEnv | null): { problem: CameraProblem; message: string } {
+  const name = e && typeof e === "object" && "name" in e ? String((e as { name: unknown }).name) : "";
+  const upload = "You can still upload from your device.";
+  if (env && !env.secure) return { problem: "insecure", message: `The camera only works on a secure (https) page, and this one isn't. ${upload}` };
+  if (env && !env.hasApi) return { problem: "unsupported", message: `This browser doesn't offer camera access to web pages. Try Chrome, Safari or Edge. ${upload}` };
+  switch (name) {
+    case "NotAllowedError": case "PermissionDeniedError": case "SecurityError":
+      if (env?.policyAllows === false) return { problem: "policy", message: `This page isn't allowed to use the camera — that is a setting of the site, not something you can change in your browser. ${upload}` };
+      if (env?.embedded && env.permission !== "denied") return { problem: "embedded", message: `The camera can't be used while this page is shown inside another page. Open it in its own tab, or upload from your device.` };
+      if (env?.permission === "denied") return { problem: "denied", message: "You have blocked the camera for this site. Tap the lock (or settings) icon next to the address, set Camera to Allow, then try again — or upload from your device." };
+      if (env?.permission === "prompt") return { problem: "dismissed", message: "The camera wasn't allowed. Tap Try again and choose Allow when your browser asks — or upload from your device." };
+      return { problem: "denied", message: "Camera access is blocked. Allow the camera for this site in your browser settings, then try again — or upload from your device." };
+    case "NotFoundError": case "DevicesNotFoundError": return { problem: "no-camera", message: "No camera was found on this device. You can upload a photo or video instead." };
+    case "NotReadableError": case "TrackStartError": case "AbortError": return { problem: "in-use", message: "The camera is being used by another app. Close it and try again." };
+    case "OverconstrainedError": case "ConstraintNotSatisfiedError": return { problem: "constraints", message: "This camera can't do what we asked. Try switching cameras." };
+    default: return { problem: "unknown", message: `We couldn't start the camera. ${upload}` };
+  }
+}
+
 export type CameraMode = "photo" | "video";
 export type Facing = "user" | "environment";
 export type Capture = { kind: "photo" | "video"; blob: Blob; url: string; durationMs: number; mime: string };

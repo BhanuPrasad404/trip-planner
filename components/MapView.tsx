@@ -22,6 +22,7 @@ import { NavigationBanner, NavigationPanel } from "./map/NavigationOverlay";
 import { useNavUi } from "@/lib/client/use-nav-ui";
 import { useMapTheme } from "@/lib/client/use-map-theme";
 import { SATELLITE_TILES_URL } from "@/lib/map/style";
+import { dayWithDate } from "@/lib/time-context";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
 
@@ -46,11 +47,15 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
   const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces: showAll });
   const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime });
   const { drive, intel, driveDay, todayDay, navigation } = live;
+  // A finished trip (planned dates over, not a late finish): show its saved journey, not an active drive.
+  const ended = live.timing?.state === "after" && !live.overrun && !drive.active;
+  const endedOn = live.timing?.lastDate && live.localDate ? dayWithDate(live.timing.lastDate, live.localDate) : null;
+  const savedCounts = useMemo(() => ({ done: places.filter((p) => p.status === "done").length, skipped: places.filter((p) => p.status === "skipped").length, total: places.filter((p) => p.day_number !== null).length }), [places]);
   const navUi = useNavUi(live, follow, setFollow, (id, name) => void actions.setStatus(id, "done", `Marked ${name} done`));
   const navBusy = navUi.navBusy;
   const mapping = !!intel.coverage && intel.coverage.ready < intel.coverage.total && intel.coverage.failed === 0;
 
-  const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order })), [places]);
+  const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null })), [places]);
   const start = useMemo(() => (trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat, lng: trip.start_lng, label: trip.start_city ?? "Start" } : null), [trip.start_lat, trip.start_lng, trip.start_city]);
   const dest = useMemo(() => (trip.dest_lat != null && trip.dest_lng != null ? { lat: trip.dest_lat, lng: trip.dest_lng, label: trip.dest_name ?? "Destination" } : null), [trip.dest_lat, trip.dest_lng, trip.dest_name]);
   const top = intel.result?.advice[0];
@@ -60,7 +65,7 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
   return (
     <main id="main" className="relative h-[calc(100dvh-14.5rem)] min-h-[30rem] w-full md:h-[calc(100dvh-10.5rem)]">
       <TripMapLazy
-        places={mapPlaces} start={start} destination={dest} activeDay={driveDay} fit={drive.active ? "day" : "all"} frameStartDest={!drive.active}
+        places={mapPlaces} start={start} destination={dest} activeDay={driveDay} fit={drive.active ? "day" : "all"} frameStartDest={!drive.active} numDays={trip.num_days} journey={ended}
         live={live.liveMarkers} pois={showRadar || showAll ? live.poiMarkers : []} driveLine={drive.active && !navUi.navBusy ? drive.route?.line ?? null : null}
         follow={drive.active && follow} onUserPan={() => setFollow(false)}
         theme={theme} satellite={satellite}
@@ -72,10 +77,17 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
         <div className="flex flex-wrap gap-2" role="group" aria-label="Map layers">
           <Toggle on={showRadar} set={setShowRadar}>Radar</Toggle>
           <Toggle on={showAll} set={setShowAll}>All places ahead</Toggle>
-          {!drive.active ? <button type="button" onClick={drive.start} className="min-h-10 rounded-full bg-marigold px-4 text-sm font-bold text-pine shadow-sm"><span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />Start drive</span></button> : <button type="button" onClick={drive.stop} className="min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow-sm"><span className="inline-flex items-center gap-1.5"><Glyph name="stop" size={16} />Stop drive</span></button>}
+          {!drive.active ? <button type="button" onClick={drive.start} className={`min-h-10 rounded-full px-4 text-sm font-bold shadow-sm ${ended ? "border border-line bg-white text-pine" : "bg-marigold text-pine"}`}><span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />{ended ? "Drive this route again" : "Start drive"}</span></button> : <button type="button" onClick={drive.stop} className="min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow-sm"><span className="inline-flex items-center gap-1.5"><Glyph name="stop" size={16} />Stop drive</span></button>}
           {drive.active && !follow && <button type="button" onClick={navUi.ui.onRecenter} className="min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow-sm"><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Follow me</span></button>}
         </div>
-        {todayDay === null && (
+        {ended && (
+          <div role="status" className="max-w-xs rounded-2xl border border-line bg-white/95 px-3 py-2 text-xs text-ink-muted shadow-sm">
+            <p className="font-semibold text-pine">Trip ended{endedOn ? ` · ${endedOn}` : ""}</p>
+            <p className="mt-0.5">Saved route and stops{savedCounts.total > 0 ? `: ${savedCounts.done} done, ${savedCounts.skipped} skipped, ${savedCounts.total - savedCounts.done - savedCounts.skipped} not marked` : ""}.</p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3"><span><span aria-hidden="true" className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#1e8e3e]" />done</span><span><span aria-hidden="true" className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#9aa0a6]" />skipped</span></p>
+          </div>
+        )}
+        {todayDay === null && !ended && !live.overrun && (
           <div className="flex flex-wrap gap-1" role="group" aria-label="Day">
             {days.map((d) => <button key={d} type="button" aria-pressed={d === focusDay} onClick={() => setFocusDay(d)} className={`min-h-9 rounded-full px-3 text-xs font-semibold shadow-sm ${d === focusDay ? "bg-pine text-white" : "bg-white text-pine"}`}>Day {d}</button>)}
           </div>
@@ -86,7 +98,7 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
       </div>
 
       {/* One-line autopilot ribbon */}
-      {top && !navBusy && (
+      {top && !navBusy && !ended && (
         <Link href={`/trips/${trip.id}/live`} className="absolute inset-x-3 top-16 mx-auto max-w-xl rounded-2xl bg-pine/95 px-4 py-3 text-white shadow-lg backdrop-blur md:left-auto md:right-16 md:top-3 md:mx-0 md:max-w-sm">
           <span className="block font-mono text-[10px] font-semibold uppercase tracking-widest text-marigold">Next best action</span>
           <span className="block truncate text-sm font-semibold">{top.title}</span>
@@ -94,7 +106,7 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
       )}
 
       {/* Radar sheet (hidden while you are getting directions or confirming the start, so nothing covers them) */}
-      <div hidden={navBusy || live.gate.open || drive.locating} className="absolute inset-x-0 bottom-0 max-h-[55%] overflow-y-auto rounded-t-3xl bg-white shadow-[0_-6px_24px_rgba(0,0,0,.18)] md:inset-x-auto md:bottom-4 md:left-4 md:max-h-[60%] md:w-[26rem] md:rounded-3xl">
+      <div hidden={navBusy || live.gate.open || drive.locating || ended} className="absolute inset-x-0 bottom-0 max-h-[55%] overflow-y-auto rounded-t-3xl bg-white shadow-[0_-6px_24px_rgba(0,0,0,.18)] md:inset-x-auto md:bottom-4 md:left-4 md:max-h-[60%] md:w-[26rem] md:rounded-3xl">
         <button type="button" onClick={() => setSheet((v) => !v)} aria-expanded={sheet} className="sticky top-0 z-10 flex min-h-12 w-full items-center justify-between rounded-t-3xl bg-white px-5 text-left">
           <span className="font-display text-base font-semibold text-pine">Travel Radar · {intel.result?.radar.length ?? 0} ahead</span>
           <span aria-hidden="true" className="text-ink-muted"><Glyph name={sheet ? "down" : "up"} size={16} /></span>

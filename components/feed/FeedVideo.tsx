@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/ui/Spinner";
 import { useEffect, useRef, useState } from "react";
 import { createProgressTracker, type ProgressEvent } from "@/lib/client/video-progress";
 import { MutedIcon, PlayIcon, SoundIcon } from "./icons";
@@ -67,7 +68,7 @@ export function FeedVideo({ src, poster, width, height, active, near, frugal, mu
         onTimeUpdate={(e) => tracker.current?.update(e.currentTarget.currentTime, e.currentTarget.duration)}
         onError={() => setFailed(true)}
       />
-      {buffering && active && <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Buffering"><span className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white" /></div>}
+      {buffering && active && <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Buffering"><Spinner size={40} className="text-white" /></div>}
 
       {(needsTap || (frugal && active)) && !failed && (
         <button type="button" onClick={() => { void ref.current?.play().then(() => setNeedsTap(false)).catch(() => setNeedsTap(true)); }}

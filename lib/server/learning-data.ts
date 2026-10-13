@@ -20,3 +20,17 @@ export async function loadLearnTrips(supabase: SupabaseClient, tripIds?: string[
   }
   return trips.map((t) => ({ id: t.id as string, name: t.name as string, num_days: t.num_days as number, start_date: t.start_date as string | null, places: by.get(t.id as string) ?? [] }));
 }
+
+/** Pure: the same result as loadLearnTrips, from trips and stop rows that are already loaded (no further requests). */
+export function learnTripsFrom(
+  trips: { id: string; name: string; num_days: number; start_date: string | null }[],
+  rows: { trip_id: string; name: string; category: string | null; day_number: number | null; status: string | null; status_at: string | null; arrival_time: string | null }[],
+): LearnTrip[] {
+  const by = new Map<string, LearnPlace[]>();
+  for (const p of rows) {
+    const list = by.get(p.trip_id) ?? [];
+    list.push({ name: p.name, category: p.category, day_number: p.day_number, status: (p.status ?? "planned") as LearnPlace["status"], status_at: p.status_at, arrival_time: p.arrival_time });
+    by.set(p.trip_id, list);
+  }
+  return trips.map((t) => ({ id: t.id, name: t.name, num_days: t.num_days, start_date: t.start_date, places: by.get(t.id) ?? [] }));
+}

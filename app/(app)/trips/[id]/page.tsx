@@ -10,7 +10,7 @@ import { formatDate } from "@/lib/format";
 import { googleMapsPlace } from "@/lib/maps-links";
 import { loadTripBundle } from "@/lib/server/trip-data";
 import { buildItineraryText } from "@/lib/share-text";
-import { daysUntilStart, tripState } from "@/lib/trip-state";
+import { daysUntilStart, tripOutcome, tripState } from "@/lib/trip-state";
 import { Glyph } from "@/components/ui/Glyph";
 
 export const metadata: Metadata = { title: "Trip overview", robots: { index: false, follow: false } };
@@ -26,7 +26,8 @@ export default async function TripOverviewPage({ params }: { params: Promise<{ i
 
   const hero =
     state === "active" ? { kicker: "Happening now", title: "Your trip is under way", text: `${done} of ${scheduled.length} stops done. Open the live trip for what to do next.`, cta: "Open live trip", href: `/trips/${id}/live` }
-    : state === "completed" ? { kicker: "Finished", title: "Welcome back", text: `You completed ${done} of ${scheduled.length} planned stops. See how the plan compared with reality.`, cta: "See memories", href: `/trips/${id}/memories` }
+    : state === "completed" && done > 0 ? { kicker: "Finished", title: "Welcome back", text: `You completed ${done} of ${scheduled.length} planned stops. See how the plan compared with reality.`, cta: "See memories", href: `/trips/${id}/memories` }
+    : state === "completed" ? { kicker: "Ended", title: "This trip's dates have passed", text: `${tripOutcome(state, { stops: scheduled.length, done, skipped: 0 }).note ?? ""} Your saved route and stops are still here — open the map to see them.`.trim(), cta: "View saved route on map", href: `/trips/${id}/map` }
     : state === "upcoming" ? { kicker: until === 0 ? "Starts today" : `Starts in ${until} day${until === 1 ? "" : "s"}`, title: scheduled.length > 0 ? "Your plan is taking shape" : "Time to build the itinerary", text: scheduled.length > 0 ? `${scheduled.length} stops across ${trip.num_days} days${ideas.length ? `, and ${ideas.length} ideas waiting to be scheduled` : ""}.` : "Add places you want to visit, then let Auto-plan order them.", cta: "Continue planning", href: `/trips/${id}/plan` }
     : { kicker: "Draft", title: "Set the dates to make it real", text: "Without a start date we can't check seasons, weather or sunset for your stops.", cta: "Open the plan", href: `/trips/${id}/plan` };
 

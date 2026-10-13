@@ -86,7 +86,7 @@ export function NewTripForm() {
         onChange={setStart}
         quickPicks={QUICK_STARTS}
         placeholder="Search your city"
-        hint="Needed for auto-planning the route."
+        hint="Needed to plan the route."
       />
 
       <PlaceSearch
@@ -120,8 +120,8 @@ export function NewTripForm() {
 
       <FormError message={error} />
 
-      <Button type="submit" disabled={loading || !name.trim()} className="w-full">
-        {loading ? "Creating…" : "Create trip"}
+      <Button type="submit" loading={loading} loadingLabel="Creating…" disabled={!name.trim()} className="w-full">
+        Create trip
       </Button>
     </form>
   );

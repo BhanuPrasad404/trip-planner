@@ -35,7 +35,8 @@ export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) =>
     onRecenter: () => { setFollow(true); setRecenter((r) => ({ n: (r?.n ?? 0) + 1 })); },
     onOverview,
     onToggleHeading: () => setHeadingUp((v) => !v),
-    onArrivedDone: t && onArrivedDone ? () => onArrivedDone(t.id, t.name) : undefined,
+    // Only a real stop can be marked done; arriving at the trip destination just ends the drive.
+    onArrivedDone: t && t.kind !== "destination" && onArrivedDone ? () => onArrivedDone(t.id, t.name) : undefined,
   };
   const nav: NavMapProps = {
     phase: navigation.phase, routes: navigation.routes, selectedId: navigation.selectedId, choices: navigation.choices,

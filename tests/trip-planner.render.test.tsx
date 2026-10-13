@@ -119,9 +119,27 @@ describe("TripPlanner render", () => {
     expect(render()).toContain('rel="noopener noreferrer nofollow"');
   });
 
-  it("explains why auto-plan is disabled", () => {
-    expect(render([])).toContain("Add a few places to enable auto-planning.");
-    expect(render(places, { ...trip, start_lat: null, start_lng: null })).toContain("no start point");
+  it("has ONE planning entry point, 'Plan my trip' (the separate Auto-plan button is gone), which jumps to the assistant", () => {
+    const html = render();
+    expect(html).toContain('href="#plan-assistant"'); expect(html).toContain("Plan my trip");
+    expect(html).not.toContain("Auto-plan");
+  });
+  it("explains what is missing before the assistant can plan", () => {
+    expect(render([])).toContain("Add places first");
+    expect(render(places, { ...trip, start_lat: null, start_lng: null })).toContain("Set a starting point");
+  });
+  it("always shows the trip dates, and says plainly when there are none", () => {
+    expect(render(places, { ...trip, start_date: null })).toContain("No dates yet");
+    expect(render(places, { ...trip, start_date: null })).toContain("Add dates");
+    const dated = render(places, { ...trip, start_date: "2026-10-14", num_days: 3 });
+    expect(dated).toContain("Trip dates"); expect(dated).toContain("Change dates"); expect(dated).toContain("16 Oct");
+  });
+  it("without dates the Go score says what it is for, instead of silently using today", () => {
+    expect(render(places, { ...trip, start_date: null })).toContain("today (no trip dates set)");
+  });
+  it("each stop can be shown on the map, and the map is a sticky, labelled region", () => {
+    const html = render();
+    expect(html).toContain("on the map"); expect(html).toContain('id="plan-map"'); expect(html).toContain("lg:sticky");
   });
 
   it("shows the empty state for an empty day", () => {
@@ -162,7 +180,7 @@ describe("TripPlanner render", () => {
   it("offers smart import and renders the map slot", () => {
     const html = render();
     expect(html).toContain("Import places");
-    expect(html).toContain("animate-pulse"); // map placeholder; MapLibre only loads in the browser
+    expect(html).toContain("tm-skeleton"); // map placeholder (shared MapSkeleton); MapLibre only loads in the browser
   });
 
 
@@ -179,7 +197,7 @@ describe("TripPlanner render", () => {
 
   it("offers a way to fix a wrong pin and shows where the geocoder put each place", () => {
     const html = render([{ ...places[0], address: "Lonavala, Pune District, Maharashtra" }]);
-    expect(html).toContain("Wrong location?");
+    expect(html).toContain("More actions for"); // the menu that holds "Wrong location? Fix the pin" (see stop-card.render.test.tsx)
     expect(html).toContain("Lonavala, Pune District, Maharashtra");
   });
 

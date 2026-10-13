@@ -1,9 +1,10 @@
 // Server-side data loading for the trip pages. Each page asks only for what it shows (weather and community updates are optional),
 // and the trip itself is fetched once per request even when both the layout and the page need it.
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUserAnd } from "@/lib/auth";
 import { dateOfTripDay, parseISODate } from "@/lib/dates";
 import { weatherProvider } from "@/lib/providers/registry";
 import { REPORT_MAX_AGE_DAYS, REPORT_PHOTO_BUCKET, assignReports, type PlaceReportRow, type ReportView } from "@/lib/reports";
@@ -28,6 +29,20 @@ export const getTrip = cache(async (id: string): Promise<Trip | null> => {
   return (data as Trip | null) ?? null;
 });
 
+/** Stop counts for one trip (so the header can say "Ended" vs "Completed"). One small query, cached for the request. */
+export const getTripCounts = cache(async (id: string): Promise<{ stops: number; done: number; skipped: number }> => {
+  const supabase = await createClient();
+  const { data } = await supabase.from("places").select("day_number, status").eq("trip_id", id).limit(1000);
+  let stops = 0, done = 0, skipped = 0;
+  for (const p of (data ?? []) as { day_number: number | null; status: string | null }[]) {
+    if (p.day_number === null) continue;
+    stops++;
+    if (p.status === "done") done++;
+    if (p.status === "skipped") skipped++;
+  }
+  return { stops, done, skipped };
+});
+
 export const getMembers = cache(async (id: string): Promise<TripMember[]> => {
   const supabase = await createClient();
   const { data } = await supabase.from("trip_members").select("*").eq("trip_id", id).order("joined_at", { ascending: true });
@@ -45,38 +60,48 @@ export type TripBundle = {
   today: string;
 };
 
+/** How long a page may wait for forecasts before it renders without them (the rest are simply missing, which the UI states). */
+export const WEATHER_PAGE_BUDGET_MS = 3_000;
+
 export async function loadTripBundle(id: string, nextPath: string, opts: { weather?: boolean; reports?: boolean } = {}): Promise<TripBundle> {
-  const { supabase, user } = await requireUser(nextPath);
-  const trip = await getTrip(id);
+  const placesQuery = (supabase: SupabaseClient, cols: string) =>
+    supabase.from("places").select(`*, season_tags(${cols})`).eq("trip_id", id).order("day_number", { ascending: true }).order("sequence_order", { ascending: true });
+
+  // ONE wave of requests: the sign-in check, the trip, its stops, its members and the votes all start together. They used to
+  // run as three waves (sign-in → trip → the rest), each costing a full network round trip. Access is still decided by the Auth
+  // server and Row Level Security: a non-member simply gets nothing back and the page answers "not found", as before.
+  const { supabase, user, loaded } = await requireUserAnd(nextPath, async (sb) => {
+    const [trip, placesFull, members, votesRes] = await Promise.all([
+      getTrip(id),
+      placesQuery(sb, "good_months, reason, category, confidence, source_urls"),
+      getMembers(id),
+      sb.from("place_votes").select("place_id, user_id, vote").eq("trip_id", id),
+    ]);
+    // If the newest season migration isn't applied yet, retry without those columns so the trip still opens.
+    const placesRes = placesFull.error ? await placesQuery(sb, "good_months, reason, category") : placesFull;
+    return { trip, placesRes, members, votesRes };
+  });
+  const { trip, placesRes, members, votesRes } = loaded;
   if (!trip) notFound();
   const today = await todayISO();
-
-  const placesQuery = (cols: string) =>
-    supabase.from("places").select(`*, season_tags(${cols})`).eq("trip_id", id).order("day_number", { ascending: true }).order("sequence_order", { ascending: true });
-  const [placesFull, members, votesRes] = await Promise.all([
-    placesQuery("good_months, reason, category, confidence, source_urls"),
-    getMembers(id),
-    supabase.from("place_votes").select("place_id, user_id, vote").eq("trip_id", id),
-  ]);
-  // If the newest season migration isn't applied yet, retry without those columns so the trip still opens.
-  const placesRes = placesFull.error ? await placesQuery("good_months, reason, category") : placesFull;
   if (placesRes.error) throw new Error(`Failed to load places: ${placesRes.error.message}`);
   if (votesRes.error) console.error("[trip] votes unavailable:", votesRes.error.message);
   const places = (placesRes.data ?? []) as unknown as PlaceWithSeason[];
 
-  // Weather for each stop on ITS visit date (forecast if soon, otherwise 6-year typical). Best-effort.
-  let conditions: Record<string, Conditions> = {};
-  if (opts.weather !== false && places.length > 0) {
+  // Weather and community updates both only need the stops, so they run TOGETHER (they used to run one after the other).
+  // Weather is best-effort and capped: a slow forecast service must not hold the whole page — without it the stop simply has no
+  // forecast-based score (the UI says its scores are estimates).
+  const weatherJob = async (): Promise<Record<string, Conditions>> => {
+    if (opts.weather === false || places.length === 0) return {};
     const fallback = parseISODate(today) ?? new Date();
-    conditions = await weatherProvider().conditionsFor(
+    return weatherProvider().conditionsFor(
       places.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng, date: dateOfTripDay(trip.start_date, p.day_number ?? 1) ?? fallback })),
-      today
+      today,
+      WEATHER_PAGE_BUDGET_MS
     );
-  }
-
-  // Community updates near each stop (best-effort; optional table).
-  let reports: Record<string, ReportView[]> = {};
-  if (opts.reports !== false && places.length > 0) {
+  };
+  const reportsJob = async (): Promise<Record<string, ReportView[]>> => {
+    if (opts.reports === false || places.length === 0) return {};
     const boxes = new Map<string, string>();
     for (const p of places.slice(0, 60)) {
       const lngPad = 0.02 / Math.max(0.2, Math.cos((p.lat * Math.PI) / 180));
@@ -90,16 +115,15 @@ export async function loadTripBundle(id: string, nextPath: string, opts: { weath
       .or([...boxes.values()].join(","))
       .order("created_at", { ascending: false })
       .limit(300);
-    if (error) console.error("[trip] reports unavailable:", error.message);
-    else {
-      reports = assignReports(
-        places.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng })),
-        (rows ?? []) as PlaceReportRow[],
-        user.id,
-        (path) => supabase.storage.from(REPORT_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl
-      );
-    }
-  }
+    if (error) { console.error("[trip] reports unavailable:", error.message); return {}; }
+    return assignReports(
+      places.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng })),
+      (rows ?? []) as PlaceReportRow[],
+      user.id,
+      (path) => supabase.storage.from(REPORT_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl
+    );
+  };
+  const [conditions, reports] = await Promise.all([weatherJob(), reportsJob()]);
 
   return { trip, places, members, votes: summarizeVotes((votesRes.data ?? []) as { place_id: string; user_id: string; vote: -1 | 1 }[], user.id), conditions, reports, userId: user.id, today };
 }

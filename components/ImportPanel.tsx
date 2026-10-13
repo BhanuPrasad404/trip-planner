@@ -224,8 +224,8 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
 
           <FormError message={error} />
 
-          <Button type="submit" disabled={!canAnalyse || phase === "loading"} className="w-full sm:w-auto">
-            {phase === "loading" ? "Finding places… this can take a few seconds" : tab === "brief" ? "Suggest places" : "Find places"}
+          <Button type="submit" disabled={!canAnalyse} loading={phase === "loading"} loadingLabel="Finding places… this can take a few seconds" className="w-full sm:w-auto">
+            {tab === "brief" ? "Suggest places" : "Find places"}
           </Button>
           <p aria-live="polite" className="sr-only">{phase === "loading" ? "Finding places" : ""}</p>
         </form>
@@ -278,8 +278,8 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button variant="ghost" onClick={() => setPhase("form")} disabled={saving}>Back</Button>
-            <Button onClick={save} disabled={saving || selected.size === 0}>
-              {saving ? "Adding…" : `Add ${selected.size} to Ideas`}
+            <Button onClick={save} loading={saving} loadingLabel="Adding…" disabled={selected.size === 0}>
+              {`Add ${selected.size} to Ideas`}
             </Button>
           </div>
         </div>

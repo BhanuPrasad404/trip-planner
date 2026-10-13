@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "./ui/Button";
+import { Button, buttonClasses } from "./ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import type { Drive } from "@/lib/client/use-drive";
 import { googleMapsDirections } from "@/lib/maps-links";
@@ -9,11 +9,16 @@ import { dayWithDate } from "@/lib/time-context";
 import { PlaceSearch } from "./PlaceSearch";
 
 /** For laptops and anywhere GPS is missing: say where you are, in words. Used only for YOUR directions; never shared. */
-function ChooseWhereIAm({ drive, near, open }: { drive: Drive; near: { lat: number; lng: number } | null; open?: boolean }) {
+function ChooseWhereIAm({ drive, near, open, plannedStart, onChosen }: { drive: Drive; near: { lat: number; lng: number } | null; open?: boolean; plannedStart?: { lat: number; lng: number; label: string } | null; onChosen?: () => void }) {
   return (
     <details open={open} className="mt-3 rounded-xl border border-line bg-white/80 p-3">
       <summary className="cursor-pointer text-sm font-semibold text-pine">No GPS on this device? Choose where you are</summary>
       <p className="mt-2 text-xs text-ink-muted">Laptops usually have no GPS, so the browser only guesses from your internet connection. Pick your town and we&apos;ll plan the road route from there. The dot will not move until real GPS is available, and nothing is shared with the group.</p>
+      {plannedStart && (
+        <Button size="sm" className="mt-2 w-full sm:w-auto" onClick={() => { drive.setManual({ lat: plannedStart.lat, lng: plannedStart.lng, label: plannedStart.label }); onChosen?.(); }}>
+          <span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />Show the route from {plannedStart.label}</span>
+        </Button>
+      )}
       <div className="mt-2">
         <PlaceSearch label="Where are you right now?" placeholder="e.g. Mothkur" near={near} value={null} onChange={(p) => { if (p) drive.setManual({ lat: p.lat, lng: p.lng, label: p.name }); }} />
       </div>
@@ -21,7 +26,7 @@ function ChooseWhereIAm({ drive, near, open }: { drive: Drive; near: { lat: numb
   );
 }
 
-type Gate = { hereLabel?: string | null; open: boolean; confirmed: boolean; check: StartCheck | null; confirm: () => void; plannedStart: { lat: number; lng: number; label: string } | null; today: string | null; driveDay: number };
+type Gate = { tripId?: string; hereLabel?: string | null; open: boolean; confirmed: boolean; check: StartCheck | null; confirm: () => void; plannedStart: { lat: number; lng: number; label: string } | null; today: string | null; driveDay: number };
 
 /**
  * Shown right after "Start drive", BEFORE anything goes live:
@@ -38,8 +43,8 @@ export function DriveGateCard({ drive, gate }: { drive: Drive; gate: Gate }) {
     return (
       <div role="status" className="rounded-2xl border border-line bg-white p-4 text-sm">
         <p className="font-semibold text-pine">Finding your location…</p>
-        <p className="mt-1 text-ink-muted">{drive.error ?? "Allow location access if your browser asks. We always wait for a fresh reading — never an old one."}</p>
-        <ChooseWhereIAm drive={drive} near={gate.plannedStart} />
+        <p className="mt-1 text-ink-muted">{drive.error ?? "Your browser will ask to use your location. Choose Allow — and Precise, if your phone asks. We always wait for a fresh reading, never an old one."}</p>
+        <ChooseWhereIAm drive={drive} near={gate.plannedStart} plannedStart={gate.plannedStart} onChosen={gate.confirm} />
       </div>
     );
   }
@@ -56,6 +61,8 @@ export function DriveGateCard({ drive, gate }: { drive: Drive; gate: Gate }) {
   if (!gate.open || !gate.check) return null;
 
   const issues = gate.check.issues;
+  const noDates = issues.find((i) => i.kind === "no-dates");
+  const onlyNoDates = !!noDates && issues.length === 1;
   const late = issues.find((i) => i.kind === "late");
   const away = issues.find((i) => i.kind === "away-from-start");
   const unsure = issues.find((i) => i.kind === "unsure-position");
@@ -65,6 +72,14 @@ export function DriveGateCard({ drive, gate }: { drive: Drive; gate: Gate }) {
     <section role="alertdialog" aria-labelledby="gate-heading" className="rounded-2xl border-2 border-marigold bg-marigold-light/60 p-4 sm:p-5">
       <h2 id="gate-heading" className="font-display text-lg font-semibold text-pine">Before you set off</h2>
       <ul className="mt-2 space-y-2 text-sm">
+        {noDates && (
+          <li className="flex items-start gap-2"><Glyph name="calendar" size={16} className="mt-0.5 shrink-0 text-pine" />
+            <span>
+              Your trip dates aren&apos;t set yet. Set them to check destination opening hours, weather forecasts, estimated arrival times and travel conditions.
+              You can still drive now with limited checks: your route and live position work as usual.
+            </span>
+          </li>
+        )}
         {early && today && (
           <li className="flex items-start gap-2"><Glyph name="info" size={16} className="mt-0.5 shrink-0 text-pine" />
             <span>
@@ -94,9 +109,19 @@ export function DriveGateCard({ drive, gate }: { drive: Drive; gate: Gate }) {
       </ul>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <Button onClick={gate.confirm}>
-          {unsure && !away && !early ? "Continue with an approximate position" : away ? "Start from where I am" : "Start now"}
-        </Button>
+        {unsure && !away && gate.plannedStart ? (
+          // The position is only approximate (typical on a laptop), so there is no honest "from where I am". Say so and offer
+          // the route from the PLANNED start instead of leaving the map empty. Real GPS takes over by itself once it is precise.
+          <Button onClick={() => { drive.setManual({ lat: gate.plannedStart!.lat, lng: gate.plannedStart!.lng, label: gate.plannedStart!.label }); gate.confirm(); }}>
+            <span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />Show the route from {gate.plannedStart.label}</span>
+          </Button>
+        ) : (
+          <Button onClick={gate.confirm}>
+            {onlyNoDates ? "Continue with limited checks" : unsure && !away && !early ? "Continue with an approximate position" : away ? "Start from where I am" : "Start now"}
+          </Button>
+        )}
+        {noDates && gate.tripId && <a href={`/trips/${gate.tripId}/plan#dates-heading`} className={buttonClasses("secondary", "md")}><Glyph name="calendar" size={16} />Set trip dates</a>}
+        {unsure && !away && gate.plannedStart && <Button variant="secondary" onClick={gate.confirm}>Wait for a precise position</Button>}
         {away && gate.plannedStart && (
           <Button
             variant="secondary"

@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { dbTime12 } from "@/lib/travel/clock";
+import { parseISODate } from "@/lib/dates";
+import { PlanHeader, type PlanTool } from "@/components/PlanHeader";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { useNowMinute } from "@/lib/client/use-now";
@@ -22,7 +25,7 @@ import { RouteThread } from "./RouteThread";
 import { StopCard } from "./StopCard";
 import { TripMapLazy } from "./TripMapLazy";
 import { TripAlerts } from "./TripAlerts";
-import { Button, buttonClasses } from "./ui/Button";
+import { Button } from "./ui/Button";
 import { TripDatesPanel } from "./TripDatesPanel";
 import { TripCheck } from "./TripCheck";
 import { weatherVisual } from "@/lib/travel/weather-visual";
@@ -40,7 +43,7 @@ import { duration, hhmm, type PlanOption } from "@/lib/trip-builder";
 type TripPlannerProps = {
   trip: Trip;
   places: PlaceWithSeason[];
-  members: TripMember[];
+  members?: TripMember[];
   /** "YYYY-MM-DD", supplied by the server so server + client render identically. */
   today: string;
   siteUrl: string;
@@ -54,11 +57,14 @@ type TripPlannerProps = {
 
 const monthName = (m: number) => new Date(2000, m - 1, 1).toLocaleString("en-IN", { month: "long" });
 
-export function TripPlanner({ trip, places: serverPlaces, today, conditions, userId, votes: serverVotes, reports = {} }: TripPlannerProps) {
+export function TripPlanner({ trip, places: serverPlaces, members = [], today, conditions, userId, votes: serverVotes, reports = {} }: TripPlannerProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeDay, setActiveDay] = useState(1);
   const [showAddForm, setShowAddForm] = useState(false);
+  // One tool panel open at a time (plan, when to leave, dates). Import has its own state because "Find alternatives" opens it with a brief.
+  const [tool, setTool] = useState<Exclude<PlanTool, "import"> | null>(null);
+  const toolRef = useRef<HTMLDivElement>(null);
   const [importState, setImportState] = useState<{ open: boolean; brief?: string; nonce: number }>({ open: false, nonce: 0 });
   const [mapFit, setMapFit] = useState<"day" | "all">("all");
   // A plan option from the Plan my trip assistant being previewed on the map (nothing is saved until the traveller applies it).
@@ -66,6 +72,9 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  // A confirmation that appears far from where the traveller is looking is a silent one: bring it into view.
+  useEffect(() => { if (notice) { noticeRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" }); } }, [notice]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const nowMinute = useNowMinute(); // 0 on the server, real time after hydration
 
@@ -111,7 +120,6 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
       ),
     [dayItems, conditions]
   );
-  const scored = useMemo(() => enriched.filter((e) => e.score), [enriched]);
   const attention = useMemo(
     () =>
       enriched
@@ -120,8 +128,6 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
         .slice(0, 5),
     [enriched]
   );
-  // No averaged number: an average hides one bad stop and the stops with no data. Plain counts instead.
-  const wellTimed = scored.filter((e) => e.score!.tone === "great" || e.score!.tone === "good").length;
 
   const stopCounts = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -131,7 +137,7 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
 
   const mapPlaces = useMemo(() => {
     const drive = (p: (typeof places)[number]) => (p.drive_minutes ? `${formatDuration(p.drive_minutes)}${p.drive_km != null ? ` · ${Math.round(p.drive_km)} km` : ""} from the previous point` : null);
-    if (!preview) return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null, arrival: p.arrival_time?.slice(0, 5) ?? null, driveText: drive(p) }));
+    if (!preview) return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null, arrival: dbTime12(p.arrival_time), driveText: drive(p) }));
     // Preview: the option's days and order, on the same map. Places the plan leaves out show as unscheduled.
     const slot = new Map(preview.days.flatMap((d) => d.stops.map((s) => [s.placeId, { day: s.day, order: s.order, arrive: hhmm(s.arriveMin), drive: `${duration(s.driveMin)} · ${Math.round(s.driveKm)} km from the previous point` }] as const)));
     return places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: slot.get(p.id)?.day ?? null, order: slot.get(p.id)?.order ?? null, status: p.status ?? null, arrival: slot.get(p.id)?.arrive ?? null, driveText: slot.get(p.id)?.drive ?? null }));
@@ -186,6 +192,20 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
   }, [dayLegs, activeDay, startPoint]);
   const tripStats = useMemo(() => summarizeTrip([...dayLegs.keys()].sort((a, b) => a - b).map((d) => dayLegs.get(d)!), startPoint), [dayLegs, startPoint]);
   const timing = useMemo(() => tripTiming(trip, today), [trip, today]);
+
+  // The header: which trip, when, how big, and one line about driving.
+  const shortDay = (iso: string) => formatDate(parseISODate(iso) ?? new Date(), { weekday: "short", day: "numeric", month: "short" });
+  const headerDates = timing.firstDate && timing.lastDate ? `${shortDay(timing.firstDate)} to ${shortDay(timing.lastDate)}` : "No dates yet";
+  const headerMeta = `${trip.num_days} ${trip.num_days === 1 ? "day" : "days"} · ${places.length} ${places.length === 1 ? "place" : "places"}`;
+  const headerStatus = tripStats.basis === "none" ? null : `${describeDistance(tripStats)}${tripStats.minutes !== null ? ` · ${formatDuration(tripStats.minutes)} driving` : ""}`;
+
+  // What deserves a second look, in one short list: stops whose timing is poor, and pins that look far from the rest.
+  const worthALook = useMemo(() => {
+    const out: { key: string; title: string; detail: string; day: number | null }[] = [];
+    for (const { place, score } of attention) out.push({ key: `t-${place.id}`, title: place.name, detail: `${score ? score.reasons[score.reasons.length - 1] : "Outside its best season"}${place.day_number ? ` · Day ${place.day_number}` : " · in Ideas"}`, day: place.day_number });
+    for (const p of farList) out.push({ key: `p-${p.id}`, title: `Check the pin for ${p.name}`, detail: `${Math.round(farPins[p.id].km)} km from ${mapDest ? mapDest.label : "your other stops"}. Use “Wrong location?” on the stop if it's wrong.`, day: p.day_number });
+    return out;
+  }, [attention, farList, farPins, mapDest]);
 
 
   // Stable per render pass; "now" for report ages. (nowMinute is 0 until the browser clock is ready.)
@@ -257,6 +277,16 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
     setBusyId(null);
   }
 
+  /** Open one tool at a time; tapping the open one closes it. */
+  function openTool(t: PlanTool) {
+    setShowAddForm(false);
+    if (t === "import") { setTool(null); setPreview(null); setImportState((st) => ({ open: !st.open, nonce: st.nonce + 1 })); return; }
+    setImportState((st) => ({ ...st, open: false }));
+    if (t !== "plan") setPreview(null);
+    setTool((cur) => (cur === t ? null : t));
+  }
+  useEffect(() => { if (tool) toolRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); }, [tool]);
+
   function findAlternatives(place: Place) {
     const e = enriched.find((x) => x.place.id === place.id);
     const where = trip.dest_name || trip.start_city || "the trip area";
@@ -298,7 +328,7 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
     near,
     onMove: movePlace,
     onRemove: removePlace,
-    onVote: votePlace,
+    onVote: members.length > 1 ? votePlace : undefined, // a vote means nothing on a solo trip
     onRelocate: relocatePlace,
     onAlternatives: findAlternatives,
     onStatus: setStatus,
@@ -312,18 +342,74 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
 
   return (
     <div className="flex-1">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <p className="text-sm text-ink-muted">Build the itinerary. Planning lives here; travelling happens on the <strong className="text-pine">Live</strong> page.</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" onClick={() => { setImportState((s) => ({ open: true, nonce: s.nonce + 1 })); setShowAddForm(false); }}><Glyph name="sparkles" size={16} />Import places</Button>
-          <a href="#plan-assistant" className={buttonClasses("primary", "md")}><Glyph name="navigate" size={16} />Plan my trip</a>
+      <PlanHeader
+        name={trip.name}
+        dates={headerDates}
+        meta={headerMeta}
+        status={headerStatus}
+        countdown={timing.state === "before" ? timing.headline : timing.state === "during" ? timing.headline : timing.state === "after" ? timing.headline : null}
+        active={importState.open ? "import" : tool}
+        hasDates={!!trip.start_date}
+        onTool={openTool}
+      />
+
+      <div className="mx-auto w-full max-w-7xl space-y-4 px-4 pt-4 empty:hidden sm:px-6 lg:[&>*]:max-w-3xl">
+        <div ref={toolRef} id="tool-panel" className="scroll-mt-4 space-y-4 empty:hidden">
+          {tool === "dates" && (
+            <TripDatesPanel
+              tripId={trip.id}
+              startDate={trip.start_date}
+              numDays={trip.num_days}
+              canEdit={trip.owner_id === userId}
+              stopCountsByDay={stopCounts}
+              onChanged={() => { setTool(null); refresh(); }}
+            />
+          )}
+          {tool === "leave" && (
+            <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} conditions={conditions} roadLine={road.line} onClose={() => setTool(null)} onSetDates={() => setTool("dates")} onPlanTrip={() => setTool("plan")} />
+          )}
+          {tool === "plan" && (
+            <TripBuilder
+              tripId={trip.id}
+              places={places}
+              hasStart={trip.start_lat != null && trip.start_lng != null}
+              hasDestination={trip.dest_lat != null && trip.dest_lng != null}
+              startLabel={trip.start_city}
+              destLabel={trip.dest_name}
+              canEditTrip={trip.owner_id === userId}
+              hasDates={!!trip.start_date}
+              onClose={() => { setTool(null); setPreview(null); }}
+              onPreview={(o) => { setPreview(o); if (o) setMapFit("all"); }}
+              onChanged={refresh}
+            />
+          )}
+        </div>
+
+        {importState.open && (
+          <ImportPanel
+            key={importState.nonce}
+            tripId={trip.id}
+            startDate={trip.start_date}
+            today={today}
+            initialBrief={importState.brief}
+            onCancel={() => setImportState((s) => ({ ...s, open: false }))}
+            onDone={(n) => {
+              setImportState((s) => ({ ...s, open: false }));
+              setNotice(`Added ${n} ${n === 1 ? "place" : "places"} to your Ideas. Use Plan my trip to schedule them.`);
+              refresh();
+            }}
+          />
+        )}
+        <div aria-live="polite" className="space-y-3 empty:hidden">
+          <FormError message={error} />
+          {notice && <p ref={noticeRef} id="plan-notice" tabIndex={-1} role="status" className="scroll-mt-24 rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink outline-none">{notice}</p>}
         </div>
       </div>
 
       <main id="main" className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
         {/* ───── Map (stays in view on a laptop while you read the days) + trip overview ───── */}
         <div className="space-y-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-stretch">
-        <div id="plan-map" className="relative h-80 scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:sticky lg:top-4 lg:z-20 lg:h-[26rem]">
+        <div id="plan-map" className="relative h-56 scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:h-72 lg:sticky lg:top-4 lg:z-20 lg:h-[26rem]">
           {preview && (
             <p role="status" className="absolute inset-x-2 bottom-2 z-10 flex items-center justify-between gap-2 rounded-xl bg-pine/95 px-3 py-2 text-xs font-semibold text-white shadow">
               <span>Previewing the {preview.label} plan — not saved yet</span>
@@ -361,137 +447,27 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
             ))}
           </div>
         </div>
-          <aside className="space-y-6" aria-label="Trip overview">
-            <section aria-labelledby="overview-heading" className="rounded-2xl border border-line bg-white p-5">
-              <div className="flex items-start justify-between gap-3">
-                <h2 id="overview-heading" className="font-display text-lg font-semibold text-pine">Season and weather fit</h2>
-              </div>
-
-              <p className="mt-1 text-xs text-ink-muted">How well your dates suit the season and weather at each stop. It doesn&apos;t cover bookings, opening hours or driving time.</p>
-              {scored.length > 0 && (
-                <p className="mt-2 text-sm text-ink-muted">
-                  <strong className="text-pine">{wellTimed} of {places.length}</strong> {places.length === 1 ? "stop looks" : "stops look"} well timed
-                  {places.length - scored.length > 0 ? ` · ${places.length - scored.length} with no season or weather data` : ""}.
-                </p>
-              )}
-              {places.length === 0 ? (
-                <p className="mt-2 text-sm text-ink-muted">Add places and Trailmate scores each one for the day you&apos;ll be there — season, weather and more.</p>
-              ) : scored.length === 0 ? (
-                <p className="mt-2 text-sm text-ink-muted">We don&apos;t have season or weather data for these places yet, so we can&apos;t judge their timing.</p>
-              ) : attention.length === 0 ? (
-                <p className="mt-2 text-sm text-teal-ink">
-                  <Glyph name="check" size={15} className="mr-1.5 inline align-text-bottom" />Timing looks good for {scored.length === places.length ? "all" : `the ${scored.length} places we have data for`}
-                  {scored.length === places.length && ` ${places.length} ${places.length === 1 ? "stop" : "stops"}`}.
-                </p>
-              ) : (
-                <>
-                  <p className="mt-2 text-sm text-clay-ink">
-                    <Glyph name="warn" size={15} className="mr-1.5 inline align-text-bottom" />
-                    {attention.length} {attention.length === 1 ? "stop needs" : "stops need"} a second look:
-                  </p>
-                  <ul className="mt-3 space-y-2">
-                    {attention.map(({ place, score }) => (
-                      <li key={place.id}>
-                        <button
-                          type="button"
-                          onClick={() => place.day_number && setActiveDay(place.day_number)}
-                          disabled={!place.day_number}
-                          className="w-full rounded-xl bg-clay-light px-3 py-2.5 text-left text-sm hover:bg-[#f7d9cc] disabled:cursor-default"
-                        >
-                          <span className="font-semibold text-clay-ink">{place.name}</span>
-                          <span className="block text-ink-muted">
-                            {score ? `${score.basis === "season+weather" ? `Go score ${score.score}` : score.basis === "weather" ? "Weather" : "Season"} · ${score.reasons[score.reasons.length - 1]}` : "Outside its best season"}
-                            {place.day_number ? ` — Day ${place.day_number}` : " — in Ideas"}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {tripStats.basis !== "none" && (
-                  <p className="mt-3 border-t border-line pt-3 text-sm text-ink-muted">
-                    <strong className="text-pine">Whole trip:</strong> {describeDistance(tripStats)}
-                    {tripStats.minutes !== null ? ` · ${formatDuration(tripStats.minutes)} driving` : ""}
-                    {tripStats.basis !== "road" && <span className="mt-1 block text-xs">Use <strong>Plan my trip</strong> to get distances and times by road.</span>}
-                  </p>
-                )}
-              </section>
-
-            {farList.length > 0 && (
-              <section aria-labelledby="pins-heading" className="rounded-2xl border border-clay/30 bg-clay-light/60 p-5">
-                <h2 id="pins-heading" className="font-display text-lg font-semibold text-clay-ink">Pins to double-check</h2>
-                <p className="mt-1 text-sm text-ink-muted">These look far from {mapDest ? mapDest.label : "your other stops"}. Open the stop and use “Wrong location?” if one is wrong.</p>
-                <ul className="mt-3 space-y-2">
-                  {farList.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onClick={() => p.day_number && setActiveDay(p.day_number)}
-                        disabled={!p.day_number}
-                        className="w-full rounded-xl bg-white px-3 py-2.5 text-left text-sm hover:bg-sky disabled:cursor-default"
-                      >
-                        <span className="font-semibold">{p.name}</span>
-                        <span className="block text-ink-muted">
-                          {Math.round(farPins[p.id].km)} km away{p.day_number ? ` — Day ${p.day_number}` : " — in Ideas"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <p className="px-1 text-xs leading-relaxed text-ink-muted">
-              Go scores are estimates from season data plus a weather forecast (next 16 days) or typical conditions for your dates
-              (last 6 years). Driving times come from a routing service and may differ from your real trip. Pins come from a public
-              map search — if one looks wrong, use “Wrong location?” on the stop.
-            </p>
-          </aside>
         </div>
 
         {/* ───── Itinerary + ideas ───── */}
         <div className="space-y-6 lg:col-start-1 lg:row-span-2 lg:row-start-1">
-          <TripDatesPanel
-            tripId={trip.id}
-            startDate={trip.start_date}
-            numDays={trip.num_days}
-            canEdit={trip.owner_id === userId}
-            stopCountsByDay={stopCounts}
-            onChanged={refresh}
-          />
-          <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} conditions={conditions} roadLine={road.line} />
-          <TripBuilder
-            tripId={trip.id}
-            places={places}
-            hasStart={trip.start_lat != null && trip.start_lng != null}
-            hasDestination={trip.dest_lat != null && trip.dest_lng != null}
-            startLabel={trip.start_city}
-            destLabel={trip.dest_name}
-            canEditTrip={trip.owner_id === userId}
-            onPreview={(o) => { setPreview(o); if (o) setMapFit("all"); }}
-            onChanged={refresh}
-          />
-          {importState.open && (
-            <ImportPanel
-              key={importState.nonce}
-              tripId={trip.id}
-              startDate={trip.start_date}
-              today={today}
-              initialBrief={importState.brief}
-              onCancel={() => setImportState((s) => ({ ...s, open: false }))}
-              onDone={(n) => {
-                setImportState((s) => ({ ...s, open: false }));
-                setNotice(`Added ${n} ${n === 1 ? "place" : "places"} to your Ideas. Vote on them, then use Plan my trip to schedule them.`);
-                refresh();
-              }}
-            />
+          {worthALook.length > 0 && (
+            <section aria-labelledby="look-heading" className="rounded-2xl border border-marigold/40 bg-marigold-light/40 p-3.5">
+              <h2 id="look-heading" className="flex items-center gap-2 text-sm font-semibold text-pine"><Glyph name="warn" size={15} />Worth a look ({worthALook.length})</h2>
+              <ul className="mt-2 space-y-1.5">
+                {worthALook.slice(0, 3).map((w) => <li key={w.key}><button type="button" onClick={() => w.day && setActiveDay(w.day)} disabled={!w.day} className="w-full rounded-xl bg-white/80 px-3 py-2 text-left text-sm hover:bg-white disabled:cursor-default"><span className="font-semibold text-pine">{w.title}</span><span className="block text-ink-muted">{w.detail}</span></button></li>)}
+              </ul>
+              {worthALook.length > 3 && (
+                <details>
+                  <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">{worthALook.length - 3} more</summary>
+                  <ul className="space-y-1.5 pb-1">
+                    {worthALook.slice(3).map((w) => <li key={w.key}><button type="button" onClick={() => w.day && setActiveDay(w.day)} disabled={!w.day} className="w-full rounded-xl bg-white/80 px-3 py-2 text-left text-sm hover:bg-white disabled:cursor-default"><span className="font-semibold text-pine">{w.title}</span><span className="block text-ink-muted">{w.detail}</span></button></li>)}
+                  </ul>
+                </details>
+              )}
+            </section>
           )}
 
-          <div aria-live="polite" className="space-y-3 empty:hidden">
-            <FormError message={error} />
-            {notice && <p role="status" className="rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">{notice}</p>}
-          </div>
 
           <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm shadow-pine/5">
             <RouteThread
@@ -521,18 +497,6 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
                   {dayStats.minutes !== null ? ` · ${formatDuration(dayStats.minutes).toUpperCase()} DRIVING` : ""}
                 </span>
               </div>
-
-              {timing.state === "before" && (
-                <p role="note" className="mt-3 flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">
-                  <Glyph name="info" size={16} className="mt-0.5 shrink-0 text-pine" />
-                  <span><strong className="text-pine">{timing.headline}</strong> Go scores and weather on this page are for your trip days, not for today.</span>
-                </p>
-              )}
-              {timing.state === "after" && (
-                <p role="note" className="mt-3 flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">
-                  <Glyph name="info" size={16} className="mt-0.5 shrink-0 text-pine" /><span>{timing.headline}</span>
-                </p>
-              )}
 
               <TripAlerts alerts={alerts} />
 
@@ -571,7 +535,7 @@ export function TripPlanner({ trip, places: serverPlaces, today, conditions, use
             </h2>
             {ideas.length === 0 ? (
               <p className="py-4 text-base text-ink-muted">
-                Places you import land here first, so the group can vote before anything is scheduled. Paste a Maps link, a caption or a screenshot with <strong>Import places</strong>.
+                Imported places wait here until you schedule them. Add some with <strong>Import places</strong>: a Maps link, a caption or a screenshot.
               </p>
             ) : (
               <ul className="mt-1">

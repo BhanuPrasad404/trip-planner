@@ -113,6 +113,9 @@ export const movePlaceSchema = z.object({
 
 export const placePrioritySchema = z.object({ priority: z.enum(["must", "high", "normal", "optional"]) });
 
+/** How long the traveller will spend at a stop, in minutes (10 minutes to 12 hours, the database's own limit). null = back to the usual time for its type. */
+export const placeVisitSchema = z.object({ visit_minutes: z.number().int().min(10).max(720).nullable() });
+
 /**
  * Opening hours on a stop: set/replace them as typed by a member (value), clear them (value null), or confirm hours that were suggested
  * from map data (confirm). The text is validated on the server with the real opening_hours parser before it is stored.
@@ -155,6 +158,15 @@ export const directionsSchema = z.object({
   to: z.object({ lat: latitude, lng: longitude }),
   /** How many alternative routes to ask for besides the main one (a re-route asks for 0). */
   alternatives: z.number().int().min(0).max(3).default(2),
+  /** What the traveller is driving. Changes what we ask the routing service for, and what we say about how well the route fits. */
+  vehicle: z.enum(["car", "motorcycle", "bus"]).default("car"),
+});
+
+/** The road to check for toll plazas, as [longitude, latitude] points (the client sends a simplified copy of the active route). */
+export const tollsSchema = z.object({
+  line: z.array(z.tuple([longitude, latitude])).min(2, "Need a route").max(6000, "That route has too many points"),
+  /** Fees are shown for this vehicle only, and only when the map lists one for it. */
+  vehicle: z.enum(["car", "motorcycle", "bus"]).default("car"),
 });
 
 export const relocatePlaceSchema = z.object({

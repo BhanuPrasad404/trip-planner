@@ -5,6 +5,7 @@ import { distanceKm } from "@/lib/geo";
 import { describeRoutes, estimateDirections } from "@/lib/map/directions";
 import { routingProvider } from "@/lib/providers/registry";
 import { consumeQuota } from "@/lib/quota";
+import { avoidsMotorway, routeFitNote } from "@/lib/vehicle";
 import { directionsSchema } from "@/lib/validation/schemas";
 
 export const maxDuration = 20;
@@ -23,14 +24,16 @@ export async function POST(req: Request) {
   if (!(await consumeQuota(supabase, "directions", 300))) return jsonError("Too many route requests today. Please try again tomorrow.", 429);
 
   const provider = routingProvider();
-  const routes = provider.directions ? await provider.directions(input.from, input.to, { alternatives: input.alternatives }) : [estimateDirections(input.from, input.to)];
+  const routes = provider.directions ? await provider.directions(input.from, input.to, { alternatives: input.alternatives, avoidMotorway: avoidsMotorway(input.vehicle) }) : [estimateDirections(input.from, input.to)];
   const real = routes.some((r) => r.source === "osrm");
+  const applied = real && routes.some((r) => r.avoidedMotorway === true);
   return NextResponse.json({
     routes,
+    vehicle: input.vehicle,
     choices: describeRoutes(routes),
     // Plain statement of what we do NOT know: no live traffic is applied to these times.
     notes: [
-      ...(real ? ["Times use typical road speeds. Live traffic isn't connected."] : ["Road directions are unavailable right now, so this is a straight-line estimate without turn-by-turn."]),
+      ...(real ? [routeFitNote(input.vehicle, applied), ...(input.vehicle === "car" ? [] : ["Times use typical road speeds for a car. Live traffic isn't connected."])] : ["Road directions are unavailable right now, so this is a straight-line estimate without turn-by-turn."]),
     ],
   });
 }

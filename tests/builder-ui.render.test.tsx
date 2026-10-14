@@ -7,16 +7,14 @@ const place = { id: "p1", name: "Lonavala", lat: 18.75, lng: 73.4, category: "hi
 const noop = () => {};
 
 describe("TripBuilder first screen", () => {
-  it("says in plain words what it does, how it works in 3 steps, and that nothing changes until you choose", () => {
+  it("says in one line what it does and that nothing changes until you choose, with a close button and no step-by-step explainer", () => {
     const html = renderToStaticMarkup(<TripBuilder tripId="t" places={[place]} hasStart hasDestination onPreview={noop} onChanged={noop} />);
     expect(html).toContain("Plan my trip");
-    expect(html).toContain("three realistic ways to fit them into your days");
-    for (const step of ["Tell us what matters", "See if it fits", "Pick a plan"]) expect(html).toContain(step);
-    expect(html).toContain("Nothing changes in your itinerary until you press");
-    expect(html).toContain("you can undo it");
-    expect(html).not.toContain("disabled=\"\"");
+    expect(html).toContain("using real road times"); expect(html).toContain("Nothing changes until you press Use this plan");
+    expect(html).toContain('aria-label="Close Plan my trip"');
+    for (const old of ["Tell us what matters", "See if it fits", "three realistic ways"]) expect(html).not.toContain(old);
   });
-  it("can be reached from the page header (it has an anchor to jump to)", () => {
+  it("keeps its anchor id so other parts of the page can point at it", () => {
     expect(renderToStaticMarkup(<TripBuilder tripId="t" places={[place]} hasStart hasDestination onPreview={noop} onChanged={noop} />)).toContain('id="plan-assistant"');
   });
   it("asks for places first when there are none, and for a start point when missing", () => {

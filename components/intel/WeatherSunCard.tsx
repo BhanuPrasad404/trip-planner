@@ -1,6 +1,9 @@
 import type { IntelResult } from "@/lib/intel/types";
 import { Glyph } from "@/components/ui/Glyph";
 import { WhenChip } from "@/components/ui/WhenChip";
+import { WeatherScene } from "@/components/WeatherScene";
+import { useLocalJson } from "@/lib/client/use-local-json";
+import { sceneFor } from "@/lib/travel/weather-scene";
 
 type Props = {
   weather: IntelResult["weatherNow"];
@@ -16,14 +19,19 @@ type Props = {
   nowMs?: number;
 };
 
+const FX_KEY = "tm:weather-fx";
+const FX_FALLBACK: { off?: boolean } = {};
 const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m} min`);
 const rain = (p: number | null, mm: number) => (p !== null ? `${Math.round(p)}% rain` : mm > 0 ? `${mm} mm` : "no rain");
 
 /** Weather right now and the next hours, plus the sun — the two things a traveller checks first. Real forecast data, credited. */
 export function WeatherSunCard({ weather, sun, sunNext, where, updatedAt, tripNote, nowMs }: Props) {
   const age = updatedAt && nowMs ? Math.max(0, Math.round((nowMs - updatedAt) / 60_000)) : null;
+  const [fx, setFx] = useLocalJson<{ off?: boolean }>(FX_KEY, FX_FALLBACK);
+  const scene = sceneFor(weather);
   return (
-    <section aria-labelledby="wx-heading" className="rounded-2xl border border-line bg-white p-4 sm:p-5">
+    <section aria-labelledby="wx-heading" className="relative isolate rounded-2xl border border-line bg-white p-4 sm:p-5">
+      <WeatherScene scene={scene} on={!fx.off} />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="wx-heading" className="font-display text-lg font-semibold text-pine">Weather &amp; sun</h2>
         <p className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-ink-muted">
@@ -31,6 +39,12 @@ export function WeatherSunCard({ weather, sun, sunNext, where, updatedAt, tripNo
         </p>
       </div>
       {tripNote && <p className="mt-2 rounded-lg bg-sky px-3 py-1.5 text-xs text-ink-muted">{tripNote}</p>}
+      {scene.kind !== "clear" && (
+        <p className="mt-1 flex items-center justify-between gap-3 text-xs text-ink-muted">
+          <span>{scene.label}</span>
+          <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 font-semibold text-pine"><input type="checkbox" checked={!fx.off} onChange={(e) => setFx({ off: !e.target.checked })} className="h-5 w-5 accent-[#1c7c6d]" />Weather effects</label>
+        </p>
+      )}
 
       <div className="mt-3 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
         {weather ? (

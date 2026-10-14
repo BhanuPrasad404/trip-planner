@@ -182,6 +182,35 @@ describe("PATCH /api/places/[id]", () => {
       expect((await patch({ hours: { confirm: true, hours_confirmed_by: "someone-else" } })).status).toBe(400);
     });
   });
+  describe("PATCH /api/places/[id] — time at the stop (visit_minutes)", () => {
+    it("saves the traveller's own time, as ONE write of that column and nothing else", async () => {
+      expect((await patch({ visit_minutes: 45 })).status).toBe(200);
+      const u = last("places", "update")!;
+      expect(u.payload).toEqual({ visit_minutes: 45 });
+    });
+    it("null puts it back to the usual time for its kind of place", async () => {
+      expect((await patch({ visit_minutes: null })).status).toBe(200);
+      expect(last("places", "update")!.payload).toEqual({ visit_minutes: null });
+    });
+    it("refuses times the database would reject, and anything that is not a whole number of minutes", async () => {
+      for (const v of [0, 9, 721, -30, 12.5, "60", true, [60]]) expect((await patch({ visit_minutes: v })).status).toBe(400);
+      expect(last("places", "update")).toBeUndefined();
+    });
+    it("accepts the limits themselves (10 minutes and 12 hours)", async () => {
+      expect((await patch({ visit_minutes: 10 })).status).toBe(200);
+      expect((await patch({ visit_minutes: 720 })).status).toBe(200);
+    });
+    it("cannot be combined with another edit or extra fields", async () => {
+      expect((await patch({ visit_minutes: 60, priority: "must" })).status).toBe(400);
+      expect((await patch({ visit_minutes: 60, trip_id: "forged" })).status).toBe(400);
+    });
+    it("signed out writes nothing; a stop you may not edit is 'Place not found'", async () => {
+      state.user = null;
+      expect((await patch({ visit_minutes: 60 })).status).toBe(401);
+      expect(last("places", "update")).toBeUndefined();
+      state.user = { id: "me" };
+    });
+  });
   it("rejects mixed or unknown fields instead of silently dropping half of them", async () => {
     expect((await patch({ lat: 16.62, lng: 80.53, day_number: 3 })).status).toBe(400); // move + relocate
     expect((await patch({ lat: 16.62, lng: 80.53, trip_id: "forged" })).status).toBe(400); // smuggled column

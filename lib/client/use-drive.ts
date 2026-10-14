@@ -50,7 +50,7 @@ const MAX_ETA_STOPS = 8;
  * NOTE: browsers pause location when the screen is locked or the tab is in the background;
  * we ask the browser to keep the screen on while driving (Wake Lock) where supported.
  */
-export function useDrive(tripId: string, userId: string, stops: DriveTarget[], allowLive: MutableRefObject<boolean>, fixRef?: MutableRefObject<((m: Me) => void) | null>, endRef?: MutableRefObject<(() => void) | null>): Drive {
+export function useDrive(tripId: string, userId: string, stops: DriveTarget[], allowLive: MutableRefObject<boolean>, fixRef?: MutableRefObject<((m: Me) => void) | null>, endRef?: MutableRefObject<(() => void) | null>, /** Also told about every accepted reading (arrival detection listens here). */ extraFixRef?: MutableRefObject<((m: Me) => void) | null>): Drive {
   const [active, setActive] = useState(false);
   const [share, setShareState] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
@@ -169,6 +169,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
         setMe(m);
         setError(null);
         fixRef?.current?.(m); // navigation decides for itself how much to trust each fix
+        extraFixRef?.current?.(m); // arrival detection does the same: it ignores anything it cannot trust
 
         // Continuous driving time: starts when we move, resets after a real stop (8+ minutes without moving).
         const moving = (m.speedKmh ?? 0) >= 8 || (lastMoved.current !== null && distanceKm(lastMoved.current, m) * 1000 >= 40);
@@ -257,7 +258,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
       driveStart.current = null;
       lastMoved.current = null;
     };
-  }, [active, tripId, userId, publish, refreshRoute, allowLive, fixRef, endRef]);
+  }, [active, tripId, userId, publish, refreshRoute, allowLive, fixRef, endRef, extraFixRef]);
 
   // While driving, tick every 5 s so a position that stops updating is shown as old instead of looking current.
   useEffect(() => {

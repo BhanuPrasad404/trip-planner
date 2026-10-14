@@ -1,5 +1,6 @@
 "use client";
 
+import { dbTime12 } from "@/lib/travel/clock";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useSyncExternalStore } from "react";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
@@ -54,7 +55,7 @@ export function PlanVsReality({ trip }: { trip: LearnTrip }) {
             <ul className="mt-2 divide-y divide-line text-sm">
               {scheduled.filter((p) => p.day_number === d).sort((a, b) => (toMin(a.arrival_time) ?? 0) - (toMin(b.arrival_time) ?? 0)).map((p) => {
                 const o = outcome(p);
-                return <li key={p.name + (p.arrival_time ?? "")} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"><span className="w-12 shrink-0 font-mono text-xs text-ink-muted">{p.arrival_time?.slice(0, 5) ?? "--:--"}</span><span className="min-w-0 flex-1 break-words font-medium">{p.name}</span><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${o.cls}`}>{o.text}</span></li>;
+                return <li key={p.name + (p.arrival_time ?? "")} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"><span className="w-[4.5rem] shrink-0 text-xs font-medium text-ink-muted">{dbTime12(p.arrival_time) ?? "No time"}</span><span className="min-w-0 flex-1 break-words font-medium">{p.name}</span><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${o.cls}`}>{o.text}</span></li>;
               })}
             </ul>
           </li>

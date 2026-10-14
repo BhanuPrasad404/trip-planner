@@ -53,6 +53,8 @@ export type NavRoute = {
   via: string;
   /** "osrm": real road geometry and maneuvers. "estimate": straight line, no turn-by-turn. */
   source: "osrm" | "estimate";
+  /** True ONLY when the routing service really was asked to avoid motorway-class roads and did. A route without it may use them. */
+  avoidedMotorway?: boolean;
 };
 
 export interface RoutingProvider {
@@ -62,7 +64,7 @@ export interface RoutingProvider {
   /** Road route through the points in order. Must never throw: degrade to an estimate. */
   route(points: GeoPoint[], fetchImpl?: typeof fetch): Promise<RouteResult>;
   /** Turn-by-turn route(s) from `from` to `to`, best first. Optional: a provider without it simply gets no navigation. Must never throw. */
-  directions?(from: GeoPoint, to: GeoPoint, opts?: { alternatives?: number }, fetchImpl?: typeof fetch): Promise<NavRoute[]>;
+  directions?(from: GeoPoint, to: GeoPoint, opts?: { alternatives?: number; /** Ask for routes that avoid motorway-class roads (used for motorcycles). Best effort: see NavRoute.avoidedMotorway. */ avoidMotorway?: boolean }, fetchImpl?: typeof fetch): Promise<NavRoute[]>;
 }
 
 // ── Places (points of interest) ────────────────────────────────────────────

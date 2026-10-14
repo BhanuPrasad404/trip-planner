@@ -12,7 +12,7 @@ describe("the headline case: leave at 9 PM for a fort that closes at 6 PM", () =
   it("says it is likely closed when you arrive, from the hours it was given", () => {
     expect(v.state).toBe("closed_on_arrival"); expect(v.severity).toBe("risk");
     expect(v.arriveClock).toBe("22:45"); expect(v.closesAt).toBe("18:00");
-    expect(v.headline).toBe("Likely closed when you arrive"); expect(v.detail).toContain("closes at 18:00"); expect(v.detail).toContain("22:45");
+    expect(v.headline).toBe("Likely closed when you arrive"); expect(v.detail).toContain("closes at 6:00 PM"); expect(v.detail).toContain("10:45 PM");
   });
   it("offers real choices with a computed fix, and changes nothing by itself", () => {
     expect(v.options).toEqual(expect.arrayContaining(["adjust_departure", "visit_another_day", "add_overnight", "reorder", "skip_stop", "continue"]));
@@ -57,7 +57,7 @@ describe("other availability cases", () => {
   });
   it("comfortably open", () => {
     const v = one("10:00", { driveMin: 60, visitMin: 60, hours: DAYTIME });
-    expect(v.state).toBe("open"); expect(v.detail).toContain("until 18:00");
+    expect(v.state).toBe("open"); expect(v.detail).toContain("until 6:00 PM");
   });
   it("closed all that day (e.g. Sundays off): says so and suggests another day", () => {
     const v = one("10:00", { driveMin: 60, hours: "Mo-Sa 09:00-18:00" }); // Wednesday: open, so use a Sunday

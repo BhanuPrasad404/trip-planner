@@ -13,7 +13,7 @@ describe("events from the arrival check", () => {
   it("hours the traveller gave, arriving after closing: a high-severity, high-confidence 'arrival after closing' with evidence and an action", () => {
     const [e] = eventsFromVerdicts("t", verdicts("Mo-Su 09:00-18:00"), NOW);
     expect(e).toMatchObject({ type: "arrival_after_closing", severity: "high", confidence: "high", dataStatus: "verified", subject: "fort", status: "open" });
-    expect(e.action).toContain("Leave earlier"); expect(e.evidence.join(" ")).toContain("Closes 18:00");
+    expect(e.action).toContain("Leave earlier"); expect(e.evidence.join(" ")).toContain("Closes 6:00 PM");
     expect(e.expiresAt).toBeGreaterThan(e.impactAt!);
   });
   it("map-sourced hours are medium confidence and 'unverified', so they can never reach an alarm level", () => {

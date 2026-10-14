@@ -53,20 +53,30 @@ export const osrmRouting: RoutingProvider = {
 
   directions(from, to, opts = {}, fetchImpl = fetch): Promise<NavRoute[]> {
     const alternatives = Math.min(3, Math.max(0, Math.round(opts.alternatives ?? 0)));
-    return directionsCache.get(`${cacheKey([from, to])}|${alternatives}`, () => fetchDirections(from, to, alternatives, fetchImpl));
+    const avoid = !!opts.avoidMotorway;
+    return directionsCache.get(`${cacheKey([from, to])}|${alternatives}${avoid ? "|nomw" : ""}`, () => fetchDirections(from, to, alternatives, fetchImpl, avoid));
   },
 };
 
 // OSRM can only offer alternative routes between TWO points, so navigation always goes "here → next stop".
-async function fetchDirections(from: GeoPoint, to: GeoPoint, alternatives: number, fetchImpl: typeof fetch): Promise<NavRoute[]> {
-  try {
-    const url = `${baseUrl()}/route/v1/driving/${coordsOf([from, to])}?overview=full&geometries=geojson&steps=true&alternatives=${alternatives > 0 ? alternatives : "false"}`;
-    const res = await fetchImpl(url, { signal: AbortSignal.timeout(12_000) });
-    if (!res.ok) return [estimateDirections(from, to)];
-    return parseOsrmDirections(await res.json()) ?? [estimateDirections(from, to)];
-  } catch {
-    return [estimateDirections(from, to)];
+async function fetchDirections(from: GeoPoint, to: GeoPoint, alternatives: number, fetchImpl: typeof fetch, avoidMotorway = false): Promise<NavRoute[]> {
+  const ask = async (exclude: boolean): Promise<NavRoute[] | null> => {
+    try {
+      const url = `${baseUrl()}/route/v1/driving/${coordsOf([from, to])}?overview=full&geometries=geojson&steps=true&alternatives=${alternatives > 0 ? alternatives : "false"}${exclude ? "&exclude=motorway" : ""}`;
+      const res = await fetchImpl(url, { signal: AbortSignal.timeout(12_000) });
+      if (!res.ok) return null;
+      return parseOsrmDirections(await res.json());
+    } catch {
+      return null;
+    }
+  };
+  if (avoidMotorway) {
+    // The free routing service may not support "avoid motorways" (it answers with an error) or there may be no road without one. Then we
+    // ask for the plain route and DO NOT mark it as avoiding anything: the traveller is told it is a car route.
+    const routes = await ask(true);
+    if (routes) return routes.map((r) => ({ ...r, avoidedMotorway: true }));
   }
+  return (await ask(false)) ?? [estimateDirections(from, to)];
 }
 
 async function fetchMatrix(points: GeoPoint[], fetchImpl: typeof fetch): Promise<Matrix> {

@@ -7,7 +7,7 @@ import {
   Route, Smile, Sparkles, Square, SquareParking, Sun, SunDim, Sunrise, Sunset, ThumbsDown, ThumbsUp, Toilet, TriangleAlert, Info,
   Umbrella, UtensilsCrossed, Users, Waves, BedDouble, Wrench, X, Angry, Car, ChevronDown, ChevronUp, ArrowRight,
   ArrowUp, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Volume2, VolumeX, Moon, Layers,
-  Trash2, SkipForward, CalendarDays, ExternalLink, MessageSquare, CloudRain, Thermometer,
+  Trash2, SkipForward, CalendarDays, ExternalLink, MessageSquare, CloudRain, Thermometer, Wind, Bus, Motorbike,
 } from "lucide";
 import type { IconNode } from "lucide";
 
@@ -25,7 +25,7 @@ export const GLYPHS = {
   warn: TriangleAlert, info: Info, play: Play, stop: Square, locate: LocateFixed, camera: Camera, close: X, car: Car,
   sunset: Sunset, sunrise: Sunrise, sun: Sun, navigate: Navigation, down: ChevronDown, up: ChevronUp, arrow: ArrowRight,
   arrowUp: ArrowUp, turnLeft: CornerUpLeft, turnRight: CornerUpRight, uturn: Undo2, roundabout: RotateCw, flag: Flag, volumeOn: Volume2, volumeOff: VolumeX, moon: Moon, layers: Layers,
-  rain: CloudRain, thermometer: Thermometer, trash: Trash2, skip: SkipForward, calendar: CalendarDays, external: ExternalLink, chat: MessageSquare,
+  rain: CloudRain, wind: Wind, bus: Bus, motorbike: Motorbike, thermometer: Thermometer, trash: Trash2, skip: SkipForward, calendar: CalendarDays, external: ExternalLink, chat: MessageSquare,
   faceAngry: Angry, faceSad: Frown, faceOkay: Meh, faceGood: Smile, faceGreat: Laugh,
 } as const satisfies Record<string, IconNode>;
 

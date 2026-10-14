@@ -1,6 +1,7 @@
 // Turning findings into EVENTS, and keeping them calm. An event is one specific, useful thing ("you'd reach X after it closes"),
 // with a stable key, how sure we are, how serious it is, when it stops mattering, and what the traveller can do.
 // The same finding on the next check is the SAME event (updated, not repeated); a finding that stops being true is RESOLVED.
+import { localizeClocks } from "./clock";
 import type { DataStatus } from "./freshness";
 import type { ReadinessItem } from "./readiness";
 import type { StopVerdict } from "./feasibility";
@@ -49,7 +50,7 @@ export function eventsFromVerdicts(tripId: string, verdicts: StopVerdict[], now:
   const out: TravelEvent[] = [];
   const make = (v: StopVerdict, type: EventType, severity: EventSeverity, title: string, impact: string, action: string | null, status: DataStatus): TravelEvent => ({
     id: `${type}:${tripId}:${v.stopId}`, type, tripId, subject: v.stopId, title, detail: v.detail, impact, action, severity, confidence: confidenceOf(v), dataStatus: status,
-    evidence: [`Estimated arrival ${v.windowClock ?? "unknown"}`, v.closesAt ? `Closes ${v.closesAt}` : v.opensAt ? `Opens ${v.opensAt}` : "Opening hours not known", `Hours source: ${v.hoursSource ?? "none"}`],
+    evidence: [`Estimated arrival ${v.windowClock ? localizeClocks(v.windowClock) : "unknown"}`, v.closesAt ? `Closes ${localizeClocks(v.closesAt)}` : v.opensAt ? `Opens ${localizeClocks(v.opensAt)}` : "Opening hours not known", `Hours source: ${v.hoursSource ?? "none"}`],
     detectedAt: now, firstDetectedAt: now, sourceAt: null, impactAt: v.arriveMs, expiresAt: v.arriveMs === null ? null : v.arriveMs + 60 * 60_000, status: "open", resolvedAt: null, reopened: false,
   });
   for (const v of verdicts) {

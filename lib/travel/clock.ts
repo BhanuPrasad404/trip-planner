@@ -44,3 +44,25 @@ export const durationLabel = (min: number): string => {
   const m = Math.max(0, Math.round(min));
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
 };
+
+/**
+ * "17:00" → "5:00 PM", "00:00" and "24:00" → "12:00 AM", "12:00" → "12:00 PM". Anything that is not a clock reading is returned
+ * unchanged, so this is safe to call on text. The engines keep 24-hour strings internally (they sort and compare); people see this.
+ */
+export function clock12(clock: string): string {
+  const m = /^\s*(\d{1,2}):([0-5]\d)\s*$/.exec(clock);
+  if (!m) return clock;
+  const h = Number(m[1]);
+  if (h > 24 || (h === 24 && m[2] !== "00")) return clock;
+  const h24 = h % 24;
+  return `${h24 % 12 === 0 ? 12 : h24 % 12}:${m[2]} ${h24 >= 12 ? "PM" : "AM"}`;
+}
+
+/** Turns every 24-hour clock reading inside a sentence into 12-hour AM/PM ("closes at 18:00" → "closes at 6:00 PM"). */
+export const localizeClocks = (text: string): string => text.replace(/\b(?:2[0-4]|[01]?\d):[0-5]\d\b/g, (t) => clock12(t));
+
+/** The local time of a real instant, as a person reads it: "6:45 AM". */
+export const time12 = (utcMs: number, offsetMin: number): string => clock12(clockOf(utcMs, offsetMin));
+
+/** A time-of-day column from the database ("10:00:00" or "10:00") as people read it ("10:00 AM"); null stays null. */
+export const dbTime12 = (t: string | null | undefined): string | null => (t ? clock12(t.slice(0, 5)) : null);

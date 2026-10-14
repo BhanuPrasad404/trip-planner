@@ -40,7 +40,7 @@ export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) =>
   };
   const nav: NavMapProps = {
     phase: navigation.phase, routes: navigation.routes, selectedId: navigation.selectedId, choices: navigation.choices,
-    progress: navigation.progress, puck: navigation.puck, speedKmh: drive.me?.speedKmh ?? null,
+    progress: navigation.progress, puck: navigation.puck, vehicle: live.vehicle, speedKmh: drive.me?.speedKmh ?? null,
     alternatives: navigation.alternatives, altChoices: navigation.altChoices,
     target: t ? { lat: t.lat, lng: t.lng, name: t.name } : null,
   };

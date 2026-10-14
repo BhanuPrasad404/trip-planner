@@ -8,15 +8,19 @@ export type Conditions = {
   precipMmPerDay: number;
   rainyDayShare: number; // 0..1 share of days with >= 2.5 mm
   sampleDays: number;
+  /** Highest 10 m wind of the day in km/h. Only a FORECAST carries it; the seasonal average does not (we do not claim wind we do not have). */
+  windMaxKmh?: number | null;
+  /** The calendar day a forecast is for (YYYY-MM-DD). */
+  forecastDate?: string;
 };
 
-export type Daily = { time: string[]; tmax: (number | null)[]; precip: (number | null)[] };
+export type Daily = { time: string[]; tmax: (number | null)[]; precip: (number | null)[]; wind?: (number | null)[] };
 
 export function parseDaily(json: unknown): Daily | null {
   const d = (json as { daily?: Record<string, unknown> } | null)?.daily;
   if (!d || !Array.isArray(d.time)) return null;
   const arr = (k: string) => (Array.isArray(d[k]) ? (d[k] as (number | null)[]) : []);
-  return { time: d.time as string[], tmax: arr("temperature_2m_max"), precip: arr("precipitation_sum") };
+  return { time: d.time as string[], tmax: arr("temperature_2m_max"), precip: arr("precipitation_sum"), wind: arr("wind_speed_10m_max") };
 }
 
 const RAINY_MM = 2.5;
@@ -61,7 +65,8 @@ export function summarizeForecast(daily: Daily, dateISO: string): Conditions | n
   const t = daily.tmax[i];
   const p = daily.precip[i];
   if (typeof t !== "number" || typeof p !== "number") return null;
-  return { kind: "forecast", tempMaxC: t, precipMmPerDay: p, rainyDayShare: p >= RAINY_MM ? 1 : 0, sampleDays: 1 };
+  const wind = daily.wind?.[i];
+  return { kind: "forecast", tempMaxC: t, precipMmPerDay: p, rainyDayShare: p >= RAINY_MM ? 1 : 0, sampleDays: 1, windMaxKmh: typeof wind === "number" && Number.isFinite(wind) ? wind : null, forecastDate: dateISO };
 }
 
 const iso = (d: Date) =>
@@ -84,7 +89,7 @@ export async function getConditions(
     if (daysAhead >= 0 && daysAhead <= 15) {
       const url =
         `https://api.open-meteo.com/v1/forecast?latitude=${round(lat)}&longitude=${round(lng)}` +
-        `&daily=temperature_2m_max,precipitation_sum&forecast_days=16&timezone=auto`;
+        `&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max&forecast_days=16&timezone=auto`;
       const res = await fetchImpl(url, { signal: AbortSignal.timeout(6000), next: { revalidate: 3600 } } as RequestInit);
       if (!res.ok) return null;
       const daily = parseDaily(await res.json());

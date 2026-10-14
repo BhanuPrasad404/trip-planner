@@ -76,7 +76,16 @@ export function analyzeProfile(profile: ProfilePoint[]): TerrainSegment[] {
   const segs: TerrainSegment[] = [];
   // Walk the profile tracking the running extreme; when the height turns back by more than the tolerance, close the segment.
   let startIdx = 0, extIdx = 0, dir: 1 | -1 | 0 = 0;
-  const close = (from: number, to: number) => {
+  const close = (from0: number, to0: number) => {
+    // Trim to the real foot and top of the hill. Without this, flat road before a climb (or a plateau after it) is counted as part of
+    // it, which dilutes the slope and can make a genuine hill disappear, or stretch it over distance it does not cover.
+    const rising = profile[to0].elevM >= profile[from0].elevM;
+    const e = (i: number) => profile[i].elevM;
+    let from = from0;
+    for (let i = from0; i <= to0; i++) if (rising ? e(i) <= e(from) : e(i) >= e(from)) from = i; // the last point at the lowest (highest, for a descent) level: the foot
+    let to = from;
+    for (let i = from; i <= to0; i++) if (rising ? e(i) > e(to) : e(i) < e(to)) to = i; // the first point at the top
+    if (to <= from) { from = from0; to = to0; }
     const a = profile[from], b = profile[to];
     const change = b.elevM - a.elevM, len = b.km - a.km;
     const grade = len > 0 ? (Math.abs(change) / (len * 1000)) * 100 : 0;
@@ -101,7 +110,7 @@ function describe(kind: TerrainKind, a: ProfilePoint, b: ProfilePoint, change: n
     kind, startKm: round1(a.km), endKm: round1(b.km), changeM: Math.round(change), lengthKm: round1(len), avgGradePct: g,
     startElevM: Math.round(a.elevM), endElevM: Math.round(b.elevM), steepness,
     headline: `${kind === "climb" ? "Climb" : "Descent"} of about ${m} m over ${km} km`,
-    detail: `${steepness === "steep" ? "A steady, steep" : "A gradual"} ${kind === "climb" ? "rise" : "drop"} (average slope about ${g}%), from about ${Math.round(a.elevM)} m to ${Math.round(b.elevM)} m above sea level. Allow extra time and drive with care on hill sections.`,
+    detail: `${steepness === "steep" ? "A steady, steep" : "A gradual"} ${kind === "climb" ? "rise" : "drop"} (average slope about ${g}%), from about ${Math.round(a.elevM)} m to ${Math.round(b.elevM)} m above sea level.`,
   };
 }
 const round1 = (n: number) => Math.round(n * 10) / 10;

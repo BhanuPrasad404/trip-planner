@@ -6,7 +6,7 @@
 //     pick a side. If we don't have hours (or can't read them) the answer is "unverified": that is NEVER reported as "closed".
 // Pure: same input, same output. It never changes the itinerary; it only describes and suggests.
 import { openStatus, type OpenStatus } from "@/lib/intel/hours";
-import { clockOf, dateOf, dayShiftLabel, durationLabel, minuteOfDay, minutesUntilClock, clockToMinutes } from "./clock";
+import { clockOf, dateOf, dayShiftLabel, durationLabel, localizeClocks, minuteOfDay, minutesUntilClock, clockToMinutes } from "./clock";
 
 export type HoursSource = "user" | "osm" | "official" | null;
 export type StopState = "open" | "closes_soon" | "closed_on_arrival" | "may_close" | "opens_later" | "may_be_early" | "hours_unverified" | "needs_drive_time";
@@ -117,7 +117,9 @@ function blank(s: FeasStop, state: StopState, severity: Verdict, headline: strin
 const UNCONFIRMED_NOTE = "These hours come from map data (OpenStreetMap) and haven't been confirmed by anyone on this trip, so treat this as likely, not certain.";
 
 function judge(s: FeasStop, arrive: number, early: number, late: number, departureMs: number, c: FeasConfig): StopVerdict {
-  const v = judgeHours(s, arrive, early, late, departureMs, c);
+  const v0 = judgeHours(s, arrive, early, late, departureMs, c);
+  // People read 12-hour times. The machine-readable fields (arriveClock, windowClock, closesAt, opensAt) stay 24-hour; the sentences do not.
+  const v = { ...v0, headline: localizeClocks(v0.headline), detail: localizeClocks(v0.detail) };
   // Unconfirmed map data can suggest a problem but never raise the highest alarm on its own.
   if (s.hours && s.hoursSource === "osm" && !s.hoursConfirmed && v.state !== "hours_unverified") {
     return { ...v, severity: v.severity === "risk" ? "warn" : v.severity, detail: `${v.detail} ${UNCONFIRMED_NOTE}` };

@@ -7,26 +7,17 @@ const fc = (o: Partial<Conditions> = {}): Conditions => ({ kind: "forecast", tem
 const typ = (o: Partial<Conditions> = {}): Conditions => fc({ kind: "typical", sampleDays: 5, ...o });
 
 describe("the picture follows the data, and nothing else (acceptance: animations correspond to the supplied weather)", () => {
-  it("heavy forecast rain: the strongest rain animation", () => {
+  it("heavy forecast rain: the strongest rain wording", () => {
     const v = weatherVisual(fc({ precipMmPerDay: 18 }))!;
-    expect(v).toMatchObject({ kind: "rain", intensity: 3, drops: 10, basis: "forecast", headline: "Heavy rain forecast" });
+    expect(v).toMatchObject({ kind: "rain", intensity: 3, basis: "forecast", headline: "Heavy rain forecast" });
   });
-  it("moderate and light rain get proportionally fewer drops", () => {
-    expect(weatherVisual(fc({ precipMmPerDay: 8 }))).toMatchObject({ kind: "rain", intensity: 2, drops: 6, headline: "Moderate rain forecast" });
-    expect(weatherVisual(fc({ precipMmPerDay: 2 }))).toMatchObject({ kind: "rain", intensity: 1, drops: 3, headline: "Light rain forecast" });
+  it("moderate and light rain are worded by amount", () => {
+    expect(weatherVisual(fc({ precipMmPerDay: 8 }))).toMatchObject({ kind: "rain", intensity: 2, headline: "Moderate rain forecast" });
+    expect(weatherVisual(fc({ precipMmPerDay: 2 }))).toMatchObject({ kind: "rain", intensity: 1, headline: "Light rain forecast" });
   });
-  it("almost no rain: NO rain animation (a low-chance drizzle never gets a downpour)", () => {
+  it("almost no rain: not called rain (a low-chance drizzle is not a downpour)", () => {
     const v = weatherVisual(fc({ precipMmPerDay: RAIN_LIGHT_MM - 0.1 }))!;
-    expect(v.kind).toBe("fair"); expect(v.drops).toBe(0); expect(v.intensity).toBe(0);
-  });
-  it("drops never exceed what the amount of rain justifies", () => {
-    const mm = [0, 0.5, 1, 3, 6, 10, 15, 40];
-    const drops = mm.map((m) => weatherVisual(fc({ precipMmPerDay: m }))!.drops);
-    expect(drops).toEqual([...drops].sort((a, b) => a - b)); // never decreases as rain increases
-    expect(drops[0]).toBe(0);
-  });
-  it("heat, cool and fair days have no raindrops", () => {
-    for (const t of [38, 35, 15, 25]) expect(weatherVisual(fc({ tempMaxC: t }))!.drops).toBe(0);
+    expect(v.kind).toBe("fair"); expect(v.intensity).toBe(0);
   });
   it("temperature bands", () => {
     expect(weatherVisual(fc({ tempMaxC: HEAT_WARN_C }))).toMatchObject({ kind: "heat", intensity: 3, headline: "Very hot" });
@@ -51,10 +42,10 @@ describe("forecasts are never confused with typical climate (acceptance)", () =>
     const v = weatherVisual(fc({ precipMmPerDay: 10 }))!;
     expect(v.basisLabel).toBe("Forecast"); expect(v.detail).toContain("about 10 mm rain");
   });
-  it("typical rain uses how OFTEN it rains, with at most a gentle animation", () => {
+  it("typical rain uses how OFTEN it rains, ", () => {
     expect(weatherVisual(typ({ rainyDayShare: 0.7 }))!).toMatchObject({ kind: "rain", intensity: 2, headline: "Often rainy in this season" });
     expect(weatherVisual(typ({ rainyDayShare: 0.3 }))!).toMatchObject({ kind: "rain", intensity: 1 });
-    expect(weatherVisual(typ({ rainyDayShare: 0.1 }))!.drops).toBe(0);
+    expect(weatherVisual(typ({ rainyDayShare: 0.1 }))!.kind).toBe("fair");
   });
   it("the number of days sampled does not change what a forecast says", () => {
     expect(weatherVisual(fc({ precipMmPerDay: 10, sampleDays: 1 }))!.kind).toBe(weatherVisual(fc({ precipMmPerDay: 10, sampleDays: 7 }))!.kind);
@@ -104,5 +95,49 @@ describe("no data, no picture", () => {
   it("returns nothing for missing or invalid conditions", () => {
     expect(weatherVisual(null)).toBeNull(); expect(weatherVisual(undefined)).toBeNull();
     expect(weatherVisual(fc({ tempMaxC: NaN }))).toBeNull(); expect(weatherVisual(fc({ precipMmPerDay: NaN }))).toBeNull();
+  });
+});
+
+describe("a season's average is described, never dramatised", () => {
+  it("a rainy season average has words and an icon kind, and no advice", () => {
+    const v = weatherVisual(typ({ rainyDayShare: 0.6, precipMmPerDay: 9 }))!;
+    expect(v.kind).toBe("rain"); expect(v.headline).toBe("Often rainy in this season"); expect(v.advice).toBeNull();
+  });
+});
+
+describe("wind: only from a forecast that carries it", () => {
+  it("thresholds: breezy is not shown, strong / very strong / gale are", () => {
+    expect(weatherVisual(fc({ windMaxKmh: 35 }))!.kind).toBe("fair");
+    expect(weatherVisual(fc({ windMaxKmh: 42 }))).toMatchObject({ kind: "wind", intensity: 1, headline: "Windy" });
+    expect(weatherVisual(fc({ windMaxKmh: 55 }))).toMatchObject({ kind: "wind", intensity: 2, headline: "Very windy" });
+    expect(weatherVisual(fc({ windMaxKmh: 70 }))).toMatchObject({ kind: "wind", intensity: 3, headline: "Gale-force winds forecast" });
+  });
+  it("a seasonal average never claims wind, even if a number is attached", () => {
+    const v = weatherVisual(typ({ windMaxKmh: 80 }))!;
+    expect(v.kind).not.toBe("wind");
+  });
+  it("missing or invalid wind data is simply ignored", () => {
+    for (const w of [undefined, null, Number.NaN]) expect(weatherVisual(fc({ windMaxKmh: w as number }))!.kind).toBe("fair");
+  });
+  it("strong wind gives careful advice; heavy rain outranks it", () => {
+    expect(weatherVisual(fc({ windMaxKmh: 55 }))!.advice).toMatch(/exposed viewpoints/);
+    expect(weatherVisual(fc({ windMaxKmh: 55, precipMmPerDay: 20 }))!.kind).toBe("rain");
+  });
+  it("the wind speed appears in the words when it is notable", () => {
+    expect(weatherVisual(fc({ windMaxKmh: 44 }))!.detail).toContain("winds up to 44 km/h");
+    expect(weatherVisual(fc({ windMaxKmh: 10 }))!.detail).not.toContain("winds");
+  });
+});
+
+describe("the forecast says which day it is for", () => {
+  it("labels it with the date, so a forecast is never mistaken for 'now'", () => {
+    const v = weatherVisual(fc({ forecastDate: "2026-10-14" }))!;
+    expect(v.basisLabel).toBe("Forecast for Wed, 14 Oct"); expect(v.forecastDay).toBe("Wed, 14 Oct");
+  });
+  it("an invalid date falls back to plain 'Forecast'", () => {
+    expect(weatherVisual(fc({ forecastDate: "soon" }))!.basisLabel).toBe("Forecast");
+  });
+  it("a typical season is never given a forecast date", () => {
+    expect(weatherVisual(typ({ forecastDate: "2026-10-14" }))!.basisLabel).toBe("Typical for this season");
   });
 });

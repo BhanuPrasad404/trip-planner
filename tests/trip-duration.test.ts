@@ -100,3 +100,78 @@ describe("trip duration advice: from actually planning the places", () => {
     expect(a.paces.map((p) => p.label)).toEqual(["Compact", "Balanced", "Relaxed"]);
   });
 });
+
+import { CATEGORIES } from "@/lib/categories";
+import { roadMatrix } from "./builder-fixtures";
+
+describe("can this be one day? (the traveller's own four places near Hyderabad, planned as 2 days)", () => {
+  const HYD: Spec[] = [
+    { name: "NTR Statue", at: [17.4239, 78.4738] },
+    { name: "Bhongir Fort", at: [17.5126, 78.8886], category: "fort" },
+    { name: "Kolanupaka", at: [17.6586, 79.0153], category: "temple" },
+    { name: "Mothkur mandal", at: [17.5703, 79.0192] },
+  ];
+  const near = (specs: Spec[], numDays = 2) => ({ ...makeInput(specs, { numDays }), start: { lat: 17.385, lng: 78.4867, label: "Hyderabad" } });
+  const withStart = (specs: Spec[], numDays = 2) => { const i = near(specs, numDays); return { ...i, matrix: roadMatrix([i.start, ...i.places]) }; };
+
+  it("a place we could not classify is assumed to take an hour, not two (a statue is not a half-day)", () => {
+    expect(CATEGORIES.other.hours).toBe(1);
+  });
+  it("with the app's own guesses it says plainly that this could be ONE day, and what that means", () => {
+    const a = adviseDuration(withStart(HYD));
+    expect(a.verdict).toBe("could_be_shorter");
+    expect(a.suggestion).toEqual({ key: "compact", days: 1 });
+    expect(a.headline).toContain("could fit in 1 day"); expect(a.headline).toContain("full day");
+    expect(a.detail).toMatch(/Together that is about \d+ km and .* of driving by road/); expect(a.detail).toContain("long days with short stops");
+    expect(a.detail).toContain("Your choice");
+  });
+  it("the km and driving time it states are the real totals of the plan it tested", () => {
+    const input = withStart(HYD);
+    const a = adviseDuration(input);
+    const compact = a.paces.find((p) => p.key === "compact")!;
+    expect(a.detail).toContain(`about ${compact.totalKm} km`);
+    const plan = buildPlan({ ...input, numDays: 1 }, "explorer");
+    expect(Math.round(plan.totals.km)).toBe(compact.totalKm); expect(Math.round(plan.totals.driveMin)).toBe(compact.totalDriveMin);
+  });
+  it("when the traveller knows the places and sets shorter stops, a BALANCED day is enough", () => {
+    const a = adviseDuration(withStart(HYD.map((s) => ({ ...s, visitMin: { "NTR Statue": 30, "Bhongir Fort": 90, Kolanupaka: 60, "Mothkur mandal": 45 }[s.name as string] }))));
+    expect(a.verdict).toBe("could_be_shorter");
+    expect(a.suggestion).toEqual({ key: "balanced", days: 1 });
+    expect(a.headline).toContain("1 day at a balanced pace");
+  });
+  it("longer stays can change the answer: the same places with long visits do not claim to fit in one day", () => {
+    const a = adviseDuration(withStart(HYD.map((s) => ({ ...s, visitMin: 240 }))));
+    expect(a.suggestion?.days ?? 2).toBeGreaterThanOrEqual(2);
+    expect(a.headline).not.toMatch(/could fit in 1 day/);
+  });
+});
+
+describe("it is not distance that decides, it is road time: it never invents a one-day trip", () => {
+  const far = (numDays: number) => makeInput([{ name: "Pune" }, { name: "Mahabaleshwar" }, { name: "Kolhapur" }, { name: "Goa" }], { start: "Mumbai", numDays });
+  it("places hundreds of km apart are not told they fit in one day", () => {
+    const a = adviseDuration(far(2));
+    expect(a.suggestion?.days ?? 2).toBeGreaterThanOrEqual(2);
+    for (const p of a.paces) expect(p.minDays === null || p.minDays >= 2).toBe(true);
+  });
+  it("200 km that takes 8 hours (ghat roads) is not a one-day trip, even though the distance is small", () => {
+    const base = makeInput([{ name: "A", at: [18.0, 73.5] }, { name: "B", at: [18.2, 73.6] }], { numDays: 2 });
+    // Same short distances, but a slow mountain road: 4 hours per leg.
+    const slow = { ...base, matrix: { source: "osrm", durations: [[0, 4 * 3600, 8 * 3600], [4 * 3600, 0, 4 * 3600], [8 * 3600, 4 * 3600, 0]], distances: [[0, 100_000, 200_000], [100_000, 0, 100_000], [200_000, 100_000, 0]] } };
+    const a = adviseDuration(slow);
+    expect(a.paces.find((p) => p.key === "balanced")!.minDays ?? 2).toBeGreaterThanOrEqual(2);
+    expect(a.headline).not.toContain("1 day at a balanced pace");
+  });
+  it("the same 200 km on a fast highway is judged differently from the slow road (time decides)", () => {
+    const base = makeInput([{ name: "A", at: [18.0, 73.5] }, { name: "B", at: [18.2, 73.6] }], { numDays: 2 });
+    const fast = { ...base, matrix: { source: "osrm", durations: [[0, 1.2 * 3600, 2.4 * 3600], [1.2 * 3600, 0, 1.2 * 3600], [2.4 * 3600, 1.2 * 3600, 0]], distances: [[0, 100_000, 200_000], [100_000, 0, 100_000], [200_000, 100_000, 0]] } };
+    const slow = { ...fast, matrix: { ...fast.matrix, durations: fast.matrix.durations.map((r) => r.map((s) => s * 3.4)) } };
+    const f = adviseDuration(fast).paces.find((p) => p.key === "balanced")!.minDays;
+    const sl = adviseDuration(slow).paces.find((p) => p.key === "balanced")!.minDays;
+    expect(f).toBe(1); expect(sl === null || sl > (f as number)).toBe(true);
+  });
+  it("without road routing the advice says its distances are rough estimates", () => {
+    const i = makeInput([{ name: "Lonavala" }, { name: "Khandala" }], { numDays: 3 });
+    const a = adviseDuration({ ...i, matrix: { ...i.matrix, source: "estimate" } });
+    expect(a.missing.join(" ")).toMatch(/rough estimates/);
+  });
+});

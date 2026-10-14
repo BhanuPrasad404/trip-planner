@@ -101,7 +101,7 @@ describe("TripPlanner render", () => {
     const html = render();
     expect(html).toContain("Out of season");
     expect(html).toContain("Dry outside monsoon (Jun-Sep)");
-    expect(html).toContain("1 stop needs"); // sidebar summary
+    expect(html).toContain("Worth a look (1)"); // the one short list of what needs a second look
     expect(html).toContain("Season unknown"); // unmatched place
     expect(html).toContain("In season");
   });
@@ -109,7 +109,7 @@ describe("TripPlanner render", () => {
   it("treats the same waterfall as in season when the trip starts in July", () => {
     const html = render(places, { ...trip, start_date: "2026-07-01" });
     expect(html).not.toContain("Out of season");
-    expect(html).toContain("Timing looks good");
+    expect(html).not.toContain("Worth a look"); // nothing to flag, so no warning box at all
   });
 
 
@@ -119,20 +119,22 @@ describe("TripPlanner render", () => {
     expect(render()).toContain('rel="noopener noreferrer nofollow"');
   });
 
-  it("has ONE planning entry point, 'Plan my trip' (the separate Auto-plan button is gone), which jumps to the assistant", () => {
+  it("has three tools in one header (Plan my trip, When to leave, Import places), each a button that opens its own panel", () => {
     const html = render();
-    expect(html).toContain('href="#plan-assistant"'); expect(html).toContain("Plan my trip");
+    expect(html).toContain('aria-label="Planning tools"');
+    for (const t of ["Plan my trip", "When to leave", "Import places"]) expect(html).toContain(t);
+    expect(html.indexOf('aria-pressed="false"')).toBeLessThan(html.indexOf("Plan my trip")); // they are real toggle buttons
     expect(html).not.toContain("Auto-plan");
   });
-  it("explains what is missing before the assistant can plan", () => {
-    expect(render([])).toContain("Add places first");
-    expect(render(places, { ...trip, start_lat: null, start_lng: null })).toContain("Set a starting point");
+  it("opens on the itinerary: no tool panel, no Trip check, no Plan my trip steps until one is asked for", () => {
+    const html = render();
+    for (const t of ["Find the best time to leave", "Measuring real road distances", "Add places from links, text or screenshots", "Season and weather fit", "Pins to double-check"]) expect(html).not.toContain(t);
   });
   it("always shows the trip dates, and says plainly when there are none", () => {
     expect(render(places, { ...trip, start_date: null })).toContain("No dates yet");
-    expect(render(places, { ...trip, start_date: null })).toContain("Add dates");
+    expect(render(places, { ...trip, start_date: null })).toContain("Set dates");
     const dated = render(places, { ...trip, start_date: "2026-10-14", num_days: 3 });
-    expect(dated).toContain("Trip dates"); expect(dated).toContain("Change dates"); expect(dated).toContain("16 Oct");
+    expect(dated).toContain("Wed, 14 Oct to Fri, 16 Oct"); expect(dated).toContain("3 days"); expect(dated).not.toContain("Set dates");
   });
   it("without dates the Go score says what it is for, instead of silently using today", () => {
     expect(render(places, { ...trip, start_date: null })).toContain("today (no trip dates set)");
@@ -150,17 +152,15 @@ describe("TripPlanner render", () => {
     const html = render(places, trip, { p2: dry, p1: dry });
     expect(html).toContain("Go score");
     expect(html).toContain("Likely dry");
-    expect(html).toContain("Season and weather fit");
-    // Counts of what is known, not an averaged 0-100 that hides a bad stop or the stops with no data.
-    expect(html).toContain('1 of 3</strong> stops look well timed · 1 with no season or weather data.');
-    expect(html).not.toMatch(/average of/);
+    expect(html).toContain("Worth a look (1)"); // the dry waterfall, in the one short list
+    expect(html).not.toMatch(/average of/); // never an averaged number that hides a bad stop
   });
 
   it("shows no Go Score (rather than a fake one) when nothing is known", () => {
     const html = render([{ ...places[2] }]);
     expect(html).not.toContain("Go score ·"); // no badge
     expect(html).not.toContain("Timing looks good"); // and no false reassurance
-    expect(html).toContain("can&#x27;t judge their timing");
+    expect(html).not.toContain("Worth a look"); // and nothing invented to warn about
   });
 
   it("shows drive legs and driving time on a planned day", () => {
@@ -211,17 +211,17 @@ describe("TripPlanner render", () => {
   });
 
 
-  it("warns on a Maharashtra stop in a Vijayawada trip and lists it under 'Pins to double-check'", () => {
+  it("warns on a Maharashtra stop in a Vijayawada trip and lists it under 'Worth a look'", () => {
     const vijayawada = { ...trip, start_city: "Hyderabad", dest_name: "Vijayawada", dest_lat: 16.5062, dest_lng: 80.648 };
     const html = render(places, vijayawada); // the fixtures are Maharashtra places
-    expect(html).toContain("Pins to double-check");
+    expect(html).toContain("Worth a look"); expect(html).toContain("Check the pin for");
     expect(html).toMatch(/\d+ km from Vijayawada — is this pin right\?/);
   });
 
   it("does not nag when the stops are near the destination", () => {
     const near: PlaceWithSeason[] = [{ ...places[0], lat: 16.62, lng: 80.53 }];
     const html = render(near, { ...trip, dest_name: "Vijayawada", dest_lat: 16.5062, dest_lng: 80.648 });
-    expect(html).not.toContain("Pins to double-check");
+    expect(html).not.toContain("Check the pin for");
     expect(html).not.toContain("is this pin right");
   });
 
@@ -236,5 +236,25 @@ describe("TripPlanner render", () => {
     expect(html).toContain("+1 more");
   });
 
-});
 
+  it("votes appear only on a group trip: on a solo trip a vote means nothing, so there are no thumbs", () => {
+    const ideas = [{ ...places[0], id: "a", name: "Solo Fort", day_number: null, sequence_order: 1 }];
+    const solo = renderToStaticMarkup(<TripPlanner trip={trip} places={ideas} members={[members[0]]} today="2026-10-06" siteUrl="https://x" conditions={{}} userId="u1" votes={{}} />);
+    expect(solo).not.toContain("Group vote for");
+    const group = renderToStaticMarkup(<TripPlanner trip={trip} places={ideas} members={[members[0], { ...members[0], user_id: "u2" }]} today="2026-10-06" siteUrl="https://x" conditions={{}} userId="u1" votes={{}} />);
+    expect(group).toContain("Group vote for Solo Fort");
+  });
+
+  it("each stop leads with its name and what to do; everything else sits behind one 'More about this place' fold", () => {
+    const html = render();
+    expect(html).toContain("More about this place");
+    expect(html.match(/More about this place/g)?.length).toBe(html.match(/<article/g)?.length);
+    expect(html).toContain("Done"); expect(html).toContain("Skip");
+  });
+
+  it("the stop cards say nothing about missing updates or unknown season in their main area", () => {
+    const html = render();
+    const main = html.split("More about this place")[0];
+    expect(main).not.toContain("No updates"); expect(main).not.toContain("Season unknown");
+  });
+});

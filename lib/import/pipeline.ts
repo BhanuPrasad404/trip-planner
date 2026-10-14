@@ -109,7 +109,11 @@ export async function runImport(input: ImportInput, deps: ImportDeps): Promise<{
       const source: CandidateSource = input.images.length > 0 && remaining.length < 15 ? "screenshot" : "ai_text";
       const link = otherUrls.length === 1 ? otherUrls[0] : null;
       await geocodeAll(ai, source, input.bias ?? null, input.biasLabel ?? null, deps, raw, link);
-      if (ai.length === 0) notes.push("No places found in that text. Paste the full caption or try a screenshot.");
+      if (ai.length === 0) notes.push(
+        input.images.length > 0
+          ? "We couldn't find any place names in your screenshot. This works best when the picture shows text, like a caption or a list of places. A photo with no words usually can't be identified. Try pasting the caption, or a Google Maps link."
+          : "No places found in that text. Paste the full caption, or add a screenshot that shows the place names."
+      );
     } else if (hasSocialLink && raw.length === 0) {
       notes.push("Social apps block automatic link reading. Paste the caption text or upload a screenshot of the reel instead.");
     }

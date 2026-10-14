@@ -64,6 +64,8 @@ body {
   outline-offset: 2px;
   border-radius: 6px;
 }
+/* Containers that only receive focus from code (to move a screen-reader user to a new result) are not keyboard stops, so they get no ring. */
+[tabindex="-1"]:focus-visible { outline: none; }
 
 /* Thin scrollbars for the horizontal day picker */
 .scroll-thin {
@@ -88,6 +90,12 @@ body {
 .tm-puck-ring { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: rgba(26, 115, 232, 0.35); animation: tm-pulse 2s ease-out infinite; }
 .tm-puck-fan { position: absolute; left: 0; top: 0; width: 64px; height: 64px; }
 .tm-puck-vague .tm-puck-dot { background: #70757a; }
+/* The vehicle replaces the dot: a top-down car, motorcycle or bus that points the way the road points. Grey when the position is vague. */
+.tm-puck-vehicular .tm-puck-dot { display: none; }
+.tm-puck-vehicle { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45)); }
+.tm-veh-body { fill: #1a73e8; stroke: #fff; stroke-width: 1.6; paint-order: stroke; }
+.tm-veh-detail { fill: #fff; }
+.tm-puck-vague .tm-veh-body { fill: #70757a; }
 .tm-puck-vague .tm-puck-fan { opacity: 0.3; }
 @keyframes tm-pulse { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(2.8); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tm-puck-ring { animation: none; opacity: 0.4; } }
@@ -133,12 +141,20 @@ body {
   .tm-route-bar { transition: none; }
 }
 
-/* ── Weather chips (components/WeatherChip.tsx): a few drops, a soft glow. Only when the DATA calls for it; still for reduced motion. ── */
-@keyframes tm-fall { from { transform: translateY(-6px); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(46px); opacity: 0; } }
-@keyframes tm-glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
-.tm-rain i { position: absolute; top: 0; width: 1.5px; height: 9px; border-radius: 2px; background: rgba(28, 124, 109, 0.55); animation: tm-fall 1.1s linear infinite; }
-.tm-heat-glow { animation: tm-glow 4s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .tm-rain { display: none; }
-  .tm-heat-glow { animation: none; opacity: 0.8; }
-}
+/* Arrival and alert cards slide up when something REAL happens (a stop reached, a toll ahead). Not a loop. Still for reduced motion. */
+@keyframes tm-sheet-in { from { transform: translateY(18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes tm-check-pop { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+.tm-sheet-in { animation: tm-sheet-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.tm-check-pop { animation: tm-check-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .tm-sheet-in, .tm-check-pop { animation: none; } }
+
+/* Live weather card: effects that exist ONLY when the weather right now calls for them. Transform and opacity only; still for reduced motion. */
+.tm-fx { z-index: 0; }
+.tm-fx-rain { background: linear-gradient(180deg, rgba(158, 201, 217, 0.22), rgba(158, 201, 217, 0)); }
+.tm-fx-rain i { position: absolute; top: -12px; width: 1.5px; height: 12px; border-radius: 2px; background: rgba(18, 84, 107, 0.45); animation: tm-fx-fall 1.2s linear infinite; }
+.tm-fx-heat { background: radial-gradient(circle at 100% 0%, rgba(232, 163, 61, 0.38), rgba(232, 163, 61, 0) 62%); animation: tm-fx-warm 5s ease-in-out infinite; }
+.tm-fx-cold { background: linear-gradient(180deg, rgba(185, 207, 227, 0.35), rgba(185, 207, 227, 0)); }
+@keyframes tm-fx-fall { from { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(150px); opacity: 0; } }
+@keyframes tm-fx-warm { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tm-fx-rain i { display: none; } .tm-fx-heat { animation: none; opacity: 0.8; } }
+

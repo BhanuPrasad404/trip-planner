@@ -4,7 +4,7 @@ import { dbError, jsonError, parseBody } from "@/lib/api";
 import { consumeQuota } from "@/lib/quota";
 import { loadBuilder } from "@/lib/server/builder";
 import { todayISO } from "@/lib/server/trip-data";
-import { hhmm } from "@/lib/trip-builder";
+import { clock24 } from "@/lib/trip-builder";
 import { builderApplySchema, uuid } from "@/lib/validation/schemas";
 
 export const maxDuration = 30;
@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const byId = new Map(r.input.places.map((p) => [p.id, p]));
   const placed = option.days.flatMap((d) => d.stops.map((s) => ({
-    id: s.placeId, day_number: s.day, sequence_order: s.order, arrival_time: hhmm(s.arriveMin), drive_minutes: Math.round(s.driveMin), drive_km: s.driveKm,
+    id: s.placeId, day_number: s.day, sequence_order: s.order, arrival_time: clock24(s.arriveMin), drive_minutes: Math.round(s.driveMin), drive_km: s.driveKm,
   })));
   const dropped = option.removed.map((x) => ({ id: x.placeId, day_number: null, sequence_order: null, arrival_time: null, drive_minutes: null, drive_km: null }));
   const rows = [...placed, ...dropped].map((row) => {

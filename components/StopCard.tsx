@@ -1,5 +1,6 @@
 "use client";
 
+import { dbTime12 } from "@/lib/travel/clock";
 import { useState } from "react";
 import { CATEGORIES, type PlaceCategory } from "@/lib/categories";
 import { formatDuration } from "@/lib/format";
@@ -71,13 +72,13 @@ export function StopCard({
   const finished = done || skipped;
   const needsAttention = !finished && (status === "wrong_season" || score?.tone === "poor");
   const mine = votes?.mine ?? 0;
-  const time = place.arrival_time?.slice(0, 5) ?? null;
+  const time = dbTime12(place.arrival_time);
   const moveOptions = [...(scheduled ? [{ key: "ideas", label: "Ideas", day: null as number | null }] : []), ...moveDays.filter((d) => d !== place.day_number).map((d) => ({ key: String(d), label: `Day ${d}`, day: d as number | null }))];
   const hasMenu = !!(onMove || onRelocate || onRemove);
 
-  const driveChip = scheduled && place.drive_minutes != null && place.drive_minutes > 0 && (
-    <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-sky px-3 py-1 text-xs font-semibold text-ink-muted">
-      <Glyph name="car" size={14} />
+  const driveLine = scheduled && place.drive_minutes != null && place.drive_minutes > 0 && (
+    <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+      <Glyph name="car" size={13} />
       {formatDuration(place.drive_minutes)}{place.drive_km != null && ` · ${Math.round(place.drive_km)} km`} from previous point
     </p>
   );
@@ -96,9 +97,7 @@ export function StopCard({
             {place.name}
             <span className="sr-only"> ({cat.label})</span>
           </h3>
-          {place.address && (
-            <p className="mt-1 flex items-start gap-1.5 break-words text-sm text-ink-muted"><Glyph name="pin" size={14} className="mt-0.5" />{place.address}</p>
-          )}
+          {driveLine}
         </div>
         {busy && (
           <span role="status" className="mt-0.5 inline-flex items-center gap-1.5 rounded-full bg-sky px-2.5 py-1 text-xs font-semibold text-ink-muted">
@@ -150,54 +149,102 @@ export function StopCard({
         )}
       </header>
 
-      {/* Status at a glance */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {done && <span className="inline-flex items-center gap-1.5 rounded-full bg-teal px-2.5 py-1 text-xs font-semibold text-white"><Glyph name="check" size={12} />Done</span>}
-        {skipped && <span className="inline-flex items-center gap-1.5 rounded-full bg-line px-2.5 py-1 text-xs font-semibold text-ink-muted">Skipped</span>}
-        <SeasonBadge status={status} />
-        {place.source_url && (
-          <a href={place.source_url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-teal-ink transition-colors hover:border-teal hover:bg-teal-light">
-            <Glyph name="external" size={12} />Original post<span className="sr-only"> for {place.name} (opens in a new tab)</span>
-          </a>
-        )}
-        {place.source_type === "ai_suggestion" && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-marigold-light px-2.5 py-1 text-xs font-semibold text-[#7a4a00]"><Glyph name="sparkles" size={12} />AI suggestion</span>
-        )}
-      </div>
+      {(done || skipped) && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {done && <span className="inline-flex items-center gap-1.5 rounded-full bg-teal px-2.5 py-1 text-xs font-semibold text-white"><Glyph name="check" size={12} />Done</span>}
+          {skipped && <span className="inline-flex items-center gap-1.5 rounded-full bg-line px-2.5 py-1 text-xs font-semibold text-ink-muted">Skipped</span>}
+        </div>
+      )}
 
-      {score && <GoScoreBadge score={score} forDay={scoreFor} />}
-      {weather && weather.kind !== "fair" && <div className="mt-3"><WeatherChip v={weather} /></div>}
-
+      {/* What matters right now. Short, and only when there is something to say. Everything else is under "More". */}
+      <div className="mt-2.5 space-y-2 empty:hidden">
       {farWarning && (
-        <div role="note" className="mt-3 flex items-start gap-2.5 rounded-xl bg-clay-light px-3 py-2.5 text-sm text-clay-ink">
+        <div role="note" className="flex items-start gap-2.5 rounded-xl bg-clay-light px-3 py-2.5 text-sm text-clay-ink">
           <Glyph name="warn" size={16} className="mt-0.5" />
           <p className="min-w-0 flex-1"><strong>{Math.round(farWarning.km)} km from {farWarning.anchorLabel} — is this pin right?</strong> Use “Wrong location?” in the menu to fix it.</p>
         </div>
       )}
-      {status === "wrong_season" && seasonReason && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{seasonReason}</p>}
-      {place.notes && <p className="mt-3 rounded-xl bg-sky/70 px-3 py-2 text-sm leading-relaxed text-ink">{place.notes}</p>}
-      {seasonSource?.urls?.[0] && status !== "unknown" && (
-        <p className="mt-2 text-xs text-ink-muted">
-          Season info: {seasonSource.confidence === "researched" ? "researched" : "draft"} ·{" "}
-          <a href={seasonSource.urls[0]} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2">
-            {new URL(seasonSource.urls[0]).hostname.replace(/^www\./, "")}
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-          {seasonSource.urls.length > 1 && ` +${seasonSource.urls.length - 1} more`}
-        </p>
-      )}
-
       {needsAttention && onAlternatives && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-clay/30 bg-clay-light/60 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-clay/30 bg-clay-light/60 px-3 py-2.5">
           <p className="text-sm font-semibold text-clay-ink">Timing looks poor for your dates.</p>
           <Button size="sm" variant="secondary" onClick={() => onAlternatives(place)}><Glyph name="sparkles" size={15} />Find alternatives</Button>
         </div>
       )}
 
-      {/* The few things you do all the time, as real buttons */}
-      {(onVote || (onStatus && scheduled) || (!scheduled && onMove)) && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5 border-t border-line pt-3.5">
-          {onVote ? (
+        {weather && weather.basis === "forecast" && weather.kind !== "fair" && <WeatherChip v={weather} />}
+      </div>
+
+      {/* The few things you do all the time */}
+      {((onStatus && scheduled) || (!scheduled && onMove)) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={`Progress for ${place.name}`}>
+{onStatus && scheduled && (finished ? (
+            <Button size="sm" variant="secondary" className="max-sm:min-h-11" loading={busy} onClick={() => onStatus(place.id, "planned")}>
+              <Glyph name="uturn" size={15} />Undo<span className="sr-only"> {place.status} for {place.name}</span>
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" variant="secondary" className="max-sm:min-h-11" disabled={busy} onClick={() => onStatus(place.id, "skipped")}>
+                <Glyph name="skip" size={15} />Skip<span className="sr-only"> {place.name}</span>
+              </Button>
+              <Button size="sm" className="max-sm:min-h-11" disabled={busy} onClick={() => onStatus(place.id, "done")}>
+                <Glyph name="check" size={16} />Done<span className="sr-only"> with {place.name}</span>
+              </Button>
+            </>
+          ))}
+          {!scheduled && onMove && moveOptions.length > 0 && (
+            <Menu
+              label={`Schedule ${place.name} on a day`}
+              title="Schedule on"
+              triggerClassName="inline-flex min-h-11 items-center gap-2 rounded-xl bg-marigold px-4 text-sm font-bold text-pine transition-colors hover:bg-[#f0b254] aria-expanded:bg-[#d9942d] sm:min-h-10"
+              trigger={<><Glyph name="calendar" size={16} />Schedule on…<Glyph name="down" size={14} /></>}
+            >
+              {(close) => (
+                <div className="flex flex-wrap gap-1.5 p-2">
+                  {moveOptions.map((o) => (
+                    <button key={o.key} type="button" role="menuitem" onClick={() => { close(); onMove(place.id, o.day); }} className="min-h-11 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine hover:border-teal hover:bg-teal-light">
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Menu>
+          )}
+        </div>
+      )}
+
+      <details className="group mt-3 border-t border-line">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold text-ink-muted [&::-webkit-details-marker]:hidden">
+          <span>More about this place</span>
+          <Glyph name="down" size={16} className="transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 pb-1 pt-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <SeasonBadge status={status} />
+            {place.source_url && (
+              <a href={place.source_url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-teal-ink transition-colors hover:border-teal hover:bg-teal-light">
+                <Glyph name="external" size={12} />Original post<span className="sr-only"> for {place.name} (opens in a new tab)</span>
+              </a>
+            )}
+            {place.source_type === "ai_suggestion" && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-marigold-light px-2.5 py-1 text-xs font-semibold text-[#7a4a00]"><Glyph name="sparkles" size={12} />AI suggestion</span>
+            )}
+          </div>
+          {place.address && <p className="flex items-start gap-1.5 break-words text-sm text-ink-muted"><Glyph name="pin" size={14} className="mt-0.5" />{place.address}</p>}
+          {score && <GoScoreBadge score={score} forDay={scoreFor} />}
+          {weather && weather.basis === "typical" && weather.kind !== "fair" && <p className="text-sm text-ink-muted"><strong className="text-pine">{weather.headline}.</strong> {weather.detail}.</p>}
+          {status === "wrong_season" && seasonReason && <p className="text-sm leading-relaxed text-ink-muted">{seasonReason}</p>}
+          {place.notes && <p className="rounded-xl bg-sky/70 px-3 py-2 text-sm leading-relaxed text-ink">{place.notes}</p>}
+          {seasonSource?.urls?.[0] && status !== "unknown" && (
+            <p className="text-xs text-ink-muted">
+              Season info: {seasonSource.confidence === "researched" ? "researched" : "draft"} ·{" "}
+              <a href={seasonSource.urls[0]} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2">
+                {new URL(seasonSource.urls[0]).hostname.replace(/^www\./, "")}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+              {seasonSource.urls.length > 1 && ` +${seasonSource.urls.length - 1} more`}
+            </p>
+          )}
+          {onVote && (
             <div role="group" aria-label={`Group vote for ${place.name}`} className="inline-flex overflow-hidden rounded-full border border-line bg-white">
               {([[1, "thumbUp", "Up"], [-1, "thumbDown", "Down"]] as const).map(([v, icon, word]) => (
                 <button
@@ -216,54 +263,18 @@ export function StopCard({
                 </button>
               ))}
             </div>
-          ) : <span />}
-
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Progress for ${place.name}`}>
-            {onStatus && scheduled && (finished ? (
-              <Button size="sm" variant="secondary" className="max-sm:min-h-11" loading={busy} onClick={() => onStatus(place.id, "planned")}>
-                <Glyph name="uturn" size={15} />Undo<span className="sr-only"> {place.status} for {place.name}</span>
-              </Button>
-            ) : (
-              <>
-                <Button size="sm" variant="secondary" className="max-sm:min-h-11" disabled={busy} onClick={() => onStatus(place.id, "skipped")}>
-                  <Glyph name="skip" size={15} />Skip<span className="sr-only"> {place.name}</span>
-                </Button>
-                <Button size="sm" className="max-sm:min-h-11" disabled={busy} onClick={() => onStatus(place.id, "done")}>
-                  <Glyph name="check" size={16} />Done<span className="sr-only"> with {place.name}</span>
-                </Button>
-              </>
-            ))}
-            {!scheduled && onMove && moveOptions.length > 0 && (
-              <Menu
-                label={`Schedule ${place.name} on a day`}
-                title="Schedule on"
-                triggerClassName="inline-flex min-h-11 items-center gap-2 rounded-xl bg-marigold px-4 text-sm font-bold text-pine transition-colors hover:bg-[#f0b254] aria-expanded:bg-[#d9942d] sm:min-h-10"
-                trigger={<><Glyph name="calendar" size={16} />Schedule on…<Glyph name="down" size={14} /></>}
-              >
-                {(close) => (
-                  <div className="flex flex-wrap gap-1.5 p-2">
-                    {moveOptions.map((o) => (
-                      <button key={o.key} type="button" role="menuitem" onClick={() => { close(); onMove(place.id, o.day); }} className="min-h-11 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine hover:border-teal hover:bg-teal-light">
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </Menu>
-            )}
-          </div>
+          )}
+          {reportCtx && (
+            <PlaceReports
+              place={{ id: place.id, name: place.name, lat: place.lat, lng: place.lng }}
+              reports={reports ?? []}
+              userId={reportCtx.userId}
+              now={reportCtx.now}
+              onChanged={reportCtx.onChanged}
+            />
+          )}
         </div>
-      )}
-
-      {reportCtx && (
-        <PlaceReports
-          place={{ id: place.id, name: place.name, lat: place.lat, lng: place.lng }}
-          reports={reports ?? []}
-          userId={reportCtx.userId}
-          now={reportCtx.now}
-          onChanged={reportCtx.onChanged}
-        />
-      )}
+      </details>
 
       {fixing && onRelocate && (
         <div className="mt-4 space-y-3 rounded-xl border border-line bg-sky/60 p-3.5">
@@ -304,7 +315,6 @@ export function StopCard({
         <span aria-hidden="true" className="mt-2 w-0.5 flex-1 rounded-full bg-line group-last:hidden" />
       </div>
       <div className="min-w-0 pb-5 group-last:pb-1">
-        {driveChip}
         {card}
       </div>
     </li>

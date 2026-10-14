@@ -20,7 +20,9 @@ export const CATEGORIES: Record<PlaceCategory, { label: string; emoji: string; h
   museum: { label: "Museum / caves", emoji: "🏛️", hours: 2, rain: "neutral" },
   food: { label: "Food", emoji: "🍛", hours: 1.5, rain: "neutral" },
   stay: { label: "Stay", emoji: "🛏️", hours: 0.5, rain: "neutral" },
-  other: { label: "Place", emoji: "📍", hours: 2, rain: "hates" },
+  // A place we could not classify (a statue, a junction, a town) is assumed to take an hour, not two: a long guess would turn a one-day trip into two.
+  // Every stop's time can be changed by the traveller.
+  other: { label: "Place", emoji: "📍", hours: 1, rain: "hates" },
 };
 
 const ALIASES: Record<string, PlaceCategory> = {

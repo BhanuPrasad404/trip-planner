@@ -7,7 +7,7 @@
 // people stay.
 import { STYLES, type StyleId } from "./config";
 import { findClusters } from "./clusters";
-import { makeCtx } from "./model";
+import { duration, makeCtx } from "./model";
 import { buildPlan } from "./plan";
 import type { BuilderInput, PlanOption } from "./types";
 
@@ -29,6 +29,9 @@ export type PaceDays = {
   /** Average places per day and the longest drive, at that number of days. */
   perDay: number | null;
   longestDriveMin: number | null;
+  /** Road distance and driving time for the whole trip at that number of days (null when it does not fit). */
+  totalKm: number | null;
+  totalDriveMin: number | null;
 };
 
 export type DurationVerdict = "could_be_shorter" | "about_right" | "tight" | "needs_more_days" | "unknown";
@@ -48,6 +51,8 @@ export type DurationAdvice = {
 };
 
 const EXTRA_DAYS_TRIED = 3;
+/** The real size of the trip, from the road times used to plan it: what lets a traveller judge "can this be one day?" for themselves. */
+const facts = (p: PaceDays | undefined): string => (p && p.totalKm !== null && p.totalDriveMin !== null ? `Together that is about ${p.totalKm} km and ${duration(p.totalDriveMin)} of driving by road.` : "");
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /** Everything fits and nothing is left out. */
 const works = (o: PlanOption) => o.feasible && o.removed.length === 0;
@@ -65,7 +70,7 @@ export function adviseDuration(input: BuilderInput, opts: { maxDays?: number } =
   const assumptions = ["Driving times are typical speeds for a car (no live traffic).", "Time at each place is a typical visit length for its type, or the length you set.", "Each day includes short breaks and a realistic day start and end."];
 
   const base = { requestedDays: requested, places, assumptions, missing };
-  if (places === 0) return { ...base, verdict: "unknown", suggestion: null, paces: PACES.map((p) => ({ key: p.key, label: p.label, blurb: p.blurb, minDays: null, comfortable: false, perDay: null, longestDriveMin: null })), headline: "Add places to see how many days you need.", detail: "" };
+  if (places === 0) return { ...base, verdict: "unknown", suggestion: null, paces: PACES.map((p) => ({ key: p.key, label: p.label, blurb: p.blurb, minDays: null, comfortable: false, perDay: null, longestDriveMin: null, totalKm: null, totalDriveMin: null })), headline: "Add places to see how many days you need.", detail: "" };
 
   const limit = Math.min(opts.maxDays ?? 30, Math.max(requested + EXTRA_DAYS_TRIED, places)); // never more days than places
   const ctx = makeCtx(input, STYLES.balanced);
@@ -78,7 +83,7 @@ export function adviseDuration(input: BuilderInput, opts: { maxDays?: number } =
       if (comfortable(plan)) return pace(p, d, plan, true);
       if (!loose && works(plan)) loose = { d, plan };
     }
-    return loose ? pace(p, loose.d, loose.plan, false) : { key: p.key, label: p.label, blurb: p.blurb, minDays: null, comfortable: false, perDay: null, longestDriveMin: null };
+    return loose ? pace(p, loose.d, loose.plan, false) : { key: p.key, label: p.label, blurb: p.blurb, minDays: null, comfortable: false, perDay: null, longestDriveMin: null, totalKm: null, totalDriveMin: null };
   });
   const by = (k: PaceKey) => paces.find((p) => p.key === k)!;
   const compact = by("compact").minDays, balanced = by("balanced").minDays, relaxed = by("relaxed").minDays;
@@ -94,24 +99,25 @@ export function adviseDuration(input: BuilderInput, opts: { maxDays?: number } =
   }
   // Clear slack: even a relaxed pace fits in fewer days than planned.
   if (relaxed !== null && relaxed < requested) {
-    return { ...base, verdict: "could_be_shorter", suggestion: { key: "relaxed", days: relaxed }, paces, headline: `Your ${plural(places, "place")} could fit in ${plural(relaxed, "day")}, even at a relaxed pace.`, detail: `You planned ${plural(requested, "day")}. ${range(compact, balanced, relaxed)} Depending on how long you stay and on opening hours, the extra time could mean a slower trip or a shorter one. Your choice.` };
+    return { ...base, verdict: "could_be_shorter", suggestion: { key: "relaxed", days: relaxed }, paces, headline: `Your ${plural(places, "place")} could fit in ${plural(relaxed, "day")}, even at a relaxed pace.`, detail: `You planned ${plural(requested, "day")}. ${facts(by("relaxed"))} ${range(compact, balanced, relaxed)} Depending on how long you stay and on opening hours, the extra time could mean a slower trip or a shorter one. Your choice.` };
   }
   if (balanced !== null && balanced < requested) {
-    return { ...base, verdict: "could_be_shorter", suggestion: { key: "balanced", days: balanced }, paces, headline: `Your ${plural(places, "place")} could fit in about ${plural(balanced, "day")} at a balanced pace.`, detail: `You planned ${plural(requested, "day")}. ${range(compact, balanced, relaxed)} A relaxed pace would use ${relaxed === null ? "more days than you have" : plural(relaxed, "day")}.` };
+    return { ...base, verdict: "could_be_shorter", suggestion: { key: "balanced", days: balanced }, paces, headline: `Your ${plural(places, "place")} could fit in about ${plural(balanced, "day")} at a balanced pace.`, detail: `You planned ${plural(requested, "day")}. ${facts(by("balanced"))} ${range(compact, balanced, relaxed)} A relaxed pace would use ${relaxed === null ? "more days than you have" : plural(relaxed, "day")}.` };
   }
   // Only the compact pace fits in the planned days: possible, but long days.
   if (balanced === null || balanced > requested) {
     return { ...base, verdict: "tight", suggestion: null, paces, headline: `${plural(requested, "day")} is tight for ${plural(places, "place")}.`, detail: `Only a compact pace fits, with long days. ${range(compact, balanced, relaxed)} Consider one more day, or fewer places.` };
   }
   if (compact !== null && compact < requested) {
-    return { ...base, verdict: "about_right", suggestion: null, paces, headline: `${plural(requested, "day")} is a comfortable length for ${plural(places, "place")}.`, detail: `Moving fast they could fit in ${plural(compact, "day")}, but that means long days. ${range(compact, balanced, relaxed)}` };
+    // Only a fast pace fits in fewer days. Say so plainly (it is useful to know a trip could be shorter) and be clear it means a full day.
+    return { ...base, verdict: "could_be_shorter", suggestion: { key: "compact", days: compact }, paces, headline: `Your ${plural(places, "place")} could fit in ${plural(compact, "day")}, as a full ${compact === 1 ? "day" : "trip"}.`, detail: `You planned ${plural(requested, "day")}. ${facts(by("compact"))} In ${plural(compact, "day")} it means long days with short stops; ${balanced === null ? "a balanced pace needs more days than you have" : `a balanced pace takes ${plural(balanced, "day")}`}. Your choice.` };
   }
   return { ...base, verdict: "about_right", suggestion: null, paces, headline: `${plural(requested, "day")} looks right for ${plural(places, "place")}.`, detail: range(compact, balanced, relaxed) };
 }
 
 function pace(p: (typeof PACES)[number], d: number, plan: PlanOption, comfortableFit: boolean): PaceDays {
   const active = plan.days.filter((x) => x.stops.length > 0);
-  return { key: p.key, label: p.label, blurb: p.blurb, minDays: d, comfortable: comfortableFit, perDay: active.length ? Math.round((plan.totals.places / active.length) * 10) / 10 : null, longestDriveMin: Math.max(0, ...active.map((x) => x.driveMin)) };
+  return { key: p.key, label: p.label, blurb: p.blurb, minDays: d, comfortable: comfortableFit, perDay: active.length ? Math.round((plan.totals.places / active.length) * 10) / 10 : null, totalKm: Math.round(plan.totals.km), totalDriveMin: Math.round(plan.totals.driveMin), longestDriveMin: Math.max(0, ...active.map((x) => x.driveMin)) };
 }
 
 function range(compact: number | null, balanced: number | null, relaxed: number | null): string {

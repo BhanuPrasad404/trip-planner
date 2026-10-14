@@ -1,5 +1,6 @@
 "use client";
 
+import type { Vehicle } from "@/lib/vehicle";
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -80,6 +81,8 @@ export type NavMapProps = {
   choices: RouteChoice[];
   progress: NavProgress | null;
   puck: Puck | null;
+  /** What the traveller is driving: the marker is drawn as that vehicle. */
+  vehicle?: Vehicle;
   speedKmh: number | null;
   alternatives: NavRoute[];
   altChoices: RouteChoice[];
@@ -168,7 +171,8 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
   const simpleFollowZoomed = useRef(false);
   const zoomTarget = useRef(17);
   const compassRef = useRef<HTMLButtonElement>(null);
-  const puckHandle = useRef<{ setHeadingKnown: (k: boolean) => void } | null>(null);
+  const vehicleRef = useRef<Vehicle>("car");
+  const puckHandle = useRef<{ setHeadingKnown: (k: boolean) => void; setVehicle: (v: Vehicle) => void } | null>(null);
   const latest = useRef<{ puck: Puck | null; me: { lat: number; lng: number; accuracyM?: number | null } | null; headingUp: boolean; speed: number | null; navigating: boolean }>({ puck: null, me: null, headingUp: true, speed: null, navigating: false });
   const compassCb = useRef(onCompass);
   const followRef = useRef(follow);
@@ -511,8 +515,8 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !navigating) return;
-    const { el, setHeadingKnown } = createPuck();
-    puckHandle.current = { setHeadingKnown };
+    const { el, setHeadingKnown, setVehicle } = createPuck(vehicleRef.current);
+    puckHandle.current = { setHeadingKnown, setVehicle };
     const marker = new maplibregl.Marker({ element: el, rotationAlignment: "map", pitchAlignment: "map" });
     let placed = false;
     const cam = new NavCamera(map, (c) => {
@@ -533,6 +537,9 @@ export default function TripMap({ places, start, destination, activeDay, fit, li
       map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
     };
   }, [navigating, ready]);
+
+  // Choosing another vehicle changes the marker straight away (no restart of the camera).
+  useEffect(() => { vehicleRef.current = nav?.vehicle ?? "car"; puckHandle.current?.setVehicle(vehicleRef.current); }, [nav?.vehicle]);
 
   // Each GPS fix gives the camera a new goal; the loop above glides to it.
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fileToDataUrl } from "@/lib/client/image";
 import { getSeasonStatus, visitMonth } from "@/lib/season";
 import type { ImportCandidate } from "@/lib/import/pipeline";
@@ -24,6 +24,8 @@ type Props = {
 type Tab = "paste" | "brief";
 type Phase = "form" | "loading" | "review";
 
+const MAX_IMAGES = 3;
+
 const sourceLabel: Record<ImportCandidate["source"], string> = {
   maps_link: "From Maps link",
   ai_text: "Found in your text",
@@ -41,20 +43,35 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fileNote, setFileNote] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Opening must be visible: bring the panel into view and put the cursor in the text box, so pressing "Import places" is never silent.
+  useEffect(() => {
+    sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    textRef.current?.focus?.({ preventScroll: true });
+  }, []);
+  // When results arrive, bring them into view too.
+  useEffect(() => { if (phase === "review") { resultsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); resultsRef.current?.focus?.({ preventScroll: true }); } }, [phase]);
 
   const month = visitMonth(startDate, null, today);
 
   async function addFiles(files: FileList | null) {
     if (!files) return;
     setError(null);
+    setFileNote(null);
     try {
       const next = [...images];
+      let skipped = 0;
       for (const f of Array.from(files)) {
-        if (next.length >= 3) break;
+        if (next.length >= MAX_IMAGES) { skipped++; continue; }
         next.push({ name: f.name, dataUrl: await fileToDataUrl(f) });
       }
       setImages(next);
+      if (skipped > 0) setFileNote(`You can add up to ${MAX_IMAGES} screenshots at a time, so ${skipped} ${skipped === 1 ? "was" : "were"} left out. Remove one to add another, or import the rest in a second go.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't read that image.");
     }
@@ -145,10 +162,10 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
   const canAnalyse = tab === "brief" ? text.trim().length >= 10 : text.trim().length > 0 || images.length > 0;
 
   return (
-    <section aria-labelledby="import-heading" className="rounded-3xl border border-teal/30 bg-white p-4 shadow-sm sm:p-6">
+    <section ref={sectionRef} id="import-panel" aria-labelledby="import-heading" className="scroll-mt-24 rounded-3xl border border-teal/30 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <h2 id="import-heading" className="font-display text-xl font-semibold text-pine">
-          {phase === "review" ? "Review what we found" : "Add places the smart way"}
+          {phase === "review" ? "Review what we found" : "Add places from links, text or screenshots"}
         </h2>
         <button type="button" onClick={onCancel} className="min-h-10 px-2 text-sm font-semibold text-ink-muted underline underline-offset-2">
           Close
@@ -182,6 +199,7 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
               {tab === "paste" ? "Paste anything" : "Tell us about the trip"}
             </label>
             <textarea
+              ref={textRef}
               id="import-text"
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -196,7 +214,7 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
             />
             <p className="mt-1.5 text-sm text-ink-muted">
               {tab === "paste"
-                ? "Instagram and YouTube block automatic link reading — paste the caption or add a screenshot of the reel."
+                ? "Instagram and YouTube block automatic link reading, so paste the caption or add a screenshot of the reel. Google Maps links work directly."
                 : "AI-suggested places for your travel month and start city. They may be wrong, so check each one. Nothing is added until you confirm."}
             </p>
           </div>
@@ -205,12 +223,24 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
             <div>
               <input ref={fileInput} id="import-files" type="file" accept="image/*" multiple className="sr-only" onChange={(e) => addFiles(e.target.files)} />
               <label htmlFor="import-files" className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-dashed border-teal/50 px-4 text-sm font-semibold text-teal-ink hover:bg-teal-light">
-                <Glyph name="camera" size={16} className="mr-2" />Add screenshots ({images.length}/3)
+                <Glyph name="camera" size={16} className="mr-2" />Add screenshots ({images.length}/{MAX_IMAGES})
               </label>
+              <details className="mt-2 rounded-xl bg-sky/60 px-3.5 py-2.5 text-sm text-ink-muted">
+                <summary className="flex min-h-9 cursor-pointer items-center font-semibold text-pine">What happens to a screenshot?</summary>
+                <ol className="mt-1.5 list-decimal space-y-1 pl-5">
+                  <li>We read the words in the picture: place names, a caption, a list in a note or chat.</li>
+                  <li>We look each place up on the map to find where it is.</li>
+                  <li>You see the places we found and tick the ones you want. <strong className="text-pine">Nothing is added until you press Add.</strong></li>
+                </ol>
+                <p className="mt-1.5">It works best when the picture contains text, like a reel caption or a &ldquo;top 10&rdquo; list. A photo with no words, such as a beach or a view, usually can&apos;t be identified. The picture is read by an AI service to find the text, and TrailMate doesn&apos;t keep it.</p>
+              </details>
+              {fileNote && <p role="status" className="mt-2 rounded-xl bg-marigold-light px-3.5 py-2.5 text-sm text-[#7a4a00]">{fileNote}</p>}
               {images.length > 0 && (
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {images.map((img, i) => (
                     <li key={img.dataUrl.slice(-24) + i} className="flex items-center gap-2 rounded-lg bg-sky px-2.5 py-1.5 text-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a local preview of the picture the traveller just chose */}
+                      <img src={img.dataUrl} alt={`Preview of ${img.name}`} className="h-10 w-10 rounded-md object-cover" />
                       <span className="max-w-40 truncate">{img.name}</span>
                       <button type="button" aria-label={`Remove ${img.name}`} onClick={() => setImages(images.filter((_, j) => j !== i))} className="font-bold text-clay-ink">
                         ×
@@ -227,12 +257,13 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
           <Button type="submit" disabled={!canAnalyse} loading={phase === "loading"} loadingLabel="Finding places… this can take a few seconds" className="w-full sm:w-auto">
             {tab === "brief" ? "Suggest places" : "Find places"}
           </Button>
-          <p aria-live="polite" className="sr-only">{phase === "loading" ? "Finding places" : ""}</p>
+          <p role="status" aria-live="polite" className={phase === "loading" ? "text-sm text-ink-muted" : "sr-only"}>{phase === "loading" ? (tab === "paste" && images.length > 0 ? "Reading your screenshot, then finding each place on the map. This can take up to a minute." : "Finding places on the map. This can take a few seconds.") : ""}</p>
         </form>
       )}
 
       {phase === "review" && (
-        <div className="mt-4 space-y-4">
+        <div ref={resultsRef} tabIndex={-1} className="mt-4 space-y-4 outline-none">
+          <p role="status" className="text-sm font-semibold text-pine">{summaryOf(candidates)}</p>
           {notes.map((n) => (
             <p key={n} className="rounded-xl bg-marigold-light px-4 py-3 text-sm text-[#7a4a00]">{n}</p>
           ))}
@@ -286,4 +317,13 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
       )}
     </section>
   );
+}
+
+/** One plain sentence about what came back, so the result is never a silent list. */
+export function summaryOf(list: ImportCandidate[]): string {
+  if (list.length === 0) return "We didn't find any places.";
+  const located = list.filter((c) => c.lat != null && c.lng != null);
+  const missing = list.length - located.length;
+  const dup = located.filter((c) => c.duplicate).length;
+  return `We found ${list.length} ${list.length === 1 ? "place" : "places"}.${missing ? ` ${missing} couldn't be found on the map, so ${missing === 1 ? "it" : "they"} can't be added.` : ""}${dup ? ` ${dup} ${dup === 1 ? "is" : "are"} already on this trip.` : ""} Tick the ones you want.`;
 }

@@ -5,7 +5,7 @@ import type { DurationAdvice } from "@/lib/trip-builder/duration";
 
 const advice = (o: Partial<DurationAdvice> = {}): DurationAdvice => ({
   requestedDays: 3, places: 5, verdict: "could_be_shorter", suggestion: { key: "balanced", days: 2 },
-  paces: [{ key: "compact", label: "Compact", blurb: "Long days", minDays: 1, comfortable: false, perDay: 5, longestDriveMin: 200 }, { key: "balanced", label: "Balanced", blurb: "Mix", minDays: 2, comfortable: true, perDay: 2.5, longestDriveMin: 120 }, { key: "relaxed", label: "Relaxed", blurb: "Slow", minDays: 2, comfortable: true, perDay: 2.5, longestDriveMin: 100 }],
+  paces: [{ key: "compact", label: "Compact", blurb: "Long days", minDays: 1, comfortable: false, perDay: 5, longestDriveMin: 200, totalKm: 100, totalDriveMin: 150 }, { key: "balanced", label: "Balanced", blurb: "Mix", minDays: 2, comfortable: true, perDay: 2.5, longestDriveMin: 120, totalKm: 100, totalDriveMin: 150 }, { key: "relaxed", label: "Relaxed", blurb: "Slow", minDays: 2, comfortable: true, perDay: 2.5, longestDriveMin: 100, totalKm: 100, totalDriveMin: 150 }],
   headline: "Your 5 places could fit in about 2 days at a balanced pace.", detail: "You planned 3 days.", assumptions: ["Driving times are typical speeds for a car (no live traffic)."], missing: ["Opening hours are unknown for 5 of 5 places, so closing times were not used."], ...o,
 });
 const html = (a: DurationAdvice, canEdit = true) => renderToStaticMarkup(<DurationCard a={a} canEdit={canEdit} busy={false} onChange={vi.fn()} />);

@@ -3,7 +3,7 @@
 // invented: a terrain item exists only if elevation data showed it, a weather item only for a real FORECAST that calls for advice,
 // and every item says how sure it is (an estimate, a published fact, a forecast). Times for terrain are interpolated along the road
 // between the stops' own arrival times, so time spent at a stop correctly delays what comes after it.
-import { clockOf, dayShiftLabel } from "./clock";
+import { clockOf, dayShiftLabel, localizeClocks } from "./clock";
 import type { StopVerdict, Verdict } from "./feasibility";
 import type { TerrainSegment } from "./terrain";
 import type { WeatherVisual } from "./weather-visual";
@@ -62,7 +62,7 @@ export function buildTimeline(a: {
 
   // Stops, with the weather forecast at each (only a real forecast that calls for advice).
   a.verdicts.forEach((v, i) => {
-    items.push(mk(`stop:${v.stopId}`, "stop", v.arriveMs, v.name, v.arriveMs === null ? v.detail : `${v.headline}. ${v.windowClock ? `Arrival window ${v.windowClock}.` : ""}`.trim(), v.severity, v.hoursSource ? "published" : "estimate", v.arriveMs !== null));
+    items.push(mk(`stop:${v.stopId}`, "stop", v.arriveMs, v.name, v.arriveMs === null ? v.detail : `${v.headline}. ${v.windowClock ? `Arrival window ${localizeClocks(v.windowClock)}.` : ""}`.trim(), v.severity, v.hoursSource ? "published" : "estimate", v.arriveMs !== null));
     const w = a.weather?.[v.stopId] ?? a.weather?.[a.stops[i]?.id ?? ""];
     if (w && w.basis === "forecast" && w.advice && v.arriveMs !== null) {
       items.push(mk(`weather:${v.stopId}`, "weather", v.arriveMs, `${w.headline} at ${v.name}`, w.advice, w.intensity >= 2 ? "warn" : "info", "forecast"));

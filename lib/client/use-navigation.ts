@@ -5,6 +5,7 @@
 // the next maneuver, remaining distance and ETA, and checks for a genuine wrong turn. Routing is requested only when
 // something meaningful happens (start, wrong turn, next stop); older answers can never overwrite newer ones.
 // The maths is in lib/map/navigation.ts (pure, tested); this file is the state machine around it.
+import type { Vehicle } from "@/lib/vehicle";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { OFF_ROUTE, bannerFor, cameraBearing, checkOffRoute, indexRoute, initialOffRoute, isGpsJump, progressOn, type Banner, type NavIndex, type NavProgress, type OffRouteState } from "@/lib/map/navigation";
 import { describeRoutes, type RouteChoice } from "@/lib/map/directions";
@@ -78,8 +79,8 @@ class RoutingQuota extends Error {}
 /** 15 s, 30 s, 1 min … capped at 5 min. */
 const backoffMs = (failures: number, baseMs: number) => Math.min(5 * 60_000, baseMs * 2 ** Math.max(0, failures - 1));
 
-async function fetchDirections(from: { lat: number; lng: number }, to: { lat: number; lng: number }, alternatives: number, signal: AbortSignal) {
-  const res = await fetch("/api/directions", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: { lat: from.lat, lng: from.lng }, to: { lat: to.lat, lng: to.lng }, alternatives }) });
+async function fetchDirections(from: { lat: number; lng: number }, to: { lat: number; lng: number }, alternatives: number, signal: AbortSignal, vehicle: Vehicle = "car") {
+  const res = await fetch("/api/directions", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: { lat: from.lat, lng: from.lng }, to: { lat: to.lat, lng: to.lng }, alternatives, vehicle }) });
   if (res.status === 429) throw new RoutingQuota("Too many route requests right now — try again in a few minutes.");
   const body = (await res.json().catch(() => null)) as { routes?: NavRoute[]; choices?: RouteChoice[]; notes?: string[]; error?: string } | null;
   if (!res.ok || !body?.routes?.length) throw new Error(body?.error ?? "Couldn't get directions right now.");
@@ -90,8 +91,10 @@ async function fetchDirections(from: { lat: number; lng: number }, to: { lat: nu
 
 const RETRY_AFTER_MS = 15_000;
 
-export function useNavigation(args: { target: NavTarget | null; ready: boolean; fixRef: MutableRefObject<((m: Me) => void) | null>; onArrive?: (t: NavTarget) => void }): Navigation {
+export function useNavigation(args: { target: NavTarget | null; ready: boolean; fixRef: MutableRefObject<((m: Me) => void) | null>; onArrive?: (t: NavTarget) => void; vehicle?: Vehicle }): Navigation {
   const { target, ready, fixRef } = args;
+  const vehicleRef = useRef<Vehicle>(args.vehicle ?? "car");
+  useEffect(() => { vehicleRef.current = args.vehicle ?? "car"; });
   const [s, setS] = useState<State>(EMPTY);
   const [voice, setVoice] = useState(true);
   const [armed, setArmed] = useState(false);
@@ -167,7 +170,7 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
     busyRef.current = true;
     setPhase("loading", { error: null, notice: null, progress: null, banner: null, puck: null, routes: [], choices: [] });
     // Starting by itself needs only the fastest road (one cheap request); the alternatives come with "Other routes".
-    fetchDirections(here, t, auto ? 0 : 2, ctrl.signal).then((r) => {
+    fetchDirections(here, t, auto ? 0 : 2, ctrl.signal, vehicleRef.current).then((r) => {
       if (id !== reqId.current) return; // a newer request (or a stop) replaced this one
       busyRef.current = false;
       errorFailures.current = 0;
@@ -198,7 +201,7 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
     patch({ rerouting: true });
     if (voiceRef.current) speak("Rerouting");
     try {
-      const r = await fetchDirections(m, t, 0, ctrl.signal);
+      const r = await fetchDirections(m, t, 0, ctrl.signal, vehicleRef.current);
       if (id !== reqId.current || phaseRef.current !== "navigating") return; // stale: a newer request or a stop happened meanwhile
       const route = r.routes[0];
       navRef.current = indexRoute(route);
@@ -311,7 +314,7 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
     const ctrl = new AbortController();
     altAbort.current = ctrl;
     patch({ altLoading: true });
-    fetchDirections(here, t, 2, ctrl.signal).then((r) => {
+    fetchDirections(here, t, 2, ctrl.signal, vehicleRef.current).then((r) => {
       if (id !== altReq.current || phaseRef.current !== "navigating") return; // stale: you switched, rerouted or stopped meanwhile
       const current = navRef.current?.route;
       // Drop the answer that is just the road you are already on.

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Vehicle } from "@/lib/vehicle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { useDrive, type Drive, type DriveTarget, type Me } from "@/lib/client/use-drive";
@@ -28,10 +29,12 @@ type Args = {
   focusDay: number;
   /** Show every place ahead on the map (default: only the radar's best picks, to keep the map readable). */
   showAllPlaces?: boolean;
+  /** What the traveller is driving (default: car). */
+  vehicle?: Vehicle;
 };
 
 /** Everything "live" in one place: clock, today, drive (GPS + sharing), intelligence, and the map markers they imply. */
-export function useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces = false }: Args) {
+export function useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces = false, vehicle = "car" }: Args) {
   const nowMinute = useNowMinute(); // 0 on the server → no clock mismatch
   const nowMs = nowMinute * 60_000;
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -64,7 +67,8 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   const allowLive = useRef(false);
   const fixRef = useRef<((m: Me) => void) | null>(null); // navigation listens to every GPS fix through this
   const endRef = useRef<(() => void) | null>(null); // the drive ended by itself (location permission revoked)
-  const drive: Drive = useDrive(trip.id, userId, driveStops, allowLive, fixRef, endRef);
+  const arrivalRef = useRef<((m: Me) => void) | null>(null); // arrival detection listens to every GPS fix through this
+  const drive: Drive = useDrive(trip.id, userId, driveStops, allowLive, fixRef, endRef, arrivalRef);
 
   const intelStops = useMemo<IntelStopInput[]>(
     () =>
@@ -132,7 +136,7 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
 
   // Turn-by-turn to the next stop (needs a confirmed drive and a precise position).
   const nextTarget = useMemo(() => (targets[0] ? { id: targets[0].id, name: targets[0].name, lat: targets[0].lat, lng: targets[0].lng, kind: targets[0].kind } : null), [targets]);
-  const navigation: Navigation = useNavigation({ target: nextTarget, ready: liveOk, fixRef });
+  const navigation: Navigation = useNavigation({ target: nextTarget, ready: liveOk, fixRef, vehicle });
   useEffect(() => {
     endRef.current = navigation.stop;
   });
@@ -205,5 +209,5 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
     return e ? Math.round(CATEGORIES[e.category].hours * 60) : 0;
   };
 
-  return { journey, startedFrom, navigation, gate, liveOk, timing, weatherNote, nowMs, localDate, localTime, todayDay, overrun, driveDay, dayPlaces, remaining, done, driveStops, targets, nextTarget, drive: driveWithNav, intel, intelStops, previewFrom, liveMarkers, poiMarkers, stayMinutes, nextStop: remaining[0] ?? null };
+  return { vehicle, arrivalRef, journey, startedFrom, navigation, gate, liveOk, timing, weatherNote, nowMs, localDate, localTime, todayDay, overrun, driveDay, dayPlaces, remaining, done, driveStops, targets, nextTarget, drive: driveWithNav, intel, intelStops, previewFrom, liveMarkers, poiMarkers, stayMinutes, nextStop: remaining[0] ?? null };
 }

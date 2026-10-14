@@ -1,6 +1,15 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { LiveArrival } from "./LiveArrival";
+import { LiveTolls } from "./LiveTolls";
+import { VehicleSelector } from "./VehicleSelector";
+import { useVehicle } from "@/lib/client/use-vehicle";
+import { AlertBanners } from "./AlertCenter";
+import { useAlerts } from "@/lib/client/use-alerts";
+import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
+import { useVisits } from "@/lib/client/use-visits";
+import { applyQueued } from "@/lib/client/visit-queue";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { enrichPlaces } from "@/lib/client/enrich";
@@ -31,10 +40,15 @@ const Toggle = ({ on, set, children }: { on: boolean; set: (v: boolean) => void;
 );
 
 /** The map as a travel instrument: your stops, the road ahead, what the radar recommends, and your friends — with layers you control. */
-export function MapView({ trip, places, members, votes, conditions, userId, today }: Props) {
+export function MapView({ trip, places: serverPlaces, members, votes, conditions, userId, today }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const refresh = () => startTransition(() => router.refresh());
+  const visits = useVisits(trip.id, refresh);
+  const places = useMemo(() => applyQueued(serverPlaces, visits.queued), [serverPlaces, visits.queued]);
+  // Also tell the traveller if Trailmate is in the background (the card itself is the alert while the app is open).
+  const alerts = useAlerts(INDIA_UTC_OFFSET_MIN, { origin: `/trips/${trip.id}/live` });
+  const onArrivalPrompt = (stop: { id: string; name: string }) => alerts.notify({ id: `arrival:${stop.id}`, kind: "arrival", level: 2, title: `You've arrived at ${stop.name}`, body: "Open Trailmate to mark this stop as visited.", inApp: false, cooldownMs: 12 * 3_600_000 });
   const [focusDay, setFocusDay] = useState(places.find((p) => p.day_number !== null)?.day_number ?? 1);
   const [showRadar, setShowRadar] = useState(true);
   const [showAll, setShowAll] = useState(false);
@@ -44,7 +58,8 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
   const [satellite, setSatellite] = useState(false);
 
   const enriched = useMemo(() => enrichPlaces(places, trip, today, conditions), [places, trip, today, conditions]);
-  const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces: showAll });
+  const [vehicle, setVehicle] = useVehicle(trip.id);
+  const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces: showAll, vehicle });
   const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime });
   const { drive, intel, driveDay, todayDay, navigation } = live;
   // A finished trip (planned dates over, not a late finish): show its saved journey, not an active drive.
@@ -92,6 +107,7 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
             {days.map((d) => <button key={d} type="button" aria-pressed={d === focusDay} onClick={() => setFocusDay(d)} className={`min-h-9 rounded-full px-3 text-xs font-semibold shadow-sm ${d === focusDay ? "bg-pine text-white" : "bg-white text-pine"}`}>Day {d}</button>)}
           </div>
         )}
+        <VehicleSelector compact value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); }} />
         <MapThemeControl theme={theme} onChange={setTheme} satellite={SATELLITE_TILES_URL ? satellite : undefined} onSatellite={SATELLITE_TILES_URL ? setSatellite : undefined} />
         {drive.error && !drive.locating && <p role="alert" className="rounded-xl border border-clay/30 bg-clay-light px-3 py-2 text-xs font-medium text-clay-ink shadow-sm">{drive.error}</p>}
         <div className="max-w-md shadow-lg"><DriveGateCard drive={drive} gate={live.gate} /></div>
@@ -121,6 +137,9 @@ export function MapView({ trip, places, members, votes, conditions, userId, toda
       </div>
       <NavigationBanner ui={navUi.ui} />
       <NavigationPanel ui={navUi.ui} />
+      <AlertBanners alerts={alerts.active} onDismiss={alerts.dismiss} onAction={alerts.act} />
+      <div className="pointer-events-none absolute inset-x-3 top-24 z-20 mx-auto max-w-md [&>*]:pointer-events-auto empty:hidden"><LiveTolls live={live} vehicle={vehicle} notify={alerts.notify} /></div>
+      <LiveArrival live={live} vehicle={vehicle} tripId={trip.id} mark={visits.mark} failed={visits.failed} onClearFailed={visits.clearFailed} onPrompt={onArrivalPrompt} />
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />
     </main>
   );

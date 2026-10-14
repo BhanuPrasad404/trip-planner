@@ -17,18 +17,18 @@ const html = (t: Trip, places: Place[]) => renderToStaticMarkup(createElement(Tr
 describe("TripCheck — first screen", () => {
   it("a trip with no dates says so, what that limits, and how to fix it", () => {
     const h = html(trip({ start_date: null }), [place()]);
-    expect(h).toContain("Trip check"); expect(h).toContain("Trip dates aren&#x27;t set");
+    expect(h).toContain("When should I leave?"); expect(h).toContain("Trip dates aren&#x27;t set");
     expect(h).toContain("Set them to check destination opening hours, weather forecasts, estimated arrival times and travel conditions.");
-    expect(h).toContain("Limits: season scores, weather, opening hours, day labels"); expect(h).toContain("Set trip dates"); expect(h).toContain("Ready, with 1 limit");
+    expect(h).toContain("Limits: season scores, weather, opening hours, day labels"); expect(h).toContain("Set trip dates");
   });
   it("a trip with dates and no other limits is simply ready, and hours we don't know are not a 'limit'", () => {
     const h = html(trip(), [place()]);
-    expect(h).toContain(">Ready<"); expect(h).not.toContain("Limits:");
+    expect(h).not.toContain("Limits:"); expect(h).not.toContain("Trip dates aren");
   });
   it("nothing is checked until the traveller asks (no results, no alerts yet)", () => {
     const h = html(trip(), [place()]);
     expect(h).not.toContain("Alerts for this trip"); expect(h).not.toContain("Nothing in the stops we could check looks");
-    expect(h).toContain("Will it be open when I arrive?"); expect(h).toContain("Check my departure");
+    expect(h).toContain("When should I leave?"); expect(h).toContain("Find the best time to leave"); expect(h).not.toContain("Check my departure");
   });
   it("is honest about what it assumes: car, India time, no live traffic, and that it only suggests", () => {
     const h = html(trip(), [place()]);
@@ -40,9 +40,11 @@ describe("TripCheck — checking a departure", () => {
   let store: Record<string, string>;
   let calls: { url: string; method: string; body: unknown }[];
   let hoursFails: boolean;
+  let etaFails: boolean;
+  let etaSource: string;
   beforeEach(() => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-12T06:00:00Z")); // 11:30 in India
-    store = {}; calls = []; hoursFails = false;
+    store = {}; calls = []; hoursFails = false; etaFails = false; etaSource = "osrm";
     vi.stubGlobal("window", { localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } }, addEventListener: () => undefined, removeEventListener: () => undefined, setTimeout: () => 0 });
     vi.stubGlobal("document", { getElementById: () => null });
     // The server side, for real: /hours expands the stops' hours with the actual opening_hours parser; PATCH validates with it too.
@@ -58,6 +60,10 @@ describe("TripCheck — checking a departure", () => {
         const fromMs = mid - DAY, toMs = mid + 3 * DAY;
         const stops = Object.fromEntries(serverPlaces.filter((p) => p.opening_hours).map((p) => [p.id, openIntervals(p.opening_hours!, fromMs, toMs, 330, p)]));
         return json({ fromMs, toMs, utcOffsetMin: 330, stops });
+      }
+      if (url === "/api/eta") {
+        if (etaFails) return json({ error: "Too many route updates today. Please try again tomorrow." }, 429);
+        return json({ legs: (body.points as unknown[]).slice(1).map(() => ({ minutes: 90, km: 100 })), line: [], source: etaSource });
       }
       if (url.startsWith("/api/places/") && method === "PATCH") {
         const h = body.hours;
@@ -104,7 +110,7 @@ describe("TripCheck — checking a departure", () => {
   it("leaving at 21:00 for a fort a trip member says closes at 6 PM: says it is likely closed, with arrival time, and why", async () => {
     saved({}); await mount(trip(), [withHours()]);
     const p = page();
-    expect(p).toContain("Likely closed when you arrive"); expect(p).toContain("arrive 22:45"); expect(p).toContain("closes at 18:00"); expect(p).toContain("Based on hours entered by a trip member.");
+    expect(p).toContain("Likely closed when you arrive"); expect(p).toContain("arrive about 10:45 PM"); expect(p).toContain("closes at 6:00 PM"); expect(p).toContain("Likely closed"); expect(p).toContain("Based on hours entered by a trip member.");
     expect(p).toContain("1 stop needs a look.");
     expect(p).toContain("Opening hours don't guarantee entry");
   });
@@ -161,7 +167,7 @@ describe("TripCheck — checking a departure", () => {
     // October falls in the Oct-Mar season (09:00-18:00): arriving ~11:45 is open, and the closing time is the season's.
     saved({ time: "10:00" }); await mount(trip(), [withHours("Apr-Sep 10:00-17:00; Oct-Mar 09:00-18:00")]);
     const p = page();
-    expect(p).toContain("Open when you arrive"); expect(p).toContain("open until 18:00");
+    expect(p).toContain("Open when you arrive"); expect(p).toContain("open until 6:00 PM");
   });
   it("hours that depend on public holidays are 'unable to verify', never treated as an ordinary day", async () => {
     saved({ time: "10:00" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00; PH off")]);
@@ -193,9 +199,66 @@ describe("TripCheck — checking a departure", () => {
     const p = page();
     expect(p).toContain("Needs 1 thing first"); expect(p).toContain("Choose the time you plan to leave"); expect(p).not.toContain("arrive 2");
   });
-  it("missing driving times send the traveller to Plan my trip", async () => {
-    saved({ time: "09:00" }); await mount(trip(), [place({ drive_minutes: null })]);
-    expect(page()).toContain("Some stops have no driving time yet"); expect(page()).toContain("Plan my trip");
+  it("missing driving times are fetched from the road router for this day, not a dead end", async () => {
+    saved({ time: "09:00" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "traveller", true, { drive_minutes: null })]);
+    const eta = calls.filter((c) => c.url === "/api/eta");
+    expect(eta).toHaveLength(1);
+    expect((eta[0].body as { points: { lat: number }[] }).points).toHaveLength(2); // the trip start, then the stop
+    expect(page()).not.toContain("Some stops have no driving time yet");
+    expect(page()).toContain("arrive about 10:30 AM"); // 9:00 + 90 min of road time
+    expect(page()).toContain("Likely open");
+  });
+  it("'Find the best time to leave' does something visible: it gets road times, recommends a time and explains it", async () => {
+    saved({ ran: false, time: "" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "traveller", true, { drive_minutes: null })]);
+    expect(page()).not.toContain("Best time to leave");
+    await clickText("Find the best time to leave");
+    const p = page();
+    expect(calls.some((c) => c.url === "/api/eta")).toBe(true);
+    expect(p).toContain("Best time to leave"); expect(p).toMatch(/Leave at \d{1,2}:\d{2} (AM|PM)/);
+    expect(p).toContain("What this assumes"); expect(p).toContain("live traffic");
+    expect(p).toContain("At that time, will each place be open when you arrive?"); expect(p).toContain("Likely open");
+    expect(p).not.toMatch(/\b(1[3-9]|2[0-4]):\d{2}\b/); // no 24-hour clock anywhere on the screen
+  });
+  it("it uses the plan's saved driving times when it has them, and does not call the router", async () => {
+    saved({ ran: false, time: "" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "traveller", true, { drive_minutes: 60 })]);
+    await clickText("Find the best time to leave");
+    expect(calls.some((c) => c.url === "/api/eta")).toBe(false);
+    expect(page()).toContain("Leave at");
+    expect(page()).toContain("saved plan");
+  });
+  it("when road routing is down the answer is labelled a straight-line estimate", async () => {
+    etaSource = "estimate";
+    saved({ ran: false, time: "" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "traveller", true, { drive_minutes: null })]);
+    await clickText("Find the best time to leave");
+    expect(page()).toContain("straight-line estimates");
+  });
+  it("if driving times can't be fetched it says why and shows no made-up time", async () => {
+    etaFails = true;
+    saved({ ran: false, time: "" }); await mount(trip(), [withHours("Mo-Su 09:00-18:00", "traveller", true, { drive_minutes: null })]);
+    await clickText("Find the best time to leave");
+    expect(page()).toContain("Too many route updates today");
+    expect(page()).not.toMatch(/Leave at \d/);
+  });
+  it("with no opening hours known it says the time comes from the length of the day only", async () => {
+    saved({ ran: false, time: "" }); await mount(trip(), [place({ drive_minutes: 60 })]);
+    await clickText("Find the best time to leave");
+    expect(page()).toContain("A sensible time to leave"); expect(page()).toContain("We don't know the opening hours of any stop");
+    expect(page()).toContain("Unable to verify");
+  });
+  it("a day with no stops says there is nothing to time", async () => {
+    saved({ ran: false, time: "", day: 2 }); await mount(trip(), [place()]);
+    await clickText("Find the best time to leave");
+    expect(page()).toContain("no stops on Day 2");
+  });
+  it("without any date it asks for one instead of guessing", async () => {
+    saved({ ran: false, time: "", date: "" }); await mount(trip({ start_date: null }), [place({ drive_minutes: 60 })]);
+    await clickText("Find the best time to leave");
+    expect(page()).toContain("Choose a date first");
+  });
+  it("when no start time can work it says so instead of a false all-clear", async () => {
+    saved({ ran: false, time: "" }); await mount(trip(), [withHours("Mo-Su 09:00-17:00", "traveller", true, { drive_minutes: 660, visit_minutes: 120 })]);
+    await clickText("Find the best time to leave");
+    expect(page()).toContain("No start time makes every place work");
   });
   it("a trip with no dates can still be checked when a date is typed into the check", async () => {
     saved({ date: "2026-10-14" }); await mount(trip({ start_date: null }), [withHours()]);
@@ -235,7 +298,7 @@ describe("TripCheck — checking a departure", () => {
   });
   it("damaged saved data never breaks the card", async () => {
     store[KEY] = "{not json"; await mount();
-    expect(page()).toContain("Trip check");
+    expect(page()).toContain("When should I leave?");
   });
   it("the check only looks at the chosen day's stops", async () => {
     saved({ day: 2 }); await mount(trip(), [withHours(), place({ id: "p2", name: "Other", day_number: 2 })]);

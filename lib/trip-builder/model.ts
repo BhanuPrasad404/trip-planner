@@ -1,4 +1,5 @@
 // Shared maths for one planning run: the "context" every engine step reads (roads, visit times, values, sun, hours).
+import { clock12 } from "@/lib/travel/clock";
 import { bearingDeg } from "@/lib/geo";
 import { CATEGORIES } from "@/lib/categories";
 import { sunTimes } from "@/lib/intel/sun";
@@ -95,9 +96,15 @@ export function makeCtx(input: BuilderInput, style: StyleConfig = STYLES.balance
   };
 }
 
-export const hhmm = (minutes: number) => {
+/** Minutes after local midnight → "18:30": the stored, sortable form for the database. NEVER shown to people (see hhmm). */
+export const clock24 = (minutes: number) => {
   const m = Math.max(0, Math.round(minutes));
   return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+/** Minutes after local midnight → "6:30 PM". Past midnight it says so ("12:30 AM (next day)") rather than quietly wrapping around. */
+export const hhmm = (minutes: number) => {
+  const m = Math.max(0, Math.round(minutes));
+  return `${clock12(clock24(m))}${m >= 1440 ? ` (${m >= 2880 ? `${Math.floor(m / 1440)} days later` : "next day"})` : ""}`;
 };
 export const duration = (min: number) => {
   const m = Math.max(0, Math.round(min));

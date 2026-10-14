@@ -1,6 +1,17 @@
 "use client";
 
+import { dbTime12 } from "@/lib/travel/clock";
 import { useMemo, useState, useTransition } from "react";
+import { LiveArrival } from "./LiveArrival";
+import { LiveTolls } from "./LiveTolls";
+import { TripProgress } from "./TripProgress";
+import { VehicleSelector } from "./VehicleSelector";
+import { useVehicle } from "@/lib/client/use-vehicle";
+import { AlertBanners, AlertSettings } from "./AlertCenter";
+import { useAlerts } from "@/lib/client/use-alerts";
+import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
+import { useVisits } from "@/lib/client/use-visits";
+import { applyQueued } from "@/lib/client/visit-queue";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { enrichPlaces } from "@/lib/client/enrich";
@@ -35,10 +46,16 @@ import { useMapTheme } from "@/lib/client/use-map-theme";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
 
-export function LiveView({ trip, places, members, votes, conditions, userId, today }: Props) {
+export function LiveView({ trip, places: serverPlaces, members, votes, conditions, userId, today }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const refresh = () => startTransition(() => router.refresh());
+  // Answers the traveller gave that the server has not heard yet (no signal) are shown at once, so "next stop" moves on.
+  const visits = useVisits(trip.id, refresh);
+  const places = useMemo(() => applyQueued(serverPlaces, visits.queued), [serverPlaces, visits.queued]);
+  // Also tell the traveller if Trailmate is in the background (the card itself is the alert while the app is open).
+  const alerts = useAlerts(INDIA_UTC_OFFSET_MIN, { origin: `/trips/${trip.id}/live` });
+  const onArrivalPrompt = (stop: { id: string; name: string }) => alerts.notify({ id: `arrival:${stop.id}`, kind: "arrival", level: 2, title: `You've arrived at ${stop.name}`, body: "Open Trailmate to mark this stop as visited.", inApp: false, cooldownMs: 12 * 3_600_000 });
   const firstDay = places.find((p) => p.day_number !== null)?.day_number ?? 1;
   const [focusDay, setFocusDay] = useState(firstDay);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -47,7 +64,8 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
   const [replanNote, setReplanNote] = useState<{ text: string; warnings: string[] } | null>(null);
 
   const enriched = useMemo(() => enrichPlaces(places, trip, today, conditions), [places, trip, today, conditions]);
-  const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay });
+  const [vehicle, setVehicle] = useVehicle(trip.id);
+  const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, vehicle });
   const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime, earlyDay: live.drive.active && live.timing?.state === "before" ? live.driveDay : null });
   const { drive, intel, nextStop, driveDay, todayDay } = live;
   const navUi = useNavUi(live, follow, setFollow, (id, name) => void actions.setStatus(id, "done", `Marked ${name} done`));
@@ -80,7 +98,7 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
   // What to say when there is nothing urgent.
   // The next place to head for: the next planned stop or, with none left, the trip's destination.
   const nextTarget = live.nextTarget;
-  const nextPlanned = nextStop?.arrival_time?.slice(0, 5) ?? null;
+  const nextPlanned = dbTime12(nextStop?.arrival_time);
   const firstLeg = drive.route && nextTarget && drive.route.stopIds[0] === nextTarget.id ? drive.route.legs[0] : null;
   const fallback = nextTarget
     ? {
@@ -119,7 +137,10 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
       )}
 
       <DriveGateCard drive={drive} gate={live.gate} />
+      <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
+      <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={firstLeg?.km ?? null} />
+      <LiveTolls live={live} vehicle={vehicle} notify={alerts.notify} />
       <TripHealthStrip health={result?.health ?? null} />
       {intel.mode === "preview" && result && live.localDate && live.localTime && (
         <p role="note" className="flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">
@@ -164,12 +185,12 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
                   return (
                     <li key={p.id} className="py-3 text-sm">
                       <div className="flex items-start gap-3">
-                        <span className="w-12 shrink-0 font-mono text-xs text-ink-muted">{p.arrival_time?.slice(0, 5) ?? "--:--"}</span>
+                        <span className="w-[4.5rem] shrink-0 text-xs font-medium text-ink-muted">{dbTime12(p.arrival_time) ?? "No time"}</span>
                         <div className="min-w-0 flex-1">
                           <p className="break-words font-semibold text-pine">{p.name}</p>
                           {eta && <p className="text-xs text-ink-muted">You&apos;d arrive about <strong>{eta.etaClock}</strong>{d && <span className={`ml-2 rounded-full px-2 py-0.5 font-semibold ${d.tone === "late" ? "bg-clay-light text-clay-ink" : d.tone === "ok" ? "bg-teal-light text-teal-ink" : "bg-sky text-ink-muted"}`}>{d.text}</span>}</p>}
                           <div className="mt-1 flex flex-wrap items-center gap-x-4">
-                            <a href={googleMapsDirections(p)} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
+                            <a href={googleMapsDirections(p, vehicle)} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
                             <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "done", `Marked ${p.name} done`)} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2 disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
                             <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="min-h-9 py-1.5 text-ink-muted underline underline-offset-2 disabled:opacity-60">Skip</button>
                           </div>
@@ -194,12 +215,17 @@ export function LiveView({ trip, places, members, votes, conditions, userId, tod
             </section>
           )}
 
+          <AlertSettings prefs={alerts.prefs} permission={alerts.permission} onChange={alerts.setPrefs} onEnablePhone={() => void alerts.enablePhone()} onTest={alerts.sendTest} />
+
           <details className="rounded-2xl border border-line bg-white p-4 sm:p-5">
             <summary className="cursor-pointer font-display text-lg font-semibold text-pine">Search nearby</summary>
             <div className="mt-3"><NearbyPanel anchor={nextStop ? { lat: nextStop.lat, lng: nextStop.lng, label: nextStop.name } : live.previewFrom} /></div>
           </details>
         </div>
       </div>
+
+      <AlertBanners alerts={alerts.active} onDismiss={alerts.dismiss} onAction={alerts.act} />
+      <LiveArrival live={live} vehicle={vehicle} tripId={trip.id} mark={visits.mark} failed={visits.failed} onClearFailed={visits.clearFailed} onPrompt={onArrivalPrompt} />
 
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />
     </main>

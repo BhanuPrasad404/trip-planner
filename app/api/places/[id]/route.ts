@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { z } from "zod";
-import { movePlaceSchema, placeHoursSchema, placePrioritySchema, relocatePlaceSchema, stopStatusSchema, uuid } from "@/lib/validation/schemas";
+import { movePlaceSchema, placeHoursSchema, placePrioritySchema, placeVisitSchema, relocatePlaceSchema, stopStatusSchema, uuid } from "@/lib/validation/schemas";
 import { rateLimiter } from "@/lib/rate-limit";
 import { validateHours } from "@/lib/server/opening-hours";
 
@@ -26,7 +26,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
 // STRICT on purpose: a request is EITHER a move OR a relocation. Mixed or unknown fields are rejected
 // loudly instead of one half being silently dropped (and it blocks smuggling in columns like trip_id).
-const patchSchema = z.union([movePlaceSchema.strict(), relocatePlaceSchema.strict(), stopStatusSchema.strict(), placePrioritySchema.strict(), placeHoursSchema.strict()]);
+const patchSchema = z.union([movePlaceSchema.strict(), relocatePlaceSchema.strict(), stopStatusSchema.strict(), placePrioritySchema.strict(), placeVisitSchema.strict(), placeHoursSchema.strict()]);
 
 // Either mark a stop done/skipped/planned (trip mode), move a stop to another day (day_number; null = back to Ideas),
 // or relocate it when the pin is wrong (lat + lng, optionally a corrected name/address).
@@ -39,7 +39,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // place up). NOTHING is written until the Auth server has confirmed the person, exactly as before.
   const authP = supabase.auth.getUser();
   const parsed = await parseBody(req, patchSchema);
-  const isMove = !parsed.error && !("priority" in parsed.data) && !("status" in parsed.data) && !("lat" in parsed.data) && !("hours" in parsed.data);
+  const isMove = !parsed.error && !("priority" in parsed.data) && !("visit_minutes" in parsed.data) && !("status" in parsed.data) && !("lat" in parsed.data) && !("hours" in parsed.data);
   // Only a MOVE needs to know which trip the place belongs to; the other edits are a single UPDATE that tells us (through the
   // rows it changed) whether the place exists and is yours — a place you may not edit is invisible to you (Row Level Security).
   // Promise.resolve(...) STARTS the request now: a query builder is lazy and would otherwise wait until it is awaited.
@@ -79,6 +79,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (error) return dbError(error, "hours: update");
     if (!data || data.length === 0) return jsonError("Someone else changed these opening hours just now. Reload and check them again.", 409);
     return NextResponse.json({ ok: true, ...pickHours(data[0]), warnings });
+  }
+
+  if ("visit_minutes" in input) {
+    const { data, error } = await supabase.from("places").update({ visit_minutes: input.visit_minutes }).eq("id", id).select("id");
+    if (error) return dbError(error, "visit_minutes: update");
+    if (!data || data.length === 0) return jsonError("Place not found", 404);
+    return NextResponse.json({ ok: true });
   }
 
   if ("priority" in input) {

@@ -1,17 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Glyph, CategoryGlyph } from "@/components/ui/Glyph";
-import { PlacePhoto } from "@/components/ui/PlacePhoto";
+import { Glyph } from "@/components/ui/Glyph";
 import { Spinner } from "@/components/ui/Spinner";
-import { usePlacePhotos } from "@/lib/client/use-place-photos";
-import type { PlacePhoto as Photo } from "@/lib/place-photos";
-import type { GlyphName } from "@/lib/glyphs";
-import { normalizeCategory } from "@/lib/categories";
+import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { snapshotPlaces } from "@/lib/snapshot";
-import { PRIORITIES, duration, hhmm, type BuilderResult, type DayPlan, type PlanOption, type Priority, type Warning } from "@/lib/trip-builder";
-import { PRIORITY_UI, paceFacts, recommendOption } from "@/lib/trip-builder/recommend";
+import { PRIORITIES, duration, hhmm, type BuilderResult, type DayPlan, type PlanOption, type Warning } from "@/lib/trip-builder";
+import { PRIORITY_UI, dayPressure, distinctPlans, joinLabels, paceFacts, paceRules, recommendOption } from "@/lib/trip-builder/recommend";
 import type { EndMode } from "@/lib/trip-builder/types";
 import type { PlaceWithSeason } from "@/lib/types";
 import { formatDate } from "@/lib/format";
@@ -28,6 +24,10 @@ type Props = {
   destLabel?: string | null;
   /** The signed-in person owns the trip (only the owner can change its length). */
   canEditTrip?: boolean;
+  /** The trip has a start date (so opening days, weather and season could be considered). */
+  hasDates?: boolean;
+  /** Close the panel. */
+  onClose?: () => void;
   /** Show this plan on the map (null = back to the saved plan). */
   onPreview: (option: PlanOption | null) => void;
   onChanged: () => void;
@@ -41,6 +41,8 @@ const intensityStyle: Record<DayPlan["intensity"], { chip: string; bar: string; 
   heavy: { chip: "bg-marigold-light text-[#7a4a00]", bar: "bg-marigold", label: "Heavy" },
   overloaded: { chip: "bg-clay-light text-clay-ink", bar: "bg-clay", label: "Too much" },
 };
+/** "45 min", "1 h", "2.5 h": short enough for a dropdown on a small phone. */
+const short = (m: number) => (m < 60 ? `${m} min` : `${Math.round((m / 60) * 10) / 10} h`);
 const sevStyle: Record<Warning["severity"], string> = { risk: "border-clay/40 bg-clay-light/60 text-clay-ink", warn: "border-marigold/50 bg-marigold-light/60 text-[#7a4a00]", info: "border-line bg-sky/60 text-ink-muted" };
 
 async function post<T>(url: string, body: unknown, method = "POST"): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
@@ -53,18 +55,13 @@ async function post<T>(url: string, body: unknown, method = "POST"): Promise<{ o
   }
 }
 
-export function TripBuilder({ tripId, places, hasStart, hasDestination, startLabel, destLabel, canEditTrip = false, onPreview, onChanged }: Props) {
-  const [open, setOpen] = useState(false);
+export function TripBuilder({ tripId, places, hasStart, hasDestination, startLabel, destLabel, canEditTrip = false, hasDates = false, onClose, onPreview, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Loaded | null>(null);
   const [endMode, setEndMode] = useState<EndMode>("free");
   const [chosen, setChosen] = useState<PlanOption["style"] | null>(null);
   const [applied, setApplied] = useState<{ label: string; snapshot: ReturnType<typeof snapshotPlaces> } | null>(null);
-  // Real photos of the places, looked up only once the assistant is open and after the plan is on screen.
-  const photoQueries = useMemo(() => (open ? places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)).map((p) => ({ key: p.id, name: p.name, lat: p.lat, lng: p.lng })) : []), [open, places]);
-  const photos = usePlacePhotos(photoQueries);
-  const placeById = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
 
   const load = useCallback(async (mode: EndMode = endMode) => {
     setBusy(true); setError(null);
@@ -117,271 +114,239 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
     await load(); // plan again for the new length
   }
 
-  const option = data?.result.options.find((o) => o.style === chosen) ?? null;
+  // Pressing "Plan my trip" shows the result straight away: no second button to press.
+  const ready = hasStart && places.length > 0;
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => void load(), 0); // start the request after mount (not inside the effect body)
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the panel opens
+
   const recommended = data ? recommendOption(data.result.options) : null;
+  const groups = data ? distinctPlans(data.result.options, recommended) : [];
+  const group = groups.find((g) => g.options.some((o) => o.style === chosen)) ?? groups[0] ?? null;
+  const option = group ? group.options.find((o) => o.style === chosen) ?? group.primary : null;
   const start = startLabel?.trim() || "your start";
   const dest = destLabel?.trim() || "your destination";
+  const closeBtn = <button type="button" onClick={() => { onPreview(null); onClose?.(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sky" aria-label="Close Plan my trip"><Glyph name="close" size={20} /></button>;
+  const head2 = (sub: string) => (
+    <header className="flex items-start justify-between gap-3 px-4 pt-4">
+      <div className="min-w-0">
+        <h2 id="builder-heading" className="font-display text-lg font-semibold text-pine">Plan my trip</h2>
+        <p className="mt-0.5 text-sm text-ink-muted">{sub}</p>
+      </div>
+      {closeBtn}
+    </header>
+  );
 
   if (!hasStart) {
     return (
-      <section id="plan-assistant" className="scroll-mt-24 rounded-3xl border border-line bg-white p-5">
-        <h2 className="font-display text-xl font-semibold text-pine">Plan my trip</h2>
-        <p className="mt-1 text-sm text-ink-muted">Set a starting point to use the planner: we measure real road distances from it. This trip has none, and a starting point can currently only be chosen when a trip is created, so create a new trip to plan this route.</p>
+      <section id="plan-assistant" aria-labelledby="builder-heading" className="rounded-2xl border border-line bg-white pb-4 shadow-sm">
+        {head2("Set a starting point to use the planner: we measure real road distances from it. This trip has none, and a starting point can currently only be chosen when a trip is created, so create a new trip to plan this route.")}
+      </section>
+    );
+  }
+  if (places.length === 0) {
+    return (
+      <section id="plan-assistant" aria-labelledby="builder-heading" className="rounded-2xl border border-line bg-white pb-4 shadow-sm">
+        {head2("Add places first. Then we fit them into your days using real road times.")}
       </section>
     );
   }
 
   return (
-    <section id="plan-assistant" aria-labelledby="builder-heading" className="scroll-mt-24 rounded-3xl border border-teal/30 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4 px-4 pt-5 sm:px-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-marigold-light text-[#7a4a00]"><Glyph name="sparkles" size={20} /></span>
-          <div className="min-w-0">
-            <h2 id="builder-heading" className="font-display text-xl font-semibold text-pine">Plan my trip</h2>
-            <p className="mt-0.5 max-w-2xl text-sm text-ink-muted">Tell us what matters. We check your places against real road times and show three realistic ways to fit them into your days, with the reason for every choice.</p>
-          </div>
-        </div>
-        {!open ? (
-          <Button onClick={() => { setOpen(true); void load(); }} disabled={places.length === 0}>{places.length === 0 ? "Add places first" : <><Glyph name="sparkles" size={16} />Plan my trip</>}</Button>
-        ) : (
-          <Button variant="secondary" onClick={() => { setOpen(false); onPreview(null); }}>Close</Button>
-        )}
-      </div>
-
-      {!open && (
-        <ol className="mx-4 mb-5 mt-4 grid gap-2 text-sm sm:mx-6 sm:grid-cols-3">
-          {[["1", "Tell us what matters", "Where it ends, and which places you can't miss."], ["2", "See if it fits", "Real driving time against the time your days really have."], ["3", "Pick a plan", "Relaxed, balanced or explorer. Preview it on the map, then use it."]].map(([n, t, d]) => (
-            <li key={n} className="flex gap-3 rounded-2xl bg-sky/60 p-3">
-              <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white font-mono text-sm font-semibold text-pine">{n}</span>
-              <span><strong className="block text-pine">{t}</strong><span className="text-ink-muted">{d}</span></span>
-            </li>
-          ))}
-          <li className="text-xs text-ink-muted sm:col-span-3">Nothing changes in your itinerary until you press <strong>Use this plan</strong>, and you can undo it.</li>
-        </ol>
-      )}
+    <section id="plan-assistant" aria-labelledby="builder-heading" className="rounded-2xl border border-teal/30 bg-white shadow-sm">
+      {head2(`Fits your ${places.length} ${places.length === 1 ? "place" : "places"} into ${data?.result.numDays ?? "your"} days using real road times. Nothing changes until you press Use this plan.`)}
 
       {applied && (
-        <p role="status" className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-teal-light px-3 py-2.5 text-sm font-medium text-teal-ink sm:mx-6">
+        <p role="status" className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-teal-light px-3 py-2.5 text-sm font-medium text-teal-ink">
           <Glyph name="check" size={16} />Done. The {applied.label} plan is now your itinerary.
           <Button size="sm" variant="secondary" className="ml-auto" loading={busy} onClick={() => void undo()}><Glyph name="uturn" size={14} />Undo</Button>
         </p>
       )}
-      {error && <p role="alert" className="mx-4 mt-3 rounded-xl border border-clay/30 bg-clay-light px-3 py-2 text-sm font-medium text-clay-ink sm:mx-6">{error}</p>}
+      {error && <p role="alert" className="mx-4 mt-3 rounded-xl border border-clay/30 bg-clay-light px-3 py-2 text-sm font-medium text-clay-ink">{error}</p>}
+      {busy && !data && <p role="status" className="flex items-center gap-2 px-4 pb-5 pt-4 text-sm text-ink-muted"><Spinner size={16} />Measuring real road distances…</p>}
 
-      {open && (
-        <div className="space-y-8 px-4 pb-6 pt-5 sm:px-6">
-          <Step n={1} title="Where does your trip end?" help="This changes the last day: we may add the drive home.">
-            <div role="radiogroup" aria-label="Where does your trip end?" className="grid gap-2.5 sm:grid-cols-3">
-              {([
-                ["free", "flag", "Anywhere", "The trip ends at your last place. No drive home is added."],
-                ["start", "uturn", `Back to ${start}`, "We add the drive home to the last day."],
-                ...(hasDestination ? [["point", "pin", `At ${dest}`, "Every plan is built to finish there."]] : []),
-              ] as [EndMode, GlyphName, string, string][]).map(([m, icon, title, text]) => (
-                <button key={m} type="button" role="radio" aria-checked={endMode === m} onClick={() => { setEndMode(m); void load(m); }} className={`flex min-h-20 items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition-colors ${endMode === m ? "border-teal bg-teal-light/50" : "border-line bg-white hover:border-teal/60"}`}>
-                  <span aria-hidden="true" className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${endMode === m ? "bg-teal text-white" : "bg-sky text-pine"}`}><Glyph name={icon} size={17} /></span>
-                  <span className="min-w-0"><strong className="block text-[15px] text-pine">{title}</strong><span className="text-sm text-ink-muted">{text}</span></span>
-                </button>
-              ))}
+      {data && option && group && (
+        <div className="space-y-5 px-4 pb-4 pt-4">
+          {/* If the days you chose are more (or fewer) than the places need, that is the first thing to know. */}
+          {data.duration && data.duration.verdict !== "unknown" && data.duration.verdict !== "about_right" && <DurationCard a={data.duration} canEdit={canEditTrip} busy={busy} onChange={(d) => void changeDays(d)} />}
+          <Verdict r={data.result.reality} routing={data.result.routing} customVisits={places.filter((pl) => pl.visit_minutes != null).length} />
+          {data.duration && data.duration.verdict === "about_right" && <DurationCard a={data.duration} canEdit={canEditTrip} busy={busy} onChange={(d) => void changeDays(d)} />}
+          {data.result.removeSuggestions.length > 0 && data.result.reality.status === "over" && (
+            <div>
+              <h3 className="text-sm font-semibold text-pine">Too much for your days. What could go?</h3>
+              <ul className="mt-2 space-y-2">
+                {data.result.removeSuggestions.map((s) => (
+                  <li key={s.placeId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5 text-sm">
+                    <span className="min-w-0 flex-1">{s.message}</span>
+                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => void patchPlace(s.placeId, { day_number: null })}>Move to Ideas</Button>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </Step>
-
-          {busy && !data && <p role="status" className="flex items-center gap-2 text-sm text-ink-muted"><Spinner size={16} />Measuring real road distances…</p>}
-
-          {data && (
-            <>
-              <Step n={2} title="How much does each place matter?" help="If your days turn out too full, places are given up in this order. Must do places are never given up.">
-                <Legend />
-                <PlaceList places={places} photos={photos} result={data.result} busy={busy} onPriority={(id, p) => void patchPlace(id, { priority: p })} />
-              </Step>
-
-              <Step n={3} title="Does it fit your days?">
-                <Reality r={data.result.reality} routing={data.result.routing} />
-                {data.duration && data.duration.verdict !== "unknown" && <DurationCard a={data.duration} canEdit={canEditTrip} busy={busy} onChange={(d) => void changeDays(d)} />}
-                {data.result.notes.length > 0 && <ul className="mt-3 space-y-1 text-sm text-ink-muted">{data.result.notes.map((n) => <li key={n} className="flex gap-2"><Glyph name="info" size={14} className="mt-0.5 shrink-0" />{n}</li>)}</ul>}
-                {data.result.removeSuggestions.length > 0 && data.result.reality.status === "over" && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-semibold text-pine">Too much for your days. What could go?</h4>
-                    <ul className="mt-2 space-y-2">
-                      {data.result.removeSuggestions.map((s) => (
-                        <li key={s.placeId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5 text-sm">
-                          <span className="min-w-0 flex-1">{s.message}</span>
-                          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void patchPlace(s.placeId, { day_number: null })}>Move to Ideas</Button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </Step>
-
-              <Step n={4} title="Pick a pace" help="Same places, three ways to spread them. Tap one to see it on the map. Each coloured bar is a day: green is easy, red is too much.">
-                <ul className="grid gap-3 md:grid-cols-3">
-                  {data.result.options.map((o) => (
-                    <li key={o.style}><OptionCard o={o} total={data.result.reality.places} recommended={recommended === o.style} selected={chosen === o.style} onSelect={() => { setChosen(o.style); onPreview(o); }} /></li>
-                  ))}
-                </ul>
-                {data.result.clusters.length > 0 && (
-                  <details className="mt-4 rounded-2xl bg-sky/50 px-4 py-3">
-                    <summary className="min-h-8 cursor-pointer text-sm font-semibold text-pine">Why are some places grouped on the same day?</summary>
-                    <p className="mt-2 text-sm text-ink-muted">Places that are close together by road are kept on the same day where possible, so you drive less.</p>
-                    <ul className="mt-2 flex flex-wrap gap-2">
-                      {data.result.clusters.map((c) => (
-                        <li key={c.id} className="rounded-full bg-white px-3 py-1.5 text-xs text-pine"><strong>{c.label}</strong> · {c.fromStart.dir} of {start}, {c.fromStart.km} km · within {duration(c.spanMin)} of each other</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </Step>
-
-              {option && (
-                <Step n={5} title={`Your ${option.label} plan, day by day`} help="Tap “Why here?” on any place to see the numbers behind its position.">
-                  {option.warnings.length > 0 && (
-                    <ul className="mb-3 space-y-1.5" aria-label="Things to know about this plan">
-                      {option.warnings.map((w, i) => <li key={`${w.code}-${i}`} className={`flex gap-2 rounded-xl border px-3 py-2 text-sm ${sevStyle[w.severity]}`}><Glyph name={w.severity === "info" ? "info" : "warn"} size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}
-                    </ul>
-                  )}
-                  <div className="space-y-4">
-                    {option.days.map((d) => <Day key={d.day} d={d} photos={photos} placeById={placeById} />)}
-                  </div>
-                  {option.removed.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-semibold text-pine">Left out of this plan ({option.removed.length}). They stay in your Ideas.</h4>
-                      <ul className="mt-2 space-y-2">
-                        {option.removed.map((r) => {
-                          const add = option.canAddBack.find((a) => a.placeId === r.placeId);
-                          return <li key={r.placeId} className="rounded-xl border border-line px-3 py-2.5 text-sm"><strong className="text-pine">{r.name}</strong><p className="text-ink-muted">{r.reason}</p>{add && <p className="mt-1 text-ink-muted">{add.message}</p>}</li>;
-                        })}
-                      </ul>
-                    </div>
-                  )}
-
-                  <div className="sticky bottom-3 z-10 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white/95 p-3 pl-4 shadow-lg backdrop-blur">
-                    <p className="min-w-0 text-sm text-ink-muted"><strong className="text-pine">{option.label} plan</strong> · {paceFacts(option).summary}</p>
-                    <Button loading={busy} loadingLabel="Applying…" disabled={option.totals.places === 0} onClick={() => void apply(option)}>Use this plan</Button>
-                  </div>
-                </Step>
-              )}
-            </>
           )}
+
+          {/* The pace choice only exists when the paces really give different plans. */}
+          <div>
+            {groups.length === 1 ? (
+              <p className="text-sm text-ink-muted"><strong className="text-pine">Your plan.</strong> {data.result.options.length > 1 ? `${joinLabels(group.labels)} all give this same plan for your ${data.result.reality.places} places, so there is nothing to choose. The paces only differ when more places are added than fit comfortably.` : ""}</p>
+            ) : (
+              <>
+                <h3 className="text-sm font-semibold text-pine">Choose a pace</h3>
+                <div role="radiogroup" aria-label="Choose a pace" className={`mt-2 grid gap-2 ${groups.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                  {groups.map((g) => {
+                    const on = g.options.some((o) => o.style === option.style);
+                    const f = paceFacts(g.primary);
+                    return (
+                      <button key={g.primary.style} type="button" role="radio" aria-checked={on} onClick={() => { setChosen(g.primary.style); onPreview(g.primary); }} className={`relative flex min-h-[4.5rem] flex-col items-start rounded-xl border-2 p-2.5 text-left transition-colors ${on ? "border-teal bg-teal-light/40" : "border-line bg-white hover:border-teal/60"}`}>
+                        <span className="text-sm font-semibold text-pine">{joinLabels(g.labels)}</span>
+                        <span className="mt-0.5 text-xs text-ink-muted">{g.primary.totals.places} of {data.result.reality.places} places · longest drive {duration(f.longestDriveMin)}</span>
+                        {recommended && g.options.some((o) => o.style === recommended) && <span className="mt-1 rounded-full bg-marigold px-2 py-0.5 text-[11px] font-bold text-pine">Recommended</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-ink-muted">{paceRules(option.style).lines.slice(0, 3).join(" · ")}</p>
+              </>
+            )}
+          </div>
+
+          <div>
+            {option.warnings.length > 0 && (
+              <ul className="mb-3 space-y-1.5" aria-label="Things to know about this plan">
+                {option.warnings.slice(0, 2).map((w, i) => <li key={`${w.code}-${i}`} className={`flex gap-2 rounded-xl border px-3 py-2 text-sm ${sevStyle[w.severity]}`}><Glyph name={w.severity === "info" ? "info" : "warn"} size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}
+                {option.warnings.length > 2 && (
+                  <li><details><summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">{option.warnings.length - 2} more to know</summary>
+                    <ul className="mt-1 space-y-1.5">{option.warnings.slice(2).map((w, i) => <li key={`${w.code}-x${i}`} className={`flex gap-2 rounded-xl border px-3 py-2 text-sm ${sevStyle[w.severity]}`}><Glyph name={w.severity === "info" ? "info" : "warn"} size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}</ul></details></li>
+                )}
+              </ul>
+            )}
+            <PlanComfort option={option} hasDates={hasDates} />
+            <div className="space-y-3">
+              {option.days.map((d) => <Day key={d.day} d={d} />)}
+            </div>
+            {option.removed.length > 0 && (
+              <div className="mt-3">
+                <h3 className="text-sm font-semibold text-pine">Left out ({option.removed.length}). They stay in your Ideas.</h3>
+                <ul className="mt-2 space-y-2">
+                  {option.removed.map((r) => {
+                    const add = option.canAddBack.find((a) => a.placeId === r.placeId);
+                    return <li key={r.placeId} className="rounded-xl border border-line px-3 py-2.5 text-sm"><strong className="text-pine">{r.name}</strong><p className="text-ink-muted">{r.reason}</p>{add && <p className="mt-1 text-ink-muted">{add.message}</p>}</li>;
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {data.result.clusters.length > 0 && (
+            <details className="rounded-xl bg-sky/50 px-3.5">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-pine">Why are some places on the same day?</summary>
+              <p className="text-sm text-ink-muted">Places that are close together by road are kept on the same day where possible, so you drive less.</p>
+              <ul className="my-2 flex flex-wrap gap-2">
+                {data.result.clusters.map((c) => <li key={c.id} className="rounded-full bg-white px-3 py-1.5 text-xs text-pine"><strong>{c.label}</strong> · {c.fromStart.dir} of {start}, {c.fromStart.km} km</li>)}
+              </ul>
+            </details>
+          )}
+
+          <details open={data.result.reality.status !== "fits"} className="rounded-xl border border-line">
+            <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3.5 text-sm font-semibold text-pine">Fine-tune <span className="text-right text-xs font-normal text-ink-muted">time at each place · where it ends</span></summary>
+            <div className="space-y-4 border-t border-line px-3.5 pb-4 pt-3">
+              <fieldset>
+                <legend className="text-sm font-semibold text-pine">Where does your trip end?</legend>
+                <div role="radiogroup" aria-label="Where does your trip end?" className="mt-2 flex flex-wrap gap-2">
+                  {([["free", "Anywhere"], ["start", `Back to ${start}`], ...(hasDestination ? [["point", `At ${dest}`]] : [])] as [EndMode, string][]).map(([m, label]) => (
+                    <button key={m} type="button" role="radio" aria-checked={endMode === m} onClick={() => { setEndMode(m); void load(m); }} className={`min-h-11 rounded-full border-2 px-4 text-sm font-semibold ${endMode === m ? "border-teal bg-teal-light/50 text-teal-ink" : "border-line text-ink-muted hover:border-teal/60"}`}>{label}</button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-ink-muted">{endMode === "start" ? "We add the drive home to the last day." : endMode === "point" ? "Every plan is built to finish there." : "The trip ends at your last place. No drive home is added."}</p>
+              </fieldset>
+              <fieldset>
+                <legend className="text-sm font-semibold text-pine">Each place</legend>
+                <p className="mt-0.5 text-xs text-ink-muted">How long you will stay changes how many days you need. &ldquo;How much it matters&rdquo; only counts if your days are too full: places are given up from the bottom, and Must do places never are.</p>
+                <ul className="mt-2 divide-y divide-line">
+                  {places.map((pl) => {
+                    const c = data.result.placeCosts.find((x) => x.placeId === pl.id);
+                    const usual = Math.round(CATEGORIES[normalizeCategory(pl.category)].hours * 60);
+                    const mine = pl.visit_minutes ?? null;
+                    const options = [...new Set([30, 45, 60, 90, 120, 180, 240, 360, ...(mine ? [mine] : [])])].sort((x, y) => x - y);
+                    return (
+                      <li key={pl.id} className="py-3">
+                        <p className="truncate text-sm font-semibold text-pine">{pl.name}</p>
+                        {c && <p className="text-xs text-ink-muted">{duration(c.totalMin)} including the drive</p>}
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <div>
+                            <label htmlFor={`prio-${pl.id}`} className="block text-xs font-semibold text-ink-muted">How much it matters</label>
+                            <select id={`prio-${pl.id}`} value={pl.priority ?? "normal"} disabled={busy} onChange={(e) => void patchPlace(pl.id, { priority: e.target.value })} className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2.5 text-sm">
+                              {PRIORITIES.map((pr) => <option key={pr} value={pr}>{PRIORITY_UI[pr].label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`visit-${pl.id}`} className="block text-xs font-semibold text-ink-muted">Time there</label>
+                            <select id={`visit-${pl.id}`} value={mine === null ? "" : String(mine)} disabled={busy} onChange={(e) => void patchPlace(pl.id, { visit_minutes: e.target.value === "" ? null : Number(e.target.value) })} className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2.5 text-sm">
+                              <option value="">Usual · {short(usual)}</option>
+                              {options.map((m) => <option key={m} value={m}>{short(m)}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </fieldset>
+            </div>
+          </details>
+
+          <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white/95 p-3 pl-4 shadow-lg backdrop-blur">
+            <p className="min-w-0 text-sm text-ink-muted"><strong className="text-pine">{option.label}</strong> · {option.totals.places} of {data.result.reality.places} places</p>
+            <Button loading={busy} loadingLabel="Applying…" disabled={option.totals.places === 0} onClick={() => void apply(option)}>Use this plan</Button>
+          </div>
         </div>
       )}
     </section>
   );
 }
 
-function Step({ n, title, help, children }: { n: number; title: string; help?: string; children: ReactNode }) {
-  return (
-    <section aria-labelledby={`step-${n}`}>
-      <h3 id={`step-${n}`} className="flex items-start gap-3">
-        <span aria-hidden="true" className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-pine font-mono text-sm font-semibold text-white">{n}</span>
-        <span className="min-w-0">
-          <span className="block font-display text-lg font-semibold leading-snug text-pine">{title}</span>
-          {help && <span className="mt-0.5 block text-sm font-normal text-ink-muted">{help}</span>}
-        </span>
-      </h3>
-      <div className="mt-3 sm:pl-11">{children}</div>
-    </section>
-  );
-}
-
-function Legend() {
-  return (
-    <dl className="mb-3 grid gap-2 sm:grid-cols-4">
-      {PRIORITIES.map((p) => (
-        <div key={p} className="rounded-xl bg-sky/60 px-3 py-2">
-          <dt className="text-sm font-semibold text-pine">{PRIORITY_UI[p].label}</dt>
-          <dd className="text-xs text-ink-muted">{PRIORITY_UI[p].hint}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function Reality({ r, routing }: { r: BuilderResult["reality"]; routing: string }) {
+function Verdict({ r, routing, customVisits }: { r: BuilderResult["reality"]; routing: string; customVisits: number }) {
   const pct = (n: number) => `${Math.min(100, (n / Math.max(1, r.availableMin, r.neededMin)) * 100)}%`;
-  const tone = r.status === "over" ? { bar: "bg-clay", box: "border-clay/40 bg-clay-light/50", icon: "warn" as const, word: "Won't fit" } : r.status === "tight" ? { bar: "bg-marigold", box: "border-marigold/50 bg-marigold-light/50", icon: "info" as const, word: "Tight" } : { bar: "bg-teal", box: "border-teal/30 bg-teal-light/40", icon: "checkCircle" as const, word: "Fits" };
+  const tone = r.status === "over" ? { bar: "bg-clay", box: "border-clay/40 bg-clay-light/50", icon: "warn" as const, word: "Won't fit" } : r.status === "tight" ? { bar: "bg-marigold", box: "border-marigold/50 bg-marigold-light/50", icon: "info" as const, word: "Tight" } : { bar: "bg-teal", box: "border-teal/40 bg-teal-light/40", icon: "checkCircle" as const, word: "Fits" };
   return (
-    <div className={`rounded-2xl border p-4 ${tone.box}`}>
-      <p className="flex items-start gap-2.5 font-display text-lg font-semibold text-pine"><Glyph name={tone.icon} size={20} className="mt-0.5 shrink-0" /><span><span className="sr-only">{tone.word}. </span>{r.headline}</span></p>
+    <div className={`rounded-xl border p-3.5 ${tone.box}`}>
+      <p className="flex items-start gap-2 font-semibold text-pine"><Glyph name={tone.icon} size={18} className="mt-0.5 shrink-0" /><span><span className="sr-only">{tone.word}. </span>{r.headline}</span></p>
       {r.places > 0 && (
         <>
-          <div className="mt-3" role="img" aria-label={`Needed ${duration(r.neededMin)} of ${duration(r.availableMin)} available`}>
-            <div className="relative h-4 overflow-hidden rounded-full bg-white"><div className={`h-full ${tone.bar}`} style={{ width: pct(r.neededMin) }} /><div className="absolute inset-y-0 w-0.5 bg-pine" style={{ left: pct(r.availableMin) }} /></div>
-            <p className="mt-1.5 flex justify-between gap-3 text-xs text-ink-muted"><span>Time you need: <strong className="text-pine">{duration(r.neededMin)}</strong></span><span>Time your days really have: <strong className="text-pine">{duration(r.availableMin)}</strong></span></p>
+          <div className="mt-2.5" role="img" aria-label={`Needed ${duration(r.neededMin)} of ${duration(r.availableMin)} available`}>
+            <div className="relative h-2.5 overflow-hidden rounded-full bg-white"><div className={`h-full ${tone.bar}`} style={{ width: pct(r.neededMin) }} /><div className="absolute inset-y-0 w-0.5 bg-pine" style={{ left: pct(r.availableMin) }} /></div>
           </div>
-          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            {[["Driving", `${duration(r.driveMin)} · ${r.driveKm.toLocaleString("en-IN")} km`], ["At the places", duration(r.visitMin)], ["Parking & breaks", duration(r.bufferMin)], ["Meals & rest", `${duration(r.mealMin)} (not counted)`]].map(([k, v]) => <div key={k} className="rounded-xl bg-white/80 px-3 py-2"><dt className="text-xs text-ink-muted">{k}</dt><dd className="font-semibold text-pine">{v}</dd></div>)}
+          <dl className="mt-2.5 grid grid-cols-3 gap-2 text-center">
+            {[["Driving", duration(r.driveMin)], ["At places", duration(r.visitMin)], ["Breaks", duration(r.bufferMin)]].map(([k, v]) => <div key={k} className="rounded-lg bg-white/70 px-1 py-1.5"><dd className="whitespace-nowrap text-[13px] font-semibold text-pine sm:text-sm">{v}</dd><dt className="text-[11px] text-ink-muted">{k}</dt></div>)}
           </dl>
-          <p className="mt-2.5 text-xs text-ink-muted">{routing === "estimate" ? "Distances are estimates right now (the routing service is unavailable)." : "Distances are real road distances. Times assume typical speeds, not live traffic."}</p>
+          <p className="mt-2 text-xs text-ink-muted">You need {duration(r.neededMin)}; your {r.numDays} days have about {duration(r.availableMin)}. {routing === "estimate" ? "Distances are estimates (road routing is unavailable)." : `${r.driveKm.toLocaleString("en-IN")} km by road at typical speeds, no live traffic.`}</p>
+          <p className="mt-1 text-xs text-ink-muted">{customVisits === 0 ? "Time at each place is a typical guess for its kind of place. If you will stay shorter or longer, change it under Fine-tune: it can change the answer." : `Using your own time at ${customVisits} ${customVisits === 1 ? "place" : "places"}; the rest are typical guesses. Change them under Fine-tune.`}</p>
         </>
       )}
     </div>
   );
 }
 
-function PlaceList({ places, photos, result, busy, onPriority }: { places: PlaceWithSeason[]; photos: Record<string, Photo>; result: BuilderResult; busy: boolean; onPriority: (id: string, p: Priority) => void }) {
-  return (
-    <ul className="grid gap-2.5 md:grid-cols-2">
-      {places.map((p) => {
-        const c = result.placeCosts.find((x) => x.placeId === p.id);
-        const cat = normalizeCategory(p.category);
-        const current = p.priority ?? "normal";
-        return (
-          <li key={p.id} className="flex gap-3 rounded-2xl border border-line p-3">
-            <PlacePhoto photo={photos[p.id]} name={p.name} credit className="h-20 w-20" fallback={<CategoryGlyph category={cat} size={26} />} />
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-pine">{p.name}</p>
-              {c && <p className="mt-0.5 text-xs text-ink-muted">{c.fromStart.dir} of the start · {c.fromStart.km} km · {duration(c.fromStart.driveMin)} drive + {duration(c.visitMin)} there = <strong className="text-pine">~{duration(c.totalMin)}</strong></p>}
-              <div role="radiogroup" aria-label={`How much ${p.name} matters`} className="mt-2.5 inline-flex max-w-full flex-wrap overflow-hidden rounded-xl border border-line bg-white">
-                {PRIORITIES.map((pr, i) => (
-                  <button key={pr} type="button" role="radio" aria-checked={current === pr} disabled={busy} title={PRIORITY_UI[pr].hint} onClick={() => onPriority(p.id, pr)}
-                    className={`min-h-10 px-3 text-xs font-semibold transition-colors disabled:opacity-60 ${i > 0 ? "border-l border-line" : ""} ${current === pr ? (pr === "must" ? "bg-clay text-white" : "bg-teal text-white") : "text-ink-muted hover:bg-sky"}`}>
-                    {PRIORITY_UI[pr].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function OptionCard({ o, total, recommended, selected, onSelect }: { o: PlanOption; total: number; recommended: boolean; selected: boolean; onSelect: () => void }) {
-  const f = paceFacts(o);
-  return (
-    <button type="button" onClick={onSelect} aria-pressed={selected} className={`relative h-full w-full rounded-2xl border-2 p-4 text-left transition-colors ${selected ? "border-teal bg-teal-light/40" : "border-line bg-white hover:border-teal/60"}`}>
-      {recommended && <span className="absolute -top-3 left-3 inline-flex items-center gap-1 rounded-full bg-marigold px-2.5 py-0.5 text-xs font-bold text-pine shadow-sm"><Glyph name="sparkles" size={12} />Recommended</span>}
-      <p className="font-display text-lg font-semibold text-pine">{o.label}</p>
-      <p className="text-sm text-ink-muted">{o.tagline}</p>
-      <p className="mt-3 text-sm"><strong className="text-pine">{o.totals.places} of {total}</strong> places · {Math.round(o.totals.km).toLocaleString("en-IN")} km · {duration(o.totals.driveMin)} driving</p>
-      <p className="mt-1 text-sm text-ink-muted">{f.summary}</p>
-      <div className="mt-3 flex gap-1" aria-hidden="true">{o.days.map((d) => <span key={d.day} title={`Day ${d.day}: ${intensityStyle[d.intensity].label}`} className={`h-2.5 flex-1 rounded-full ${intensityStyle[d.intensity].bar}`} />)}</div>
-      <p className="mt-3 text-sm text-ink-muted">
-        {o.feasible ? "All your must-do places fit." : <strong className="text-clay-ink">Your must-do places don&apos;t all fit.</strong>}
-        {f.leftOut ? ` ${f.leftOut}` : ""}
-        {o.warnings.some((w) => w.severity === "risk") && <strong className="text-clay-ink"> Has risks: see below.</strong>}
-      </p>
-    </button>
-  );
-}
-
-function Day({ d, photos, placeById }: { d: DayPlan; photos: Record<string, Photo>; placeById: Map<string, PlaceWithSeason> }) {
+function Day({ d }: { d: DayPlan }) {
   const st = intensityStyle[d.intensity];
   return (
-    <article className="rounded-2xl border border-line p-4">
+    <article className="rounded-xl border border-line p-3">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-display text-base font-semibold text-pine">Day {d.day}{d.date ? <span className="ml-2 text-sm font-normal text-ink-muted">{formatDate(parseISODate(d.date) ?? new Date(), { weekday: "short", day: "numeric", month: "short" })}</span> : null}</h4>
-        <p className="flex flex-wrap items-center gap-2 text-xs"><span className={`rounded-full px-2.5 py-1 font-semibold ${st.chip}`}>{st.label}</span><span className="text-ink-muted"><Glyph name="car" size={13} className="mr-1 inline align-text-bottom" />{duration(d.driveMin)} · {Math.round(d.driveKm)} km · {d.stops.length} place{d.stops.length === 1 ? "" : "s"} · {hhmm(d.startMin)}–{hhmm(d.endMin)}</span></p>
+        <h4 className="font-semibold text-pine">Day {d.day}{d.date ? <span className="ml-2 text-sm font-normal text-ink-muted">{formatDate(parseISODate(d.date) ?? new Date(), { weekday: "short", day: "numeric", month: "short" })}</span> : null}</h4>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${st.chip}`}>{st.label}</span>
       </header>
+      <p className="mt-0.5 text-xs text-ink-muted">{duration(d.driveMin)} driving · {duration(d.visitMin)} at the places</p>
       {d.stops.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Nothing planned: a free day.</p> : (
-        <ol className="mt-3 space-y-3">
+        <ol className="mt-2 divide-y divide-line">
           {d.stops.map((s) => (
-            <li key={s.placeId} className="flex gap-3 text-sm">
-              <PlacePhoto photo={photos[s.placeId]} name={s.name} credit className="h-16 w-16 sm:h-20 sm:w-20" fallback={<CategoryGlyph category={normalizeCategory(placeById.get(s.placeId)?.category ?? null)} size={22} />} />
+            <li key={s.placeId} className="flex gap-3 py-2 text-sm">
+              <span className="w-[4.5rem] shrink-0 text-xs font-semibold text-ink-muted">{hhmm(s.arriveMin)}</span>
               <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-baseline gap-x-2"><span className="font-mono text-xs text-ink-muted">{hhmm(s.arriveMin)}</span><strong className="text-pine">{s.name}</strong><span className="text-xs text-ink-muted">{s.fromPrev.dir} of {s.fromPrev.fromName} · {s.driveKm} km · {duration(s.driveMin)} · stay {duration(s.visitMin)}</span></p>
-                <details className="mt-0.5"><summary className="min-h-8 cursor-pointer text-xs font-semibold text-ink-muted underline underline-offset-2">Why here?</summary><ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{s.reasons.map((r) => <li key={r}>{r}</li>)}</ul></details>
+                <p className="font-semibold text-pine">{s.name}</p>
+                <p className="text-xs text-ink-muted">{duration(s.driveMin)} drive · {s.fromPrev.km} km · {duration(s.visitMin)} there</p>
+                <details><summary className="flex min-h-9 cursor-pointer items-center text-xs font-semibold text-teal-ink underline underline-offset-2">Why here?</summary><ul className="mb-1 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{s.reasons.map((r) => <li key={r}>{r}</li>)}</ul></details>
               </div>
             </li>
           ))}
@@ -405,10 +370,12 @@ const VERDICT_TONE: Record<DurationAdvice["verdict"], string> = {
 export function DurationCard({ a, canEdit, busy, onChange }: { a: DurationAdvice; canEdit: boolean; busy: boolean; onChange: (days: number) => void }) {
   const shorter = a.paces.filter((p) => p.minDays !== null && p.minDays < a.requestedDays);
   return (
-    <div className={`mt-4 rounded-2xl border p-4 ${VERDICT_TONE[a.verdict]}`}>
-      <p className="font-display text-base font-semibold text-pine">{a.headline}</p>
+    <div className={`mt-3 rounded-xl border p-3.5 ${VERDICT_TONE[a.verdict]}`}>
+      <p className="font-semibold text-pine">{a.headline}</p>
       {a.detail && <p className="mt-1 text-sm text-ink-muted">{a.detail}</p>}
-      <ul className="mt-3 grid gap-2 sm:grid-cols-3" aria-label="Days needed at each pace">
+      <details className="mt-2">
+      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">Days needed at each pace</summary>
+      <ul className="mt-1 grid gap-2 sm:grid-cols-3" aria-label="Days needed at each pace">
         {a.paces.map((p) => (
           <li key={p.key} className="rounded-xl bg-white/80 px-3 py-2 text-sm">
             <p className="font-semibold text-pine">{p.label}</p>
@@ -417,6 +384,7 @@ export function DurationCard({ a, canEdit, busy, onChange }: { a: DurationAdvice
           </li>
         ))}
       </ul>
+      </details>
       {a.verdict === "could_be_shorter" && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {canEdit ? shorter.map((p) => <Button key={p.key} size="sm" variant="secondary" disabled={busy} onClick={() => onChange(p.minDays as number)}>Plan {p.minDays} {p.minDays === 1 ? "day" : "days"} ({p.label.toLowerCase()})</Button>) : <p className="text-xs text-ink-muted">Only the trip owner can change the trip length.</p>}
@@ -427,6 +395,28 @@ export function DurationCard({ a, canEdit, busy, onChange }: { a: DurationAdvice
         <summary className="min-h-8 cursor-pointer text-xs font-semibold text-ink-muted underline underline-offset-2">What this assumes{a.missing.length ? ` and what it could not check (${a.missing.length})` : ""}</summary>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{[...a.assumptions, ...a.missing].map((t) => <li key={t}>{t}</li>)}</ul>
       </details>
+    </div>
+  );
+}
+
+/** How many places sit on easy days and which days are under pressure, with ways to ease them. Suggestions only: nothing is applied. */
+function PlanComfort({ option, hasDates }: { option: PlanOption; hasDates: boolean }) {
+  const p = dayPressure(option);
+  const total = p.comfortableStops + p.pressuredStops;
+  if (total === 0) return null;
+  return (
+    <div className="mb-3 space-y-2 text-sm">
+      <p className="font-semibold text-pine">
+        {p.pressuredStops === 0 ? `All ${total} ${total === 1 ? "place fits" : "places fit"} comfortably.` : `${p.comfortableStops} of ${total} ${total === 1 ? "place fits" : "places fit"} comfortably. ${p.pressuredStops} ${p.pressuredStops === 1 ? "is" : "are"} on ${p.days.length === 1 ? "a day" : "days"} under time pressure.`}
+      </p>
+      {p.days.map((d) => (
+        <div key={d.day} className="rounded-xl border border-marigold/40 bg-marigold-light/40 px-3 py-2.5">
+          <p className="font-semibold text-pine">{d.message}</p>
+          <p className="mt-1 text-xs font-semibold text-ink-muted">Ways to ease it (nothing changes until you choose):</p>
+          <ul className="mt-0.5 list-disc space-y-0.5 pl-5 text-ink-muted">{d.ease.map((e) => <li key={e}>{e}</li>)}</ul>
+        </div>
+      ))}
+      {!hasDates && <p className="text-xs text-ink-muted">This trip has no dates, so opening days and weather weren&apos;t considered.</p>}
     </div>
   );
 }

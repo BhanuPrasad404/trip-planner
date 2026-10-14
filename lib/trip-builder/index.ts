@@ -10,7 +10,7 @@ import type { BuilderInput, BuilderResult } from "./types";
 export * from "./types";
 export { BUILDER_VERSION, MAX_BUILDER_PLACES, PRIORITIES, PRIORITY_LABEL, STYLES, DEFAULT_OPTION_STYLES } from "./config";
 export type { Priority, StyleId } from "./config";
-export { duration, hhmm } from "./model";
+export { clock24, duration, hhmm } from "./model";
 
 // Unicode-aware: Devanagari/Tamil/etc. names must not all normalise to "" (which silently skips duplicate detection).
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();

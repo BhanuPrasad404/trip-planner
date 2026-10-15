@@ -9,7 +9,8 @@ import { Glyph, CategoryGlyph, KindGlyph, KindBadge } from "@/components/ui/Glyp
 import { SafeImg } from "@/components/ui/SafeImg";
 import { PlacePhoto } from "@/components/ui/PlacePhoto";
 import { usePlacePhotos } from "@/lib/client/use-place-photos";
-import { ExplorePlaceSearch } from "@/components/ExplorePlaceSearch";
+import { DiscoverSection } from "@/components/explore/DiscoverSection";
+import { useSavedPlaces } from "@/lib/client/use-saved-places";
 import { creditText } from "@/lib/place-photos/safety";
 
 export type ExploreSeasonTag = {
@@ -39,6 +40,7 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
   const [busy, setBusy] = useState(false);
   const [places, setPlaces] = useState<NearbyPlace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const saved = useSavedPlaces();
 
   const researched = seasonTags.filter(isResearched);
   const unverified = seasonTags.filter((t) => !isResearched(t));
@@ -129,12 +131,18 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
         )}
       </section>
 
+      <DiscoverSection
+        tripId={tripId} anchors={allAnchors} anchorId={anchorId} onAnchorChange={(id) => { setAnchorId(id); if (places) void discover(kind, id); }}
+        onPickPlace={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("sights", a); }}
+        researched={researched} month={month} saved={saved} added={added} addError={addError}
+        addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }}
+      />
+
       <section aria-labelledby="around-heading" className="rounded-3xl border border-line bg-white p-5 sm:p-6">
         <h2 id="around-heading" className="font-display text-2xl font-semibold text-pine">Around {custom ? custom.label : anchors.length > 0 ? "your trip" : "a place"}</h2>
         <p className="mt-1 text-sm text-ink-muted">Real places from OpenStreetMap; well-known ones first. Photos come from Wikipedia and Wikimedia Commons (free licences, credited), and only where a real one exists. Price and rating filters will appear once a source for them is connected — we don&apos;t guess.</p>
-        <div className="mt-4"><ExplorePlaceSearch onPick={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("sights", a); }} /></div>
         {allAnchors.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-muted">Pick a place above, or create a trip with a start or destination to explore around it.</p>
+          <p className="mt-3 text-sm text-ink-muted">Pick a place above, or create a trip with a start or destination, to look around it.</p>
         ) : (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2">

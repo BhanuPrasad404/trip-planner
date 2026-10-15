@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearFileMetaCache } from "@/lib/place-photos/commons-meta";
 import { isUtilityName, resolvePlacePhotos, titleVariants, type ResolveDeps } from "@/lib/place-photos/resolve";
-import { MemoryPhotoStore, type PhotoStore } from "@/lib/place-photos/store";
+import { MemoryPhotoStore, photoKey, type PhotoStore } from "@/lib/place-photos/store";
 import type { PlacePhotoQuery } from "@/lib/place-photos/types";
 
 // ---- A fake Wikipedia + Wikidata + Commons, answering in the real API's response shapes -----------------------------------------
 type PageSpec = { lat?: number; lng?: number; file?: string; wikidata?: string; disambiguation?: boolean };
-type FileSpec = { licence?: string; w?: number; h?: number; artist?: string };
+type FileSpec = { licence?: string; code?: string; noThumb?: boolean; w?: number; h?: number; artist?: string };
+type CommonsFileSpec = { file: string; lat?: number; lng?: number };
 type World = {
   pages?: Record<string, PageSpec>; redirects?: Record<string, string>; search?: Record<string, string[]>; geo?: string[];
   images?: Record<string, string[]>; wikidata?: Record<string, string>; files?: Record<string, FileSpec>;
+  /** Commons file pages geotagged near the point / found by a name search (file namespace). */
+  commonsGeo?: CommonsFileSpec[]; commonsSearch?: Record<string, CommonsFileSpec[]>;
 };
-const kinds = () => ({ exact: 0, search: 0, geo: 0, images: 0, wikidata: 0, fileinfo: 0, total: 0 });
+const kinds = () => ({ exact: 0, search: 0, geo: 0, images: 0, wikidata: 0, fileinfo: 0, commonsGeo: 0, commonsSearch: 0, total: 0 });
 
 function wiki(w: World, fail: Partial<Record<keyof ReturnType<typeof kinds>, boolean>> = {}) {
   const calls = kinds();
@@ -25,10 +28,19 @@ function wiki(w: World, fail: Partial<Record<keyof ReturnType<typeof kinds>, boo
       pageprops: { ...(s.wikidata ? { wikibase_item: s.wikidata } : {}), ...(s.disambiguation ? { disambiguation: "" } : {}) },
     };
   };
+  const commonsPage = (f: CommonsFileSpec) => ({ pageid: 2, ns: 6, title: `File:${f.file.replace(/_/g, " ")}`, ...(f.lat !== undefined ? { coordinates: [{ lat: f.lat, lon: f.lng, primary: true }] } : {}) });
   const get = vi.fn(async (url: string): Promise<unknown | null> => {
     calls.total++;
     const u = new URL(url);
     const q = u.searchParams;
+    if (u.hostname === "commons.wikimedia.org" && q.get("gsrnamespace") === "6") {
+      calls.commonsSearch++; if (fail.commonsSearch) return null;
+      return { query: { pages: (w.commonsSearch?.[q.get("gsrsearch")!] ?? []).map(commonsPage) } };
+    }
+    if (u.hostname === "commons.wikimedia.org" && q.get("ggsnamespace") === "6") {
+      calls.commonsGeo++; if (fail.commonsGeo) return null;
+      return { query: { pages: (w.commonsGeo ?? []).map(commonsPage) } };
+    }
     if (u.hostname === "www.wikidata.org") {
       calls.wikidata++; if (fail.wikidata) return null;
       return { entities: Object.fromEntries(q.get("ids")!.split("|").map((id) => [id, w.wikidata?.[id] ? { claims: { P18: [{ rank: "normal", mainsnak: { datavalue: { value: w.wikidata[id] } } }] } } : { claims: {} }])) };
@@ -40,8 +52,8 @@ function wiki(w: World, fail: Partial<Record<keyof ReturnType<typeof kinds>, boo
         const s = w.files?.[f];
         if (!s) return { title: t, missing: true };
         const wd = s.w ?? 2000, ht = s.h ?? 1333;
-        return { title: t, imageinfo: [{ thumburl: `https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/${f}/500px-${f}`, thumbwidth: 500, thumbheight: Math.round((500 * ht) / wd), width: wd, height: ht, mime: "image/jpeg",
-          extmetadata: { LicenseShortName: { value: s.licence ?? "CC BY-SA 4.0" }, LicenseUrl: { value: "https://creativecommons.org/licenses/by-sa/4.0" }, Artist: { value: s.artist ?? "<a href='//x'>Jane Doe</a>" } } }] };
+        return { title: t, imageinfo: [{ ...(s.noThumb ? { url: `https://upload.wikimedia.org/wikipedia/commons/a/ab/${f}` } : { thumburl: `https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/${f}/500px-${f}`, thumbwidth: 500 }), thumbheight: Math.round((500 * ht) / wd), width: wd, height: ht, mime: "image/jpeg",
+          extmetadata: { LicenseShortName: { value: s.licence ?? "CC BY-SA 4.0" }, ...(s.code ? { License: { value: s.code } } : {}), LicenseUrl: { value: "https://creativecommons.org/licenses/by-sa/4.0" }, Artist: { value: s.artist ?? "<a href='//x'>Jane Doe</a>" } } }] };
       }) } };
     }
     if (q.get("prop") === "images") {
@@ -336,5 +348,118 @@ describe("titleVariants: safe, bounded spellings", () => {
     expect(titleVariants("Fort | Temple, Place")).toEqual([]); // every spelling of it contains a pipe, so nothing is offered
     expect(titleVariants("x".repeat(300))).toEqual([]);
     expect(titleVariants("A, B (C), Sri D").length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("licence alternatives: a free photo is not refused because it is ALSO offered under another licence", () => {
+  it.each([["CC BY-SA 3.0, GFDL"], ["GFDL 1.2 or later / CC BY-SA 3.0"], ["CC BY-SA 3.0, 2.5, 2.0, 1.0"]])("accepts %s and credits the acceptable alternative", async (licence) => {
+    const w = wiki({ ...baseWorld(), files: { "Charminar_Hyderabad.jpg": { licence } } });
+    const r = await resolvePlacePhotos([charminar], deps(w.get));
+    expect(r.photos.c?.licence).toMatch(/^CC BY-SA 3\.0$/);
+  });
+  it("uses Commons' machine-readable licence code when the display name is unreadable", async () => {
+    const w = wiki({ ...baseWorld(), files: { "Charminar_Hyderabad.jpg": { licence: "Own work, see description", code: "cc-by-sa-4.0" } } });
+    expect((await resolvePlacePhotos([charminar], deps(w.get))).photos.c?.licence).toBe("CC BY-SA 4.0");
+  });
+  it.each([["GFDL 1.2"], ["CC BY-NC 4.0"], ["CC BY-SA 3.0 and CC BY-NC 3.0"], ["Fair use"]])("still refuses %s", async (licence) => {
+    const w = wiki({ ...baseWorld(), files: { "Charminar_Hyderabad.jpg": { licence } } });
+    const r = await resolvePlacePhotos([charminar], deps(w.get));
+    expect(r.photos).toEqual({});
+    expect(r.reasons.c).toBe("licence");
+  });
+});
+
+describe("Commons tier: photos geotagged next to the place, matched by name", () => {
+  const golconda = q("g", "Golconda Fort", 17.3833, 78.4011);
+  const articleWorld = (over: Partial<World> = {}): World => ({
+    pages: { Golconda: { lat: 17.3833, lng: 78.4011, file: "Golconda_map.svg" } }, redirects: { "Golconda Fort": "Golconda" },
+    files: { "Golconda_Fort_gate.jpg": {} }, ...over,
+  });
+  it("rescues a place whose article's own images all fail, using a geotagged Commons file that carries the place's name", async () => {
+    const w = wiki(articleWorld({ commonsGeo: [{ file: "Golconda_Fort_gate.jpg", lat: 17.3834, lng: 78.4012 }] }));
+    const r = await resolvePlacePhotos([golconda], deps(w.get));
+    expect(r.photos.g).toMatchObject({ source: "commons", via: "commons", file: "Golconda_Fort_gate.jpg", licence: "CC BY-SA 4.0", pageUrl: "https://commons.wikimedia.org/wiki/File:Golconda_Fort_gate.jpg", title: "Golconda" });
+    expect(r.trails.g.join("\n")).toContain("photo CHOSEN");
+  });
+  it("works for a place with NO Wikipedia article at all (typical small temple), within 500 m of the pin", async () => {
+    const w = wiki({ files: { "Ramalayam_Temple_Karimnagar.jpg": {} }, commonsGeo: [{ file: "Ramalayam_Temple_Karimnagar.jpg", lat: 18.4401, lng: 79.1301 }] });
+    const r = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(w.get));
+    expect(r.photos.t).toMatchObject({ source: "commons", file: "Ramalayam_Temple_Karimnagar.jpg", title: "Ramalayam Temple" });
+    expect(r.unresolved).toEqual([]);
+  });
+  it("WITHOUT an article, refuses a file that is geotagged too far away, or whose name does not carry the place's name", async () => {
+    const w = wiki({ files: { "Ramalayam_Temple_far.jpg": {}, "Random_street_scene.jpg": {} }, commonsGeo: [{ file: "Ramalayam_Temple_far.jpg", lat: 18.46, lng: 79.13 }, { file: "Random_street_scene.jpg", lat: 18.44, lng: 79.13 }] });
+    const r = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(w.get));
+    expect(r.photos).toEqual({});
+    expect(r.reasons.t).toBe("no_page"); // honest: nothing identified this place
+  });
+  it("a name-search hit with no geotag is NOT enough on its own (wrong-photo risk), but is accepted when a verified article vouches for the place", async () => {
+    const files = { "Ramalayam_Temple_view.jpg": {} };
+    const none = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(wiki({ files, commonsSearch: { "Ramalayam Temple": [{ file: "Ramalayam_Temple_view.jpg" }] } }).get));
+    expect(none.photos).toEqual({});
+    const vouched = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(wiki({ files, pages: { "Ramalayam Temple": { lat: 18.44, lng: 79.13 } }, commonsSearch: { "Ramalayam Temple": [{ file: "Ramalayam_Temple_view.jpg" }] } }).get));
+    expect(vouched.photos.t).toMatchObject({ source: "commons", file: "Ramalayam_Temple_view.jpg" });
+  });
+  it("the article's own lead image still wins when it is usable (Commons is only the fallback)", async () => {
+    const w = wiki({ ...baseWorld(), files: { "Charminar_Hyderabad.jpg": {}, "Charminar_night.jpg": {} }, commonsGeo: [{ file: "Charminar_night.jpg", lat: 17.3616, lng: 78.4747 }] });
+    const r = await resolvePlacePhotos([charminar], deps(w.get));
+    expect(r.photos.c).toMatchObject({ source: "wikipedia", file: "Charminar_Hyderabad.jpg" });
+    expect(w.calls.commonsGeo + w.calls.commonsSearch).toBe(0); // no extra requests for a place that is already settled
+  });
+  it("never shows a Commons file that is not freely licensed, a map, or too small", async () => {
+    const w = wiki({ files: { "Ramalayam_Temple_NC.jpg": { licence: "CC BY-NC 4.0" }, "Ramalayam_Temple_map.jpg": {}, "Ramalayam_Temple_tiny.jpg": { w: 200, h: 150 } },
+      commonsGeo: ["Ramalayam_Temple_NC.jpg", "Ramalayam_Temple_map.jpg", "Ramalayam_Temple_tiny.jpg"].map((file) => ({ file, lat: 18.44, lng: 79.13 })) });
+    const r = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(w.get));
+    expect(r.photos).toEqual({});
+  });
+  it("a Commons outage is 'could not check', never 'no photo', and nothing is cached as none", async () => {
+    const store = new MemoryPhotoStore();
+    const w = wiki({}, { commonsGeo: true, commonsSearch: true });
+    const r = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(w.get, { store }));
+    expect(r.unresolved).toEqual(["t"]);
+    expect((await store.getMany([...(await store.getMany([]))].map(([k]) => k))).size).toBe(0);
+  });
+  it.each([["the geotag lookup", { commonsGeo: true }], ["the name search", { commonsSearch: true }]])("if only %s fails, the place is 'could not check' (unresolved, not cached), never 'no photo'", async (_n, fail) => {
+    const store = new MemoryPhotoStore();
+    const w = wiki({}, fail);
+    const r = await resolvePlacePhotos([q("t", "Ramalayam Temple", 18.44, 79.13)], deps(w.get, { store }));
+    expect(r.unresolved).toEqual(["t"]);
+    expect(r.reasons).toEqual({});
+    expect((await store.getMany([photoKey("Ramalayam Temple", 18.44, 79.13)])).size).toBe(0);
+  });
+  it("bounds the extra work: at most 20 places get the Commons look in one call, the rest are 'ask again later' (not cached as none)", async () => {
+    const qs = Array.from({ length: 25 }, (_, i) => q(`k${i}`, `Zzyzx Temple${i}`, 10 + i * 0.5, 70));
+    const w = wiki({});
+    const r = await resolvePlacePhotos(qs, deps(w.get, { maxLookups: 25 }));
+    expect(w.calls.commonsSearch).toBeLessThanOrEqual(20);
+    expect(r.unresolved.length).toBe(5);
+  });
+});
+
+describe("diagnostics bypass every cache", () => {
+  it("skipCache looks the place up again even when the shared cache has an answer, and still returns the trail", async () => {
+    const store = new MemoryPhotoStore();
+    await resolvePlacePhotos([charminar], deps(wiki({ pages: {}, files: {} }).get, { store })); // caches "none"
+    const w = wiki(baseWorld());
+    const cached = await resolvePlacePhotos([charminar], deps(w.get, { store }));
+    expect(cached.photos).toEqual({}); expect(cached.trails).toEqual({}); // the old answer sticks, with no trail (that was the confusing part)
+    const fresh = await resolvePlacePhotos([charminar], deps(w.get, { store, skipCache: true }));
+    expect(fresh.photos.c?.title).toBe("Charminar");
+    expect(fresh.trails.c.length).toBeGreaterThan(0);
+  });
+  it("skipCache also forgets remembered licence verdicts (a wrongly remembered 'not free' cannot hide a photo)", async () => {
+    await resolvePlacePhotos([charminar], deps(wiki({ ...baseWorld(), files: { "Charminar_Hyderabad.jpg": { licence: "GFDL 1.2" } } }).get));
+    const w = wiki(baseWorld());
+    expect((await resolvePlacePhotos([charminar], deps(w.get, { store: new MemoryPhotoStore() }))).photos).toEqual({}); // remembered for 24 h
+    expect((await resolvePlacePhotos([charminar], deps(w.get, { store: new MemoryPhotoStore(), skipCache: true }))).photos.c).toBeDefined();
+  });
+});
+
+describe("real-world shape: Commons sends the original address but no thumburl for large files", () => {
+  it("still finds the photo (this is what hid every large image, e.g. Charminar, until Update 62)", async () => {
+    const w = wiki({ ...baseWorld(), files: { "Charminar_Hyderabad.jpg": { noThumb: true, w: 4000, h: 3000 } } });
+    const r = await resolvePlacePhotos([charminar], deps(w.get));
+    expect(r.photos.c?.url).toContain("/wikipedia/commons/thumb/a/ab/Charminar_Hyderabad.jpg/");
+    expect(r.photos.c?.srcSet).toContain("120w");
   });
 });

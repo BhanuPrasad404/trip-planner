@@ -19,7 +19,7 @@ const members: TripMember[] = [
   { id: "m3", trip_id: "t", user_id: "u3", display_name: "Sai", avatar_color: "#3B6EA5", joined_at: "" },
 ];
 const base: Drive = {
-  active: false, share: true, me: null, manualPlace: null, setManual: () => {}, quality: null, locating: false, session: 1, error: null, route: null, drivingMin: null, members: {},
+  active: false, share: true, me: null, manualPlace: null, setManual: () => {}, quality: null, locating: false, session: 1, error: null, shareFailed: false, route: null, drivingMin: null, members: {},
   start: () => {}, stop: () => {}, setShare: () => {},
 };
 const render = (drive: Partial<Drive>, extra: Partial<React.ComponentProps<typeof DrivePanel>> = {}) =>

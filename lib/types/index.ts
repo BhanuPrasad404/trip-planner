@@ -15,6 +15,11 @@ export type Trip = {
   /** Personalisation for Trip Intelligence (absent until the latest migration is applied). */
   trip_type?: "friends" | "family" | "couple" | "solo" | "biker" | "backpacker";
   vehicle_range_km?: number;
+  /** What really happened, kept apart from the planned dates (absent until the lifecycle migration is applied). */
+  resumed_at?: string | null;
+  resume_day_end_min?: number | null;
+  closed_at?: string | null;
+  closed_reason?: "finished" | "cancelled" | null;
   invite_code: string;
   created_at: string;
 };

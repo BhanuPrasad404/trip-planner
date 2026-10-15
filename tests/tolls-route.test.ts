@@ -87,8 +87,8 @@ describe("POST /api/tolls", () => {
     await post({ line: line(34) }); const second = await post({ line: line(34) });
     expect(second.status).toBe(200); expect(calls).toHaveLength(1);
   });
-  it("503 with a plain message when map data is down, and it says navigation is unaffected", async () => {
+  it("503 with a plain message when map data is down (one sentence: the screen decides how to say the rest)", async () => {
     answers.push(() => json({}, 500), () => json({}, 500), () => json({}, 500));
-    const res = await post({ line: line(35) }); expect(res.status).toBe(503); expect((await res.json()).error).toContain("navigation are not affected");
+    const res = await post({ line: line(35) }); expect(res.status).toBe(503); expect((await res.json()).error).toBe("Toll data isn't available right now.");
   });
 });

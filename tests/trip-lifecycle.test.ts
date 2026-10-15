@@ -59,11 +59,11 @@ describe("outcome: only a trip where something was done is called Completed", ()
     expect(o).toMatchObject({ label: "Completed", kind: "completed" });
     expect(o.note).toBe("3 of 5 planned stops done, 1 skipped.");
   });
-  it("dates over but NOTHING marked done = Ended, never 'successfully completed'", () => {
+  it("dates over but NOTHING marked done = 'Dates passed', never 'successfully completed'", () => {
     const o = tripOutcome("completed", { stops: 4, done: 0, skipped: 2 });
-    expect(o).toMatchObject({ label: "Ended", kind: "ended" });
+    expect(o).toMatchObject({ label: "Dates passed", kind: "ended" });
     expect(o.note).toMatch(/no stops were marked done/);
-    expect(tripOutcome("completed", { stops: 0, done: 0, skipped: 0 })).toMatchObject({ label: "Ended", note: "The planned dates have passed." });
+    expect(tripOutcome("completed", { stops: 0, done: 0, skipped: 0 })).toMatchObject({ label: "Dates passed", note: "The planned dates have passed." });
   });
 });
 

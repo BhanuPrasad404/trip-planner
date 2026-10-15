@@ -35,6 +35,6 @@ export async function POST(req: Request) {
     const result = await cache.get(keyOf(input.line, input.vehicle), () => fetchTollsAlong(input.line, fetch, input.vehicle));
     return NextResponse.json({ tolls: result.tolls, complete: result.complete, source: "OpenStreetMap", checkedAt: Date.now() }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
-    return jsonError("Toll data isn't available right now. Your route and navigation are not affected.", 503);
+    return jsonError("Toll data isn't available right now.", 503);
   }
 }

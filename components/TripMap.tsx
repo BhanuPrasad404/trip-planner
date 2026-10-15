@@ -26,6 +26,8 @@ type Anchor = { lat: number; lng: number; label: string };
 export type LiveMarker = { id: string; label: string; color: string; lat: number; lng: number; me: boolean; stale: boolean; /** How precise this position is (m). Drawn as a ring; null = unknown. */ accuracyM?: number | null };
 export type PoiMarker = { id: string; kind: string; name: string; lat: number; lng: number; highlight: boolean };
 type Props = {
+  /** Change this when the map's box changes size (e.g. full-screen on/off) so the canvas is resized to fit. */
+  layoutKey?: string | number;
   places: MapPlace[];
   start: Anchor | null;
   destination: Anchor | null;
@@ -154,9 +156,16 @@ function applyDeclutter(map: maplibregl.Map, markers: Map<string, maplibregl.Mar
   }
 }
 
-export default function TripMap({ places, start, destination, activeDay, fit, live = [], driveLine = null, pois = [], frameStartDest = true, follow = false, onUserPan, theme = DEFAULT_THEME, poiMode = "trip", satellite = false, nav = null, onSelectRoute, headingUp = true, viewRequest = null, recenter = null, onCompass, numDays = 1, journey = false, selectedId = null, onSelectPlace, planRoad = null }: Props) {
+export default function TripMap({ layoutKey, places, start, destination, activeDay, fit, live = [], driveLine = null, pois = [], frameStartDest = true, follow = false, onUserPan, theme = DEFAULT_THEME, poiMode = "trip", satellite = false, nav = null, onSelectRoute, headingUp = true, viewRequest = null, recenter = null, onCompass, numDays = 1, journey = false, selectedId = null, onSelectPlace, planRoad = null }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // The box around the map changed size (full-screen on/off, rotation, a sheet opening): tell the canvas, now and once the layout has settled.
+  useEffect(() => {
+    const fit = () => mapRef.current?.resize();
+    const a = requestAnimationFrame(fit);
+    const b = window.setTimeout(fit, 250);
+    return () => { cancelAnimationFrame(a); window.clearTimeout(b); };
+  }, [layoutKey]);
   const markers = useRef<maplibregl.Marker[]>([]);
   const placeMarkers = useRef<Map<string, maplibregl.Marker>>(new Map());
   const lastSelected = useRef<string | null>(null);

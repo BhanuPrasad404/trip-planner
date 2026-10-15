@@ -5,13 +5,15 @@
 //   null      – Commons answered and the file is not freely licensed (or has no readable licence): never shown.
 //   (absent)  – we could not find out (timeout, 429, bad answer): not shown this time, and NOT remembered as "not free".
 import { z } from "zod";
-import { commonsFilePage, isFreeLicence, safeLicenceUrl, sanitizeCredit } from "./safety";
+import { commonsFilePage, freeLicenceName, imageAddress, licenceFromCode, safeLicenceUrl, sanitizeCredit } from "./safety";
 import type { JsonGetter } from "./wikimedia";
 
 export type FileMeta = {
   licence: string; licenceUrl: string | null; author: string | null; creditUrl: string;
   /** Present when Commons told us: a 500 px rendition and the original's size, so we can rank photos and size them. */
   thumbUrl?: string; thumbWidth?: number; thumbHeight?: number; width?: number; height?: number;
+  /** Only when no usable image address could be made: what Commons actually sent (diagnostics). */
+  addressNote?: string;
 };
 const IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -26,7 +28,7 @@ const response = z.object({
       missing: z.boolean().optional(),
       imageinfo: z.array(z.object({
         extmetadata: z.record(z.string(), field).optional(),
-        thumburl: z.string().optional(), thumbwidth: z.number().optional(), thumbheight: z.number().optional(),
+        thumburl: z.string().optional(), url: z.string().optional(), thumbwidth: z.number().optional(), thumbheight: z.number().optional(),
         width: z.number().optional(), height: z.number().optional(), mime: z.string().optional(),
       }).loose()).optional(),
     }).loose()).optional(),
@@ -58,18 +60,22 @@ export function parseFileMetaDetailed(json: unknown): { meta: Map<string, FileMe
     if (p.missing) { no("not found on Wikimedia Commons (it may be a file local to Wikipedia, which can be non-free)"); continue; }
     if (!meta) { no("Commons returned no licence information for it"); continue; }
     if (info?.mime && !IMAGE_MIME.has(info.mime)) { no(`file type ${info.mime} is not a photo`); continue; }
-    const licence = sanitizeCredit(text(meta.LicenseShortName?.value), 40);
+    const shown = sanitizeCredit(text(meta.LicenseShortName?.value), 120);
+    const code = text(meta.License?.value).trim();
     const nonFree = /^(true|1|yes)$/i.test(text(meta.NonFree?.value).trim());
-    if (nonFree) { no(`marked non-free (licence "${licence ?? "none"}")`); continue; }
-    if (!isFreeLicence(licence)) { no(`licence "${licence ?? "none"}" is not on our free-licence list`); continue; }
+    if (nonFree) { no(`marked non-free (licence "${shown ?? "none"}")`); continue; }
+    // One acceptable alternative is enough ("CC BY-SA 3.0, GFDL"); the machine code is the second opinion.
+    const licence = freeLicenceName(shown) ?? licenceFromCode(code);
+    if (!licence) { no(`licence "${shown ?? "none"}"${code ? ` (code "${code}")` : ""} is not on our free-licence list`); continue; }
+    // Commons does not always give a usable thumburl (large originals); the original address is always there and a thumbnail is derived from it.
+    const addr = info ? imageAddress(info, 500) : null;
     out.set(key, {
-      licence: licence as string,
+      licence,
       licenceUrl: safeLicenceUrl(text(meta.LicenseUrl?.value)),
       author: sanitizeCredit(text(meta.Artist?.value), 60),
       creditUrl: commonsFilePage(p.title.replace(/^File:/, "")),
-      ...(info?.thumburl ? { thumbUrl: info.thumburl } : {}),
-      ...(info?.thumbwidth ? { thumbWidth: info.thumbwidth } : {}),
-      ...(info?.thumbheight ? { thumbHeight: info.thumbheight } : {}),
+      ...(addr ? { thumbUrl: addr.url, thumbWidth: addr.width, thumbHeight: addr.height } : {}),
+      ...(!addr ? { addressNote: `no usable Commons image address (thumburl ${JSON.stringify(info?.thumburl ?? null)}, url ${JSON.stringify(info?.url ?? null)})` } : {}),
       ...(info?.width ? { width: info.width } : {}),
       ...(info?.height ? { height: info.height } : {}),
     });
@@ -109,7 +115,7 @@ export async function fetchFileMeta(files: string[], get: JsonGetter, now: () =>
     const batch = todo.slice(i, i + BATCH);
     const params = new URLSearchParams({
       action: "query", format: "json", formatversion: "2", prop: "imageinfo", iiprop: "extmetadata|size|mime|url", iiurlwidth: "500", redirects: "1",
-      iiextmetadatafilter: "LicenseShortName|LicenseUrl|Artist|NonFree", titles: batch.join("|"),
+      iiextmetadatafilter: "LicenseShortName|License|LicenseUrl|Artist|NonFree", titles: batch.join("|"),
     });
     const json = await get(`https://commons.wikimedia.org/w/api.php?${params}`);
     if (json === null) continue; // could not find out: these files stay unresolved

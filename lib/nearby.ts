@@ -169,14 +169,14 @@ export function clearNearbyCache() {
 
 export class NearbyUnavailableError extends Error {}
 
-const OVERPASS_MIRRORS = [
+export const OVERPASS_MIRRORS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
 ];
 
 /** Overpass answers HTTP 200 with an empty list and a "remark" when it runs out of time/memory. That is a failure, not "no results". */
-const isOverpassFailure = (json: unknown): boolean => {
+export const isOverpassFailure = (json: unknown): boolean => {
   const remark = (json as { remark?: unknown } | null)?.remark;
   return typeof remark === "string" && /(timed out|out of memory|too many requests|rate_limited)/i.test(remark);
 };

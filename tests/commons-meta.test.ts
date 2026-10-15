@@ -20,6 +20,7 @@ describe("parseFileMeta", () => {
   it("returns author, licence, licence link and file page for a free file", () => {
     expect(parseFileMeta({ query: { pages: [page("File:A b.jpg")] } }).get("File:A b.jpg")).toEqual({
       licence: "CC BY-SA 4.0", licenceUrl: "https://creativecommons.org/licenses/by-sa/4.0", author: "Jane Doe", creditUrl: "https://commons.wikimedia.org/wiki/File:A_b.jpg",
+      addressNote: expect.stringContaining("no usable Commons image address"), // this fixture has no image address at all, and says so
     });
   });
   it("is null (known: not usable) for non-free, unreadable or missing files", () => {
@@ -143,5 +144,63 @@ describe("fetchFileMeta", () => {
       clearFileMetaCache();
       expect((await fetchFileMeta(["A.jpg"], f)).has("File:A.jpg")).toBe(false);
     }
+  });
+});
+
+describe("licence alternatives and codes in a real-shaped Commons answer", () => {
+  const meta = (e: object) => parseFileMetaDetailed(ok([{ title: "File:X.jpg", imageinfo: [{ thumburl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/X.jpg/500px-X.jpg", extmetadata: e }] }]));
+  it("accepts a dual-licensed file and credits the acceptable licence", () => {
+    expect(meta({ LicenseShortName: { value: "CC BY-SA 3.0, GFDL" } }).meta.get("File:X.jpg")?.licence).toBe("CC BY-SA 3.0");
+  });
+  it("falls back to the machine code when the display name is not on our list", () => {
+    expect(meta({ LicenseShortName: { value: "Own work" }, License: { value: "cc-by-4.0" } }).meta.get("File:X.jpg")?.licence).toBe("CC BY 4.0");
+  });
+  it("keeps refusing GFDL-only files, and says which licence and code it saw", () => {
+    const r = meta({ LicenseShortName: { value: "GFDL 1.2" }, License: { value: "gfdl" } });
+    expect(r.meta.get("File:X.jpg")).toBeNull();
+    expect(r.why.get("File:X.jpg")).toContain("GFDL 1.2");
+    expect(r.why.get("File:X.jpg")).toContain("gfdl");
+  });
+  it("a file marked non-free is refused even if its name says CC", () => {
+    expect(meta({ LicenseShortName: { value: "CC BY-SA 4.0" }, NonFree: { value: "true" } }).meta.get("File:X.jpg")).toBeNull();
+  });
+  it("asks Commons for the machine licence code too", async () => {
+    let asked = "";
+    await fetchFileMeta(["A.jpg"], async (u) => { asked = u; return null; });
+    expect(new URL(asked).searchParams.get("iiextmetadatafilter")).toContain("License|");
+  });
+});
+
+describe("image address: what Commons really sends for large originals", () => {
+  const ORIG = "https://upload.wikimedia.org/wikipedia/commons/c/c9/Charminar_Hyderabad_1.jpg";
+  const one = (info: object) => parseFileMeta(ok([{ title: "File:Charminar Hyderabad 1.jpg", imageinfo: [{ extmetadata: ext(), ...info }] }])).get("File:Charminar Hyderabad 1.jpg");
+  it("derives the standard 500 px thumbnail from the ORIGINAL address when Commons sent no usable thumburl", () => {
+    const m = one({ url: ORIG, width: 4000, height: 3000 });
+    expect(m?.thumbUrl).toBe("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Charminar_Hyderabad_1.jpg/500px-Charminar_Hyderabad_1.jpg");
+    expect(m).toMatchObject({ thumbWidth: 500, thumbHeight: 375, width: 4000, height: 3000 });
+    expect(m?.addressNote).toBeUndefined();
+  });
+  it("also when the thumburl Commons sent is not an address we accept (other host, other wiki)", () => {
+    for (const thumburl of ["https://evil.example/x.jpg", "https://upload.wikimedia.org/wikipedia/en/thumb/a/ab/X.jpg/500px-X.jpg", "not a url"]) {
+      expect(one({ thumburl, url: ORIG, width: 4000, height: 3000 })?.thumbUrl).toContain("/wikipedia/commons/thumb/c/c9/");
+    }
+  });
+  it("prefers Commons' own thumburl when it is a valid Commons address (query suffix included)", () => {
+    const t = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Charminar_Hyderabad_1.jpg/500px-Charminar_Hyderabad_1.jpg?utm_source=commons.wikimedia.org";
+    expect(one({ thumburl: t, thumbwidth: 500, thumbheight: 375, url: ORIG, width: 4000, height: 3000 })?.thumbUrl).toBe(t);
+  });
+  it("uses a small original as it is (never asks Wikimedia to upscale), as Kondapalli's already worked", () => {
+    const m = one({ url: ORIG, width: 480, height: 340 });
+    expect(m).toMatchObject({ thumbUrl: ORIG, thumbWidth: 480, thumbHeight: 340 });
+  });
+  it("never invents an address from a foreign or non-Commons original, and says what Commons sent", () => {
+    for (const url of ["https://evil.example/a/ab/X.jpg", "https://upload.wikimedia.org/wikipedia/en/a/ab/X.jpg", undefined]) {
+      const m = one({ url, width: 4000, height: 3000 });
+      expect(m?.thumbUrl).toBeUndefined();
+      expect(m?.addressNote).toContain("no usable Commons image address");
+    }
+  });
+  it("without the original's width nothing can be derived (we would not know what may be asked for)", () => {
+    expect(one({ url: ORIG })?.thumbUrl).toBeUndefined();
   });
 });

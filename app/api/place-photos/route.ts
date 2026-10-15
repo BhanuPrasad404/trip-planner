@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { jsonError, parseBody } from "@/lib/api";
-import { lookupPlacePhotos } from "@/lib/place-photos";
+import { lookupPlacePhotos, upstreamStats } from "@/lib/place-photos";
 import { consumeQuota } from "@/lib/quota";
 import { placePhotosSchema } from "@/lib/validation/schemas";
 
@@ -15,7 +15,8 @@ export const maxDuration = 25;
 //   photos      key → verified photo
 //   unresolved  keys we could NOT settle (allowance used up, or Wikimedia unreachable). The client must not remember these as "no photo".
 //   reasons     why a place has none — only when the request asks for diagnostics (debug: true)
-//   trails      every step taken for places looked up just now, in words (debug: true only; cached answers have none)
+//   trails      every step taken, in words (debug: true only). Debug requests ignore the cache, so every place has a trail.
+//   upstream    health counters of the Wikimedia client (debug: true only): calls, failures, rate limits, breaker
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -25,13 +26,13 @@ export async function POST(req: Request) {
   if (bodyError) return bodyError;
 
   const unique = [...new Map(input.places.map((p) => [p.key, p])).values()];
-  const result = await lookupPlacePhotos(unique, { allowUpstream: () => consumeQuota(supabase, "place_photos", 300) }).catch((e) => {
+  const result = await lookupPlacePhotos(unique, { allowUpstream: () => consumeQuota(supabase, "place_photos", 300), fresh: input.debug === true }).catch((e) => {
     console.error("[place-photos]", e instanceof Error ? e.message : e);
     return null;
   });
   if (!result) return NextResponse.json({ photos: {}, unresolved: unique.map((p) => p.key) }, { headers: { "Cache-Control": "private, no-store" } });
   return NextResponse.json(
-    { photos: result.photos, unresolved: result.unresolved, ...(input.debug ? { reasons: result.reasons, trails: result.trails } : {}) },
+    { photos: result.photos, unresolved: result.unresolved, ...(input.debug ? { reasons: result.reasons, trails: result.trails, upstream: upstreamStats() } : {}) },
     { headers: { "Cache-Control": "private, no-store" } },
   );
 }

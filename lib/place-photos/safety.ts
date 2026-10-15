@@ -68,15 +68,39 @@ export function looksNotAPhoto(file: string): boolean {
   return tokens.some((t) => NOT_A_PHOTO.has(t));
 }
 
-/**
- * Licences we accept for display with credit. Deliberately narrow: NC/ND variants, GFDL-only, "fair use" and anything we
- * can't read are NOT accepted — a missing photo costs nothing, a wrongly licensed one does.
- */
-export function isFreeLicence(shortName: string | null | undefined): boolean {
-  const s = (shortName ?? "").trim();
+/** One single licence name (no alternatives) that we accept: CC BY, CC BY-SA, CC0, public domain. NC/ND/GFDL-only are never accepted. */
+function isSingleFreeLicence(raw: string): boolean {
+  const s = raw.trim();
   if (!s || s.length > 60) return false;
-  return /^cc[ -]by(-sa)?[ -]\d(\.\d)?(\s+\w+)?$/i.test(s) || /^cc0\b/i.test(s) || /^cc[ -]zero\b/i.test(s)
+  return /^cc[ -]by(?:[ -]sa)?[ -]\d(?:\.\d)?(?:[ -][a-z]{2,5})?$/i.test(s) || /^cc0\b/i.test(s) || /^cc[ -]zero\b/i.test(s)
     || /^public domain\b/i.test(s) || /^pd[ -]/i.test(s) || /^pdm\b/i.test(s) || /^no restrictions\b/i.test(s);
+}
+
+/**
+ * The licence we will show, or null. Commons often states ALTERNATIVES the re-user may choose from ("CC BY-SA 3.0, GFDL",
+ * "CC BY-SA 3.0, 2.5, 2.0, 1.0", "GFDL 1.2 or later / CC BY-SA 3.0"): one acceptable alternative is enough, and that one is the
+ * licence we credit. "and" is deliberately NOT a separator: "X and Y" means both apply, so one acceptable half proves nothing.
+ * Deliberately narrow otherwise: NC/ND variants, GFDL-only, "fair use" and anything we can't read are not accepted: a missing
+ * photo costs nothing, a wrongly licensed one does.
+ */
+export function freeLicenceName(shortName: string | null | undefined): string | null {
+  const s = (shortName ?? "").trim();
+  if (!s || s.length > 120) return null;
+  for (const part of s.split(/\s*(?:,|;|\/|\bor\b)\s*/i)) if (isSingleFreeLicence(part)) return part.trim();
+  return null;
+}
+
+export const isFreeLicence = (shortName: string | null | undefined): boolean => freeLicenceName(shortName) !== null;
+
+/** Commons also gives a machine-readable licence code ("cc-by-sa-4.0", "cc-zero", "pd"). A second opinion when the display name is odd. */
+export function licenceFromCode(code: string | null | undefined): string | null {
+  const c = (code ?? "").trim().toLowerCase();
+  if (!c || c.length > 60) return null;
+  const m = /^cc-by(-sa)?-(\d(?:\.\d)?)(?:-[a-z]{2,5})?$/.exec(c);
+  if (m) return `CC BY${m[1] ? "-SA" : ""} ${m[2]}`;
+  if (c === "cc-zero" || c === "cc0" || /^cc0-/.test(c)) return "CC0";
+  if (c === "pd" || /^pd-/.test(c) || c === "public domain") return "Public domain";
+  return null;
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
@@ -133,4 +157,30 @@ export function thumbSet(raw: string): ThumbSet | null {
   const at = (w: number) => `https://upload.wikimedia.org/wikipedia/commons/thumb/${c.hash1}/${c.hash2}/${c.rawFile}/${w}px-${c.rawFile}`;
   const src = at(widths.includes(330) ? 330 : widths[widths.length - 1]);
   return { src, srcSet: widths.map((w) => `${at(w)} ${w}w`).join(", ") };
+}
+
+export type ImageAddress = { url: string; width: number; height: number };
+
+/**
+ * A usable picture address from what Commons' imageinfo said. Commons does not always return a `thumburl` we can use (large
+ * originals are the usual case), but it always returns the ORIGINAL file address, and the standard Wikimedia thumbnail address is
+ * derived from that: /thumb/<h1>/<h2>/<file>/<w>px-<file>. Order of preference:
+ *   1. the thumburl Commons gave, when it passes our Commons-only gate;
+ *   2. a thumbnail derived from the original, at `wantWidth` (never wider than the original: Wikimedia will not upscale);
+ *   3. the original itself, when it is not wider than `wantWidth` (already small enough).
+ * Returns null when no accepted Commons address can be made: the photo is then dropped, never guessed.
+ */
+export function imageAddress(info: { thumburl?: string; thumbwidth?: number; thumbheight?: number; url?: string; width?: number; height?: number }, wantWidth = 500): ImageAddress | null {
+  const ratio = info.width && info.height ? info.height / info.width : 0.66;
+  if (info.thumburl && parseCommonsUrl(info.thumburl)) {
+    const w = info.thumbwidth ?? Math.min(info.width ?? wantWidth, wantWidth);
+    return { url: info.thumburl, width: w, height: info.thumbheight ?? Math.round(w * ratio) };
+  }
+  const orig = info.url ? parseCommonsUrl(info.url) : null;
+  if (!orig || orig.width !== null || !info.width) return null; // we need the original's width to know what may be asked for
+  if (info.width <= wantWidth) return { url: info.url as string, width: info.width, height: info.height ?? Math.round(info.width * ratio) };
+  return {
+    url: `https://upload.wikimedia.org/wikipedia/commons/thumb/${orig.hash1}/${orig.hash2}/${orig.rawFile}/${wantWidth}px-${orig.rawFile}`,
+    width: wantWidth, height: Math.round(wantWidth * ratio),
+  };
 }

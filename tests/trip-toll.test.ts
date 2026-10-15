@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { haversineM } from "@/lib/geo";
-import { TOLL, clusterTolls, emptyTollWatch, formatAhead, locateOnRoute, parseTollBooths, simplifyLine, stepTollWatch, tollAlert, tollFee, tollsAhead, warnDistanceM, type LngLat, type OsmToll, type TollInput, type TollOnRoute } from "@/lib/trip/toll";
+import { TOLL, clusterTolls, emptyTollWatch, formatAhead, locateOnRoute, parseTollBooths, simplifyLine, stepTollWatch, tollAlert, tollAlertId, tollFee, tollsAhead, warnDistanceM, type LngLat, type OsmToll, type TollInput, type TollOnRoute } from "@/lib/trip/toll";
 
 const M = 111_195; // metres per degree of latitude
 /** A road running due north from (17.0, 78.0): points every ~500 m for `km` km. */
@@ -68,9 +68,13 @@ describe("simplifying the line keeps the road's shape", () => {
 });
 
 describe("when to warn: measured, not promised", () => {
-  it("the warning distance follows the speed: 5 km at highway speed, less in slow traffic, a middle distance if the speed is unknown", () => {
-    expect(warnDistanceM(80)).toBe(5000); expect(warnDistanceM(40)).toBe(5000); expect(warnDistanceM(39)).toBe(3000); expect(warnDistanceM(15)).toBe(3000); expect(warnDistanceM(14)).toBe(1500); expect(warnDistanceM(0)).toBe(1500);
-    expect(warnDistanceM(null)).toBe(3000); expect(warnDistanceM(Number.NaN)).toBe(3000);
+  it("the warning is about 5 km at any ordinary speed (and when the speed is unknown); only a crawl under 15 km/h gets the shorter 3 km", () => {
+    for (const v of [120, 80, 40, 39, 25, 15, null, Number.NaN]) expect(warnDistanceM(v as number | null)).toBe(5000);
+    for (const v of [14, 5, 0]) expect(warnDistanceM(v)).toBe(3000);
+  });
+  it("a warning carries a lifetime, so it cannot linger after it has stopped being true", () => {
+    const a = tollAlert({ ...onRoute("t1", 30_000) } as never, 4_800);
+    expect(a.ttlMs).toBeGreaterThanOrEqual(60_000); expect(a.id).toBe(tollAlertId("t1"));
   });
   const t = onRoute("t1", 30_000);
   it("nothing while it is far away", () => { expect(stepTollWatch(emptyTollWatch(), [t], here(20_000)).warn).toBeNull(); });

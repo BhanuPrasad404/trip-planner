@@ -19,6 +19,8 @@ export type AppAlert = {
   inApp?: boolean;
   /** Do not announce again until this long has passed. */
   cooldownMs?: number;
+  /** Remove the in-app card by itself after this long, if it was not dismissed first (a warning that has stopped being true must not linger). */
+  ttlMs?: number;
 };
 
 export type Permission = "granted" | "denied" | "default" | "unsupported";

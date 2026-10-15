@@ -36,6 +36,24 @@ describe("useAlerts: the real hook against fake browser channels", () => {
   const fire = async (a: AppAlert, opts?: { test?: boolean }) => { let ok = false; await act(async () => { ok = api.notify(a, undefined, opts); await vi.advanceTimersByTimeAsync(5); }); return ok; };
 
   it("never asks for notification permission by itself", async () => { await mount(); expect(requested).toBe(0); expect(registered).toEqual([]); });
+  it("an alert with a lifetime removes its own card when the time is up, but only THAT showing (a newer one keeps its own)", async () => {
+    await mount();
+    await fire(alert({ id: "toll:9", ttlMs: 60_000 }));
+    expect(api.active.map((a) => a.id)).toEqual(["toll:9"]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    await fire(alert({ id: "toll:9", ttlMs: 60_000, cooldownMs: 0 })); // the same plaza announced again 30 s later
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_000); }); // the FIRST showing's 60 s are over, the second's are not
+    expect(api.active.map((a) => a.id)).toEqual(["toll:9"]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(api.active).toEqual([]);
+  });
+  it("without a lifetime an important alert stays until dismissed (nothing important disappears by itself)", async () => {
+    await mount();
+    await fire(alert({ id: "arrival:1", kind: "arrival", level: 1 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_600_000); });
+    expect(api.active.map((a) => a.id)).toEqual(["arrival:1"]);
+    act(() => api.dismiss("arrival:1")); expect(api.active).toEqual([]);
+  });
   it("app open: a card and a short buzz; no phone notification, no tone unless asked", async () => {
     await mount(); expect(await fire(alert())).toBe(true);
     expect(api.active.map((a) => a.id)).toEqual(["toll:1"]); expect(vibes).toEqual([[120]]); expect(shown).toEqual([]); expect(tones).toBe(0);

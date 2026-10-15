@@ -8,14 +8,18 @@ Only Wikimedia Commons gives us photos with a clear, machine-readable licence an
 ## The pipeline (`lib/place-photos/`)
 | File | Job |
 |---|---|
-| `resolve.ts` | Orchestration: cache → exact title (+redirects) → name search → nearby articles → ranked photo choice |
+| `resolve.ts` | Orchestration: cache → exact title (+redirects) → name search → nearby articles → ranked photo choice → Commons photos (geotag + name) when the article gave no usable picture or there is no article |
 | `wikimedia.ts` | The one HTTP client: host allow-list, ~2 requests at once, spaced, retry with backoff + jitter (honours Retry-After), circuit breaker |
 | `wiki-api.ts` | Request builders and tolerant Zod parsers for MediaWiki / Wikidata |
 | `commons-meta.ts` | Licence, author, size and 500 px thumbnail of each file (one request per 50 files) |
-| `rank.ts` | Picks the best photo: lead image > Wikidata image > article images (the last only if the file name carries the place's name) |
+| `rank.ts` | Picks the best photo: lead image > Wikidata image > Commons photo geotagged next to the place > article images > Commons name-hit (all but the first two only if the file name carries the place's name) |
 | `match.ts` | Name + location identity rule (a temple is not the fort next to it) |
 | `safety.ts` | Hard gates: Commons-only raster URLs, no map/flag/seal/logo names, free-licence allow-list, credit sanitising, srcset |
 | `store.ts` | Shared cache (database, with in-memory fallback), re-validates everything it reads |
+
+**Commons tier (Update 61).** Only for places still without a photo. Evidence is always name AND place: the file name carries a distinctive word of the place's name, and the photo is geotagged near the place (within 1.2 km of a verified article's coordinates, or within 500 m of the traveller's own pin when no article exists; a name-search hit with a geotag may be up to 3 km away). A hit with no geotag counts only when a verified article vouches for the place. Same hard gates as every photo (Commons raster, not a map/flag/logo, free licence, at least 600 px wide). Such a photo has `source: "commons"` and links to its Commons file page. Bounded: at most 20 places per call get this look (the rest are `unresolved`, asked again later), at most 10 files per place are checked.
+
+**Licences.** Commons often offers alternatives ("CC BY-SA 3.0, GFDL"); one acceptable alternative is enough and is the one credited. "and" is never treated as an alternative. The machine-readable `License` code is a second opinion when the display name is odd. GFDL-only, NC, ND and non-free files are still refused.
 
 **Coordinates:** Wikipedia articles may have only a "secondary" coordinate, so any coordinate is accepted (a primary one preferred); the distance limit still applies.
 
@@ -49,7 +53,8 @@ fetch('/api/place-photos',{method:'POST',headers:{'Content-Type':'application/js
 ```
 The response has, per place key:
 - `reasons`: `no_page` no article found (or no coordinates) · `far` same-named article too far away · `disambiguation` · `no_image` article has no usable image · `image_rejected` images were maps/flags/too small/not the place · `licence` not freely licensed or not on Commons.
-- `trails`: every step in words, e.g. `exact title "Golconda Fort" → redirects to "Golconda": ACCEPTED, 1.2 km from the place; lead image "…"`, then `lead image "X.jpg": rejected: licence "GFDL 1.2" is not on our free-licence list`. **Trails exist only for places looked up just now.** An answer served from the cache has none: to see one again, run `delete from public.place_photo_cache;` in the SQL Editor (or raise `RESOLVER_VERSION`) and repeat.
+- `trails`: every step in words, e.g. `exact title "Golconda Fort" → redirects to "Golconda": ACCEPTED, 1.2 km from the place; lead image "…"`, then `lead image "X.jpg": rejected: licence "GFDL 1.2" is not on our free-licence list`. **Debug requests ignore every cache** (the shared cache and the per-file licence memory), so every place has a trail, and the fresh answer replaces the old one.
+- `upstream`: health of the Wikimedia client in this server process: `calls`, `ok`, `failures`, `rateLimited`, `breakerTrips`, `breakerOpen`. Many failures or `rateLimited` > 0 means Wikimedia is refusing or throttling this server (check `GEOCODER_USER_AGENT`).
 - `unresolved`: keys that could not be settled (Wikimedia unreachable/throttled, kill switch on, allowance used up).
 Neither field appears at all = an older version of the code is still running.
 

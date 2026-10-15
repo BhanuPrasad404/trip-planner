@@ -17,11 +17,15 @@ export type { ResolveResult } from "./resolve";
 export const upstreamDisabled = () => (process.env.PLACE_PHOTOS_UPSTREAM ?? "").trim().toLowerCase() === "off";
 
 /** Production wiring: shared cache + the one Wikimedia client + the kill switch. */
-export function lookupPlacePhotos(queries: PlacePhotoQuery[], opts: { allowUpstream?: () => boolean | Promise<boolean> } = {}): Promise<ResolveResult> {
+export function lookupPlacePhotos(queries: PlacePhotoQuery[], opts: { allowUpstream?: () => boolean | Promise<boolean>; /** Diagnostics: ignore cached answers. */ fresh?: boolean } = {}): Promise<ResolveResult> {
   return resolvePlacePhotos(queries, {
     store: getPhotoStore(),
+    skipCache: opts.fresh === true,
     get: wikimedia.getJson,
     allowUpstream: async () => !upstreamDisabled() && (opts.allowUpstream ? await opts.allowUpstream() : true),
     log: (line) => console.info(line),
   });
 }
+
+/** Health of the shared Wikimedia client in this server process (diagnostics only): calls, failures, rate limits, whether the breaker is open. */
+export const upstreamStats = () => ({ ...wikimedia.stats(), breakerOpen: wikimedia.breakerOpen() });

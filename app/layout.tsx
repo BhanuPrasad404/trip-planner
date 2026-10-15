@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getSiteUrl } from "@/lib/env";
 import { RouteProgress } from "@/components/shell/RouteProgress";
 import { ErrorReporter } from "@/components/shell/ErrorReporter";
+import { MobileBackdrop } from "@/components/shell/MobileBackdrop";
 import "./globals.css";
 
 // Fonts are self-hosted (SIL OFL licensed) instead of fetched from Google at build time:
@@ -62,7 +63,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0b3d3a",
+  // The phone's address bar takes the deep forest green of the mobile theme (the light theme keeps the original green).
+  themeColor: [{ media: "(max-width: 767px)", color: "#06201c" }, { color: "#0b3d3a" }],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -78,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
+        <MobileBackdrop />
         <Suspense fallback={null}><RouteProgress /></Suspense>
         <ErrorReporter />
         {children}

@@ -252,13 +252,17 @@ describe("Live and Map pages render", () => {
     const html = renderToStaticMarkup(<LiveView {...props} today="2026-10-10" places={[place("a", { status: "done" })]} />);
     expect(html).toContain("Nothing left on Day 1");
   });
-  it("Map: layers, radar sheet and start-drive control", () => {
+  it("Map: start-drive, a toolbar (map options, full screen) and the radar sheet; the layer toggles are folded until asked for", () => {
     const html = renderToStaticMarkup(<MapView {...props} places={[place("a")]} />);
-    expect(html).toContain("Map layers");
-    expect(html).toContain("Radar");
-    expect(html).toContain("All places ahead");
     expect(html).toContain("Start drive");
     expect(html).toContain("Travel Radar");
+    expect(html).toContain('aria-label="Map options"');
+    expect(html).toContain('aria-label="Expand map to full screen"');
+    // Folded: they take no room on the map until the traveller opens the options.
+    expect(html).not.toContain("Map layers");
+    expect(html).not.toContain("All places ahead</button>");
+    // No toll card, no negative status, nothing implying anything about tolls when nothing is being navigated.
+    expect(html).not.toMatch(/Tolls on this route|Toll data isn/);
   });
 });
 

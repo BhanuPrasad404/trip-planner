@@ -20,10 +20,10 @@ const liveOf = (f: Fake) => ({
 }) as never;
 
 describe("LiveTolls: the card and the warning", () => {
-  let fetches: { url: string; body: { line: unknown[]; vehicle: string } }[]; let reply: () => Response; let alerts: AppAlert[]; let r: TestRenderer.ReactTestRenderer; let s: number;
+  let fetches: { url: string; body: { line: unknown[]; vehicle: string } }[]; let reply: () => Response; let alerts: AppAlert[]; let dismissed: string[]; let r: TestRenderer.ReactTestRenderer; let s: number;
   const text = (j: unknown): string => (j == null ? "" : typeof j === "string" ? j : Array.isArray(j) ? j.map(text).join("") : (j as { children?: unknown[] }).children?.map(text).join("") ?? "");
   beforeEach(() => {
-    s = ++salt; fetches = []; alerts = [];
+    s = ++salt; fetches = []; alerts = []; dismissed = [];
     reply = () => new Response(JSON.stringify({ tolls: [{ id: "node/1", lat: 17.0 + 30_000 / M, lng: 78.0 + s * 0.002, name: "Kothur Toll Plaza", ref: "NH44", operator: null, fee: null }], complete: true }), { status: 200 });
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { fetches.push({ url, body: JSON.parse(String(init.body)) }); return reply(); }));
     vi.useFakeTimers(); vi.setSystemTime(1_800_000_000_000);
@@ -32,7 +32,7 @@ describe("LiveTolls: the card and the warning", () => {
   afterEach(() => { act(() => r?.unmount()); });
 
   const mount = async (f: Partial<Fake> = {}, vehicle: Vehicle = "car") => {
-    const props = (fk: Fake) => ({ live: liveOf(fk), vehicle, notify: (a: AppAlert) => { alerts.push(a); return true; } });
+    const props = (fk: Fake) => ({ live: liveOf(fk), vehicle, notify: (a: AppAlert) => { alerts.push(a); return true; }, dismiss: (id: string) => { dismissed.push(id); } });
     await act(async () => { r = TestRenderer.create(createElement(LiveTolls, props({ line: makeLine(s), ...f }))); });
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     return (g: Partial<Fake>) => act(async () => { r.update(createElement(LiveTolls, props({ line: makeLine(s), ...f, ...g }))); await Promise.resolve(); });
@@ -59,38 +59,57 @@ describe("LiveTolls: the card and the warning", () => {
     expect(alerts[0]).toMatchObject({ kind: "toll", level: 2, title: "Toll plaza ahead" }); expect(alerts[0].body).toContain("about 4.7 km ahead"); expect(alerts[0].body).not.toMatch(/₹|Rs \d/);
     await update({ along: 26_500 }); await update({ along: 28_000 }); expect(alerts).toHaveLength(1);
   });
+  it("warns about 5 km out at an ordinary speed (60 km/h), but a crawl (10 km/h) waits until about 3 km", async () => {
+    const fast = await mount({ along: 20_000, speed: 60 }); await fast({ along: 25_300, speed: 60 }); expect(alerts).toHaveLength(1);
+    await act(async () => { r.unmount(); }); alerts.length = 0; s = ++salt;
+    const slow = await mount({ along: 20_000, speed: 10 }); await slow({ along: 25_300, speed: 10 }); expect(alerts).toEqual([]); // 4.7 km ahead, but crawling: too early
+    await slow({ along: 27_300, speed: 10 }); expect(alerts).toHaveLength(1); // 2.7 km
+  });
   it("is silent when the position or the route cannot be trusted, and the warning is not used up", async () => {
     const update = await mount({ along: 20_000 });
     await update({ along: 26_000, accuracy: 300 }); await update({ along: 26_100, offset: 500 }); await update({ along: 26_200, rerouting: true }); await update({ along: 26_300, source: "estimate" });
     expect(alerts).toEqual([]);
     await update({ along: 26_400 }); expect(alerts).toHaveLength(1); // good signal: now it speaks
   });
-  it("once you have passed the plaza it leaves the list", async () => {
-    const update = await mount({ along: 25_300 }); expect(text(r.toJSON())).toContain("Kothur Toll Plaza");
-    await update({ along: 31_000 }); expect(text(r.toJSON())).toContain("No toll plazas found ahead");
+  it("once you have passed the plaza it leaves the list, and its warning is taken away", async () => {
+    const update = await mount({ along: 25_300 }); expect(text(r.toJSON())).toContain("Kothur Toll Plaza"); expect(alerts).toHaveLength(1);
+    expect(dismissed).toEqual([]);
+    await update({ along: 31_000 });
+    expect(r.toJSON()).toBeNull(); // nothing left to say: no card at all
+    expect(dismissed).toEqual(["toll:node/1"]); // the on-screen warning for that plaza is removed cleanly
   });
   it("a different route starts afresh (it can warn about the same plaza again on a new route)", async () => {
     const update = await mount({ along: 25_300 }); expect(alerts).toHaveLength(1);
     await update({ along: 25_300, routeId: "r2" }); await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(alerts.length).toBeGreaterThanOrEqual(1);
   });
-  it("if the map data is down it says so, says navigation is unaffected, and can try again", async () => {
-    reply = () => new Response(JSON.stringify({ error: "Toll data isn't available right now. Your route and navigation are not affected." }), { status: 503 });
+  it("if the map data is down NOTHING is shown (no card, no alert), and it quietly tries again after 20 s, 1 min and 3 min, then stops", async () => {
+    reply = () => new Response(JSON.stringify({ error: "Toll data isn't available right now." }), { status: 503 });
     await mount({ along: 1000 });
-    const t = text(r.toJSON()); expect(t).toContain("Toll data isn't available right now"); expect(t).toContain("Navigation isn't affected."); expect(t).toContain("Try again");
-    expect(alerts).toEqual([]);
-    reply = () => new Response(JSON.stringify({ tolls: [], complete: true }), { status: 200 });
-    const btn = r.root.findAll((n) => n.type === "button" && text(n.props.children).includes("Try again"))[0];
-    await act(async () => { btn.props.onClick(); await Promise.resolve(); await Promise.resolve(); });
-    expect(fetches).toHaveLength(2); expect(text(r.toJSON())).toContain("No toll plazas found ahead");
+    expect(r.toJSON()).toBeNull(); expect(alerts).toEqual([]); expect(fetches).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); }); expect(fetches).toHaveLength(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); }); expect(fetches).toHaveLength(3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(180_000); }); expect(fetches).toHaveLength(4);
+    await act(async () => { await vi.advanceTimersByTimeAsync(600_000); }); expect(fetches).toHaveLength(4); // gave up: no hammering the map server
+    expect(r.toJSON()).toBeNull();
   });
-  it("says so when part of the route could not be checked (the list may be missing plazas)", async () => {
+  it("a retry that works brings the plaza back, without the traveller doing anything", async () => {
+    reply = () => new Response("{}", { status: 503 });
+    await mount({ along: 25_300 }); expect(r.toJSON()).toBeNull(); expect(alerts).toEqual([]);
+    reply = () => new Response(JSON.stringify({ tolls: [{ id: "node/1", lat: 17.0 + 30_000 / M, lng: 78.0 + s * 0.002, name: "Kothur Toll Plaza", ref: "NH44", operator: null, fee: null }], complete: true }), { status: 200 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(text(r.toJSON())).toContain("Kothur Toll Plaza");
+  });
+  it("when part of the route could not be checked, the card (shown because a plaza IS ahead) says plazas may be missing", async () => {
+    reply = () => new Response(JSON.stringify({ tolls: [{ id: "node/1", lat: 17.0 + 30_000 / M, lng: 78.0 + s * 0.002, name: "P", ref: null, operator: null, fee: null }], complete: false }), { status: 200 });
+    await mount({ along: 25_300 }); expect(text(r.toJSON())).toContain("some plazas may be missing");
+  });
+  it("an empty or incomplete answer with nothing ahead shows no card at all: nothing implies the road is toll-free", async () => {
+    reply = () => new Response(JSON.stringify({ tolls: [], complete: true }), { status: 200 });
+    await mount({ along: 1000 }); expect(r.toJSON()).toBeNull();
     reply = () => new Response(JSON.stringify({ tolls: [], complete: false }), { status: 200 });
-    await mount({ along: 1000 }); expect(text(r.toJSON())).toContain("some plazas may be missing");
-  });
-  it("an empty answer is stated as 'in map data', never as 'there are no tolls'", async () => {
-    reply = () => new Response(JSON.stringify({ tolls: [], complete: true }), { status: 200 });
-    await mount({ along: 1000 }); const t = text(r.toJSON()); expect(t).toContain("in map data"); expect(t).not.toMatch(/there are no tolls|toll-free|free of tolls/i);
+    const s2 = ++salt; s = s2; await act(async () => { r.unmount(); });
+    await mount({ along: 1000 }); expect(r.toJSON()).toBeNull();
   });
   void tollEl;
 });

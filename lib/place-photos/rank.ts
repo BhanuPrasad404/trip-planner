@@ -3,6 +3,8 @@
 // Candidates come from three sources, in order of how much we trust them to depict the place:
 //   lead     – the article's lead image (what Wikipedia itself shows first)
 //   wikidata – the item's "image" statement (P18), chosen by editors to represent the entity
+//   commons_geo  – a Commons photo geotagged next to the place whose file name carries the place's name (works without any article)
+//   commons_name – a Commons photo found by name for a place whose article is verified, but which has no geotag to check
 //   article  – other images used inside the article. These can show a king's portrait or a coin, so they are accepted ONLY when
 //              the file name itself carries a distinctive word of the place's name ("Golconda_Fort_gate.jpg").
 // Every candidate must also pass the hard gates: Commons raster, not a map/flag/logo by name, verified free licence.
@@ -11,14 +13,16 @@ import type { FileMeta } from "./commons-meta";
 import { fileKey } from "./commons-meta";
 import { looksNotAPhoto, parseCommonsUrl } from "./safety";
 
-export type CandidateSource = "lead" | "wikidata" | "article";
+export type CandidateSource = "lead" | "wikidata" | "article" | "commons_geo" | "commons_name";
 export type FileCandidate = { file: string; source: CandidateSource };
 export type Ranked = { file: string; source: CandidateSource; meta: FileMeta; score: number };
 /** Why nothing was chosen: no candidates at all, or every candidate failed (and the most telling reason). */
 export type Rejection = "no_image" | "image_rejected" | "licence";
 
-const BASE: Record<CandidateSource, number> = { lead: 5, wikidata: 4, article: 2 };
-const MIN_WIDTH: Record<CandidateSource, number> = { lead: 300, wikidata: 300, article: 600 };
+const BASE: Record<CandidateSource, number> = { lead: 5, wikidata: 4, commons_geo: 3, article: 2, commons_name: 1.5 };
+const MIN_WIDTH: Record<CandidateSource, number> = { lead: 300, wikidata: 300, commons_geo: 600, article: 600, commons_name: 600 };
+/** Sources that are NOT vouched for by an editor as "the" picture of the place: the file name itself must carry the place's name. */
+const NEEDS_NAME_IN_FILE = new Set<CandidateSource>(["article", "commons_geo", "commons_name"]);
 
 const tokens = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
@@ -47,12 +51,12 @@ type Verdict = { ok: true; meta: FileMeta } | { ok: false; why: string; licenceF
 function judge(place: { name: string }, c: FileCandidate, info: Map<string, FileMeta | null>, whyNot?: Map<string, string>): Verdict {
   if (!/\.(jpe?g|png|webp)$/i.test(c.file)) return { ok: false, why: "not a jpg/png/webp photo" };
   if (looksNotAPhoto(c.file)) return { ok: false, why: "file name looks like a map, flag, logo or plan" };
-  if (c.source === "article" && !sharesDistinctiveWord(place.name, c.file)) return { ok: false, why: "file name does not mention the place" };
+  if (NEEDS_NAME_IN_FILE.has(c.source) && !sharesDistinctiveWord(place.name, c.file)) return { ok: false, why: "file name does not mention the place" };
   const key = fileKey(c.file);
   const meta = info.get(key);
   if (meta === null) return { ok: false, licenceFailure: true, why: whyNot?.get(key) ?? "not usable on Commons (not free, not on Commons, or unreadable)" };
   if (!meta) return { ok: false, why: "licence was never looked up" };
-  if (!meta.thumbUrl || !parseCommonsUrl(meta.thumbUrl)) return { ok: false, why: "no usable Commons thumbnail address" };
+  if (!meta.thumbUrl || !parseCommonsUrl(meta.thumbUrl)) return { ok: false, why: meta.addressNote ?? "no usable Commons thumbnail address" };
   const w = meta.width ?? meta.thumbWidth ?? 0;
   if (w < MIN_WIDTH[c.source]) return { ok: false, why: `too small (${w}px wide, needs ${MIN_WIDTH[c.source]})` };
   return { ok: true, meta };

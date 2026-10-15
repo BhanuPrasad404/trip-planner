@@ -7,10 +7,10 @@ import { clockToMinutes, minutesToClock, type AlertPrefs } from "@/lib/alerts/pr
 import type { Permission } from "@/lib/alerts/delivery";
 
 /** Short cards at the top of the screen for alerts that matter right now. Dismissible, with the action right there. */
-export function AlertBanners({ alerts, onDismiss, onAction }: { alerts: ActiveAlert[]; onDismiss: (id: string) => void; onAction: (id: string, actionId: string) => void }) {
+export function AlertBanners({ alerts, onDismiss, onAction, placement = "fixed" }: { alerts: ActiveAlert[]; onDismiss: (id: string) => void; onAction: (id: string, actionId: string) => void; /** "fixed": floats over the page. "inline": a part of a layout that already stacks things (the live map's top stack), so it can never overlap them. */ placement?: "fixed" | "inline" }) {
   if (alerts.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 space-y-2" data-testid="alert-banners">
+    <div className={placement === "inline" ? "pointer-events-none space-y-2" : "pointer-events-none fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 space-y-2"} data-testid="alert-banners">
       {alerts.map((a) => {
         const critical = a.level === 1;
         return (

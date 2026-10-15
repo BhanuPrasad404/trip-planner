@@ -31,6 +31,8 @@ export type Drive = {
   /** Increases every time Drive is started — lets callers remember a decision for THIS drive only. */
   session: number;
   error: string | null;
+  /** Sharing this position with the group is failing right now (a background problem: the drive and navigation are fine). Clears by itself on the next success. */
+  shareFailed: boolean;
   route: DriveRoute | null;
   /** Minutes of continuous driving; resets after ~8 minutes standing still. Null when not driving. */
   drivingMin: number | null;
@@ -55,6 +57,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   const [share, setShareState] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareFailed, setShareFailed] = useState(false);
   const [route, setRoute] = useState<DriveRoute | null>(null);
   const [drivingMin, setDrivingMin] = useState<number | null>(null);
   const [session, setSession] = useState(0);
@@ -89,7 +92,9 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
           { trip_id: tripId, user_id: userId, lat: m.lat, lng: m.lng, heading: m.heading, speed_kmh: m.speedKmh, accuracy_m: m.accuracyM, updated_at: new Date(m.at).toISOString() },
           { onConflict: "trip_id,user_id" }
         );
-      if (upError) setError("Couldn't share your live location with the group. Check your connection (or that the latest database update was applied).");
+      // Not an error of the drive: the position, the route and the turn-by-turn all work without sharing. It is reported as its own
+      // quiet status (and clears itself on the next success), never in the place real GPS problems go.
+      setShareFailed(!!upError);
     },
     [tripId, userId]
   );
@@ -322,5 +327,5 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   );
 
   const quality = assessFix(me, clock || me?.at || 0);
-  return { active, share, me, manualPlace, setManual, quality, locating: active && !me, session, error, route, drivingMin, members, start, stop, setShare };
+  return { active, share, me, manualPlace, setManual, quality, locating: active && !me, session, error, shareFailed: shareFailed && active && share, route, drivingMin, members, start, stop, setShare };
 }

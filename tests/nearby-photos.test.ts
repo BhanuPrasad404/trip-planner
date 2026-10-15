@@ -129,3 +129,17 @@ describe("attachPhotos", () => {
     expect(out.every((p) => p.photo === null)).toBe(true);
   });
 });
+
+describe("Commons geosearch: large originals without a usable thumburl", () => {
+  it("derives the 330 px thumbnail from the original address instead of dropping the photo", () => {
+    const json = { query: { pages: { 1: { title: "File:Charminar.jpg", coordinates: [{ lat: 17.36, lon: 78.47 }],
+      imageinfo: [{ url: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Charminar.jpg", width: 4000, height: 3000, descriptionurl: "https://commons.wikimedia.org/wiki/File:Charminar.jpg" }] } } } };
+    const out = parseCommons(json);
+    expect(out).toHaveLength(1);
+    expect(out[0].thumb).toContain("/thumb/c/c9/Charminar.jpg/330px-Charminar.jpg");
+  });
+  it("still drops a photo whose address is not a Commons raster", () => {
+    const json = { query: { pages: { 1: { title: "File:X.svg", coordinates: [{ lat: 1, lon: 1 }], imageinfo: [{ url: "https://upload.wikimedia.org/wikipedia/commons/c/c9/X.svg", width: 4000, height: 3000, descriptionurl: "https://commons.wikimedia.org/wiki/File:X.svg" }] } } } };
+    expect(parseCommons(json)).toEqual([]);
+  });
+});

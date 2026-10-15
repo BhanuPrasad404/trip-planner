@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { articleImagesUrl, exactTitlesUrl, finalTitle, geosearchUrl, parseArticleImages, parsePages, parseWikidataImages, searchUrl, wikidataClaimsUrl } from "@/lib/place-photos/wiki-api";
+import { articleImagesUrl, commonsGeoFilesUrl, commonsSearchFilesUrl, exactTitlesUrl, finalTitle, geosearchUrl, parseArticleImages, parseCommonsFiles, parsePages, parseWikidataImages, searchUrl, wikidataClaimsUrl } from "@/lib/place-photos/wiki-api";
 import { isAllowedWikimediaUrl } from "@/lib/place-photos/wikimedia";
 
 const params = (u: string) => new URL(u).searchParams;
@@ -91,4 +91,26 @@ describe("parseWikidataImages (P18)", () => {
     expect([...m.keys()]).toEqual(["Q1"]);
   });
   it("survives garbage", () => { for (const j of [null, {}, { entities: 3 }, { entities: { Q1: null } }]) expect(parseWikidataImages(j).size).toBe(0); });
+});
+
+describe("Commons file search (geotag and name)", () => {
+  it("builds allowed, correctly scoped requests (file namespace, all coordinates, bounded)", () => {
+    const g = commonsGeoFilesUrl({ lat: 17.3833, lng: 78.4011 });
+    const n = commonsSearchFilesUrl("Golconda Fort");
+    expect(isAllowedWikimediaUrl(g)).toBe(true); expect(isAllowedWikimediaUrl(n)).toBe(true);
+    expect(new URL(g).hostname).toBe("commons.wikimedia.org");
+    expect(params(g).get("ggsnamespace")).toBe("6"); expect(params(g).get("ggscoord")).toBe("17.38330|78.40110"); expect(params(g).get("ggsradius")).toBe("1000");
+    expect(params(g).get("ggslimit")).toBe("50"); expect(params(g).get("coprimary")).toBe("all");
+    expect(params(n).get("gsrsearch")).toBe("Golconda Fort"); expect(params(n).get("gsrnamespace")).toBe("6"); expect(Number(params(n).get("gsrlimit"))).toBeLessThanOrEqual(30);
+  });
+  it("reads file names (underscored) with their geotag, tolerating junk", () => {
+    const json = { query: { pages: [
+      { title: "File:Golconda Fort gate.jpg", coordinates: [{ lat: 17.38, lon: 78.4, primary: true }] },
+      { title: "File:No geotag.jpg" },
+      { title: "Category:Golconda", coordinates: [{ lat: 1, lon: 1 }] },
+      { title: "File:Gone.jpg", missing: true }, { nonsense: true }, null,
+    ] } };
+    expect(parseCommonsFiles(json)).toEqual([{ file: "Golconda_Fort_gate.jpg", lat: 17.38, lng: 78.4 }, { file: "No_geotag.jpg", lat: null, lng: null }]);
+    for (const j of [null, undefined, 5, "x", {}, { query: {} }]) expect(parseCommonsFiles(j)).toEqual([]);
+  });
 });

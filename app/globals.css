@@ -104,6 +104,8 @@ body {
 /* Phones: bigger touch targets for the map's own controls */
 @media (pointer: coarse) {
   .maplibregl-ctrl-group button { width: 44px; height: 44px; }
+  /* On a phone the map is pinch-zoomed, and the +/- buttons only sit under the toolbar and banners: hide them below the md breakpoint. */
+  @media (max-width: 767px) { .maplibregl-ctrl-top-right { display: none; } }
   .maplibregl-ctrl-attrib-button { width: 32px; height: 32px; }
 }
 
@@ -158,3 +160,83 @@ body {
 @keyframes tm-fx-warm { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tm-fx-rain i { display: none; } .tm-fx-heat { animation: none; opacity: 0.8; } }
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   MOBILE THEME — "forest at golden hour". Phones only (below 768 px): tablets and desktops keep the light theme above, untouched.
+   Pure presentation: no markup, no logic, no data. Everything is re-skinned from here, in three steps:
+     1. the design tokens that have ONE role (a text colour, or a tinted background) are re-mapped;
+     2. the few that have TWO roles (--pine is a text colour AND a button background) are handled per class, with the exceptions named;
+     3. the ~30 hard-coded light colours in components are re-mapped one by one.
+   Utilities live in a CSS layer and this block is outside any layer, so these rules win without !important.
+   Contrast is checked by tests/mobile-theme.test.ts (every text/surface pair, over the brightest part of the backdrop).
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  :root {
+    --background: #06201c;
+    --foreground: #edf3ee;
+
+    /* one-role tokens: translucent tints on the dark backdrop instead of pale fills */
+    --sky: rgba(255, 255, 255, 0.07);
+    --teal-light: rgba(79, 209, 181, 0.17);
+    --marigold-light: rgba(232, 163, 61, 0.2);
+    --clay-light: rgba(224, 110, 70, 0.22);
+    --line: rgba(255, 255, 255, 0.15);
+
+    /* text-only tokens: light, and AA on every surface above */
+    --ink: #edf3ee;
+    --ink-soft: #bccdc8;
+    --ink-muted: #bccdc8;
+    --teal-ink: #7fe3cc;
+    --clay-ink: #ffbca4;
+
+    /* the glass surface that replaces white cards */
+    --tm-glass: rgba(7, 38, 34, 0.9);
+    --tm-glass-strong: rgba(5, 28, 25, 0.96);
+    --tm-glass-edge: rgba(255, 255, 255, 0.16);
+    --tm-cream: #f5f0e4;
+  }
+  html { color-scheme: dark; } /* native date/time pickers, selects, checkboxes and scrollbars turn dark too */
+  body { background: var(--background); color: var(--foreground); }
+  ::placeholder { color: rgba(237, 243, 238, 0.55); opacity: 1; }
+
+  /* White cards become glass. Only the surface colours: the faint white overlays (bg-white/5…/25) stay as highlights on dark bars. */
+  :is([class~="bg-white"], [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"], [class~="bg-white/70"], [class~="bg-white/60"], [class~="bg-white/50"]) {
+    background-color: var(--tm-glass);
+  }
+  :is([class~="bg-white"], [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"], [class~="bg-white/70"]):is([class*="rounded-2xl"], [class*="rounded-3xl"]) {
+    border-color: var(--tm-glass-edge);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  /* --pine is both a text colour (titles on cards) and a button background. As TEXT it becomes cream… */
+  .text-pine { color: var(--tm-cream); }
+  /* …except on the bright marigold buttons, where it must stay dark to be readable. */
+  .text-pine:where([class*="bg-marigold"]:not([class*="bg-marigold-light"]), [class*="bg-[#f0b254]"], [class*="bg-[#d9942d]"]) { color: #0b3d3a; }
+  /* As a BACKGROUND (buttons, chips, the turn banner) it stays a deep green, a little brighter so it separates from the backdrop. */
+  .bg-pine { background-color: #0f5a50; }
+  .text-teal { color: #5fd8bd; }
+  .text-ink-muted { color: var(--ink-muted); }
+
+  /* Hard-coded light colours in components, re-mapped one by one (each pairs with its own text colour below). */
+  [class*="text-[#7a4a00]"] { color: #ffd9a0; }
+  [class*="text-[#6B2D12]"], [class*="text-[#8F3A18]"] { color: #ffc4ac; }
+  [class*="text-[#2f4a60]"], [class*="text-[#274a6d]"], [class*="text-[#12546b]"] { color: #cfe4f2; }
+  [class*="text-[#1a73e8]"] { color: #8ab4f8; }
+  [class*="text-[#d93025]"] { color: #ff8a80; } /* the red flag icon: the original red is only 1.9:1 on dark glass */
+  [class*="bg-[#e8f0fe]"] { background-color: rgba(26, 115, 232, 0.26); }
+  [class*="bg-[#EDF2F6]"], [class*="bg-[#EAF1F8]"], [class*="bg-[#E6F3F8]"] { background-color: rgba(120, 170, 210, 0.17); }
+  [class*="bg-[#FBEAE2]"], [class*="bg-[#f7d9cc]"] { background-color: rgba(224, 110, 70, 0.22); }
+  [class*="border-[#b9cfe3]"], [class*="border-[#b8c7d3]"], [class*="border-[#9ec9d9]"], [class*="border-[#E7B7A6]"] { border-color: rgba(255, 255, 255, 0.2); }
+
+  /* Reusable glass for the few places that ARE blurred on purpose (the bottom bar, the search pill). Not applied to cards: backdrop
+     blur makes position:fixed children misbehave and is slow on low-end phones. */
+  .tm-glass {
+    background-color: var(--tm-glass);
+    border: 1px solid var(--tm-glass-edge);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .tm-glass { background-color: var(--tm-glass-strong); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+}

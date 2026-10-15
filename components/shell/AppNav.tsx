@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Logo } from "../Logo";
+import { Glyph } from "@/components/ui/Glyph";
 import { IconChevron, IconMenu } from "./icons";
-import { buildNav, currentTrip, type NavTrip } from "./nav";
+import { useHideOnScroll } from "@/lib/client/use-hide-on-scroll";
+import { buildNav, currentTrip, isDrivingSurface, type NavTrip } from "./nav";
 
 // Remember whether the sidebar is collapsed, without a hydration mismatch.
 const KEY = "trailmate.sidebar.collapsed";
@@ -25,6 +27,12 @@ export function AppNav({ trips, userInitial, signOutAction }: Props) {
   const pathname = usePathname() ?? "/";
   const collapsed = useSyncExternalStore(subscribe, read, () => false);
   const [drawer, setDrawer] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  // Twitter-style: reading down tucks the bottom bar away, reading up brings it back. Never on the driving screens, never while the menu is open.
+  const scrolledAway = useHideOnScroll(!isDrivingSurface(pathname) && !drawer, pathname);
+  const barHidden = scrolledAway && !focusInside;
+  // The search pill is the first thing on most screens, but the live map needs every pixel.
+  const showSearch = !/^\/trips\/[^/]+\/map(\/|$)/.test(pathname); // a keyboard or screen-reader user who reaches the bar always sees it
   const items = buildNav(pathname, trips);
   const trip = currentTrip(pathname, trips);
 
@@ -94,26 +102,38 @@ export function AppNav({ trips, userInitial, signOutAction }: Props) {
         </div>
       </aside>
 
-      {/* Phone: slim top bar + bottom navigation */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between bg-pine px-4 text-white md:hidden">
-        <Link href="/dashboard" aria-label="Trailmate dashboard"><Logo /></Link>
-        <Link href="/profile" aria-label="Your profile" className="flex h-8 w-8 items-center justify-center rounded-full bg-teal text-sm font-bold">{userInitial}</Link>
+      {/* Phone: the brand, a search pill, and a floating glass bottom bar. (Not sticky: it scrolls away and gives the page the room;
+          the bottom bar is the navigation.) The search pill is a link to Explore, where searching already lives. */}
+      <header className="relative z-20 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/dashboard" aria-label="Trailmate dashboard" className="rounded-xl"><Logo tagline /></Link>
+          <Link href="/profile" aria-label="Your profile" className="grid h-11 w-11 place-items-center rounded-full bg-teal text-base font-bold text-white shadow-lg ring-2 ring-white/25">{userInitial}</Link>
+        </div>
+        {showSearch && (
+          <Link href="/explore" aria-label="Search destinations and plan your next ride" className="tm-glass mt-3 flex min-h-12 items-center gap-3 rounded-full px-4 text-[15px] text-white/85 shadow-[0_6px_20px_rgba(0,0,0,0.3)]">
+            <Glyph name="pin" size={20} className="shrink-0 text-white" />
+            <span className="min-w-0 flex-1 truncate">Search destinations, plan your next ride…</span>
+            <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white"><Glyph name="navigate" size={16} /></span>
+          </Link>
+        )}
       </header>
-      <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-pine pb-[env(safe-area-inset-bottom)] text-white md:hidden">
+      <nav aria-label="Main navigation" data-mobile-nav data-hidden={barHidden} onFocus={() => setFocusInside(true)} onBlur={() => setFocusInside(false)} className={`tm-glass fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 rounded-[1.75rem] text-white shadow-[0_-8px_32px_rgba(0,0,0,0.45)] transition-transform duration-200 motion-reduce:transition-none md:hidden ${barHidden ? "translate-y-[calc(100%+1.5rem)]" : "translate-y-0"}`}>
         <ul className="grid grid-cols-5">
           {primaryMobile.map((it) => {
             const active = it.match(pathname);
             return (
               <li key={it.id}>
-                <Link href={it.href} aria-current={active ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active ? "text-marigold" : "text-white/75"}`}>
-                  <it.Icon />{it.label.replace("My trips", "Trips").replace("Live trip", "Live")}
+                <Link href={it.href} aria-current={active ? "page" : undefined} className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active ? "text-marigold" : "text-white/70"}`}>
+                  <it.Icon className={active ? "drop-shadow-[0_0_8px_rgba(232,163,61,0.8)]" : ""} />{it.label.replace("My trips", "Trips").replace("Live trip", "Live")}
+                  <span aria-hidden="true" data-glow={active || undefined} className={`mt-0.5 h-0.5 w-9 rounded-full ${active ? "bg-marigold shadow-[0_0_10px_rgba(232,163,61,0.95)]" : "bg-transparent"}`} />
                 </Link>
               </li>
             );
           })}
           <li>
-            <button type="button" onClick={() => setDrawer(true)} aria-haspopup="dialog" aria-expanded={drawer} className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-white/75">
+            <button type="button" onClick={() => setDrawer(true)} aria-haspopup="dialog" aria-expanded={drawer} className="flex min-h-16 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-white/70">
               <IconMenu />More
+              <span aria-hidden="true" className="mt-0.5 h-0.5 w-9 rounded-full bg-transparent" />
             </button>
           </li>
         </ul>
@@ -122,7 +142,7 @@ export function AppNav({ trips, userInitial, signOutAction }: Props) {
       {drawer && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="More">
           <button type="button" aria-label="Close menu" onClick={closeDrawer} className="absolute inset-0 bg-black/50" />
-          <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-pine p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-white">
+          <div className="tm-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-white">
             <ul className="space-y-1">{items.filter((i) => !["dashboard", "trips", "live", "map"].includes(i.id)).map((i) => link(i, false, closeDrawer))}</ul>
             <form action={signOutAction} className="mt-3 border-t border-white/10 pt-3">
               <button type="submit" className="min-h-11 w-full rounded-xl bg-white/10 text-sm font-semibold">Sign out</button>

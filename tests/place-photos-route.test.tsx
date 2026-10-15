@@ -3,25 +3,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PlacePhoto } from "@/components/ui/PlacePhoto";
 
 type Result = { photos: Record<string, unknown>; unresolved: string[]; reasons: Record<string, string>; trails: Record<string, string[]> };
-const state = { user: { id: "me" } as { id: string } | null, quotaOk: true, needsUpstream: true, rpcCalls: 0, result: { photos: {}, unresolved: [], reasons: {}, trails: {} } as Result, calls: [] as { key: string }[][], fail: false };
+const state = { user: { id: "me" } as { id: string } | null, quotaOk: true, needsUpstream: true, rpcCalls: 0, result: { photos: {}, unresolved: [], reasons: {}, trails: {} } as Result, calls: [] as { key: string }[][], fail: false, lastOpts: undefined as { fresh?: boolean } | undefined };
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.user } }) }, rpc: async () => { state.rpcCalls++; return { data: state.quotaOk, error: null }; } }),
 }));
 // The lookup is mocked; what is tested here is the ROUTE: sign-in, validation, when the allowance is charged, and the response shape.
 vi.mock("@/lib/place-photos", () => ({
-  lookupPlacePhotos: async (places: { key: string }[], opts?: { allowUpstream?: () => Promise<boolean> | boolean }) => {
-    state.calls.push(places);
+  lookupPlacePhotos: async (places: { key: string }[], opts?: { allowUpstream?: () => Promise<boolean> | boolean; fresh?: boolean }) => {
+    state.calls.push(places); state.lastOpts = opts;
     if (state.fail) throw new Error("wikipedia down");
     if (state.needsUpstream && opts?.allowUpstream && !(await opts.allowUpstream())) return { photos: {}, reasons: {}, trails: {}, unresolved: places.map((p) => p.key) };
     return state.result;
   },
+  upstreamStats: () => ({ calls: 3, ok: 3, retries: 0, failures: 0, rateLimited: 0, skippedByBreaker: 0, breakerTrips: 0, breakerOpen: false }),
 }));
 import { POST } from "@/app/api/place-photos/route";
 
 const post = (b: unknown) => POST(new Request("http://x", { method: "POST", body: JSON.stringify(b) }));
 const place = (key: string, extra: object = {}) => ({ key, name: "Undavalli Caves", lat: 16.5, lng: 80.5, ...extra });
 
-beforeEach(() => { state.user = { id: "me" }; state.quotaOk = true; state.needsUpstream = true; state.rpcCalls = 0; state.result = { photos: {}, unresolved: [], reasons: {}, trails: {} }; state.calls = []; state.fail = false; });
+beforeEach(() => { state.user = { id: "me" }; state.quotaOk = true; state.needsUpstream = true; state.rpcCalls = 0; state.result = { photos: {}, unresolved: [], reasons: {}, trails: {} }; state.calls = []; state.fail = false; state.lastOpts = undefined; });
 
 describe("POST /api/place-photos", () => {
   it("requires sign-in and valid input, and looks nothing up for rejected requests", async () => {
@@ -74,6 +75,14 @@ describe("POST /api/place-photos", () => {
     const debug = await (await post({ places: [place("a")], debug: true })).json();
     expect(debug.reasons).toEqual({ a: "far" });
     expect(debug.trails).toEqual({ a: ["exact title \"X\": no such article"] });
+    expect(debug.upstream).toMatchObject({ calls: expect.any(Number), failures: expect.any(Number), breakerOpen: expect.any(Boolean) });
+    expect(plain.upstream).toBeUndefined();
+  });
+  it("asks for a FRESH lookup (ignoring cached answers) only when diagnostics are asked for", async () => {
+    await post({ places: [place("a")] });
+    expect(state.lastOpts?.fresh).toBeFalsy();
+    await post({ places: [place("a")], debug: true });
+    expect(state.lastOpts?.fresh).toBe(true);
   });
 });
 

@@ -84,8 +84,10 @@ describe("Explore: anywhere in India, not only the places in your trip", () => {
     const r = await mount({ tripId: "t1", anchors: [{ id: "dest", label: "Mothkur", lat: 17.5, lng: 78.9 }] });
     await act(async () => { button(r, "Hampi").props.onClick(); });
     await act(async () => { await Promise.resolve(); });
-    const options = r.root.findAllByType("option").map((o) => text(o));
-    expect(options).toEqual(["Hampi", "Mothkur"]);
+    // Both the Discover section and the food/stays section offer the same places to look around.
+    const placeSelects = r.root.findAllByType("select").map((sel) => sel.findAllByType("option").map((o) => text(o))).filter((o) => o.includes("Mothkur"));
+    expect(placeSelects).toHaveLength(2);
+    for (const options of placeSelects) expect(options).toEqual(["Hampi", "Mothkur"]);
   });
 
   it("a failed search shows an error with a retry, and nothing else changes", async () => {

@@ -13,7 +13,7 @@ import { isFreeLicence, parseCommonsUrl } from "./safety";
 import type { NoPhotoReason, PlacePhoto } from "./types";
 
 /** Bump when the matching/ranking rules change in a way that could turn an old answer wrong. */
-export const RESOLVER_VERSION = 2;
+export const RESOLVER_VERSION = 4;
 export const FOUND_TTL_MS = 30 * 24 * 3_600_000;
 export const NONE_TTL_MS = 30 * 24 * 3_600_000;
 
@@ -34,9 +34,9 @@ export function photoKey(name: string, lat: number, lng: number): string {
 }
 
 const photoSchema = z.object({
-  url: z.string(), srcSet: z.string().optional(), width: z.number(), height: z.number(), title: z.string(), pageUrl: z.string(), source: z.literal("wikipedia"),
+  url: z.string(), srcSet: z.string().optional(), width: z.number(), height: z.number(), title: z.string(), pageUrl: z.string(), source: z.enum(["wikipedia", "commons"]),
   creditUrl: z.string().optional(), author: z.string().nullable().optional(), licence: z.string(), licenceUrl: z.string().nullable().optional(),
-  file: z.string().optional(), wikidata: z.string().nullable().optional(), via: z.enum(["exact", "search", "geosearch"]).optional(),
+  file: z.string().optional(), wikidata: z.string().nullable().optional(), via: z.enum(["exact", "search", "geosearch", "commons"]).optional(),
 }).strict();
 const REASONS: NoPhotoReason[] = ["no_page", "far", "disambiguation", "no_image", "image_rejected", "licence"];
 
@@ -48,7 +48,9 @@ export function validateStoredPhoto(raw: unknown): PlacePhoto | null {
   if (!p.success) return null;
   const x = p.data;
   if (!parseCommonsUrl(x.url) || !isFreeLicence(x.licence)) return null;
-  if (host(x.pageUrl) !== "en.wikipedia.org" || new URL(x.pageUrl).protocol !== "https:") return null;
+  const pageHost = host(x.pageUrl);
+  if (x.source === "wikipedia" ? pageHost !== "en.wikipedia.org" : pageHost !== "commons.wikimedia.org") return null;
+  if (new URL(x.pageUrl).protocol !== "https:") return null;
   if (x.creditUrl && (host(x.creditUrl) !== "commons.wikimedia.org" || new URL(x.creditUrl).protocol !== "https:")) return null;
   if (x.srcSet && !x.srcSet.split(",").every((part) => parseCommonsUrl(part.trim().split(/\s+/)[0] ?? ""))) return null;
   return x as PlacePhoto;

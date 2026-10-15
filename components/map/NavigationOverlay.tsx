@@ -10,6 +10,9 @@ import { formatDuration } from "@/lib/format";
 import type { Journey } from "@/lib/map/journey";
 import type { Banner } from "@/lib/map/navigation";
 import { SESSION_TEXT, type SessionState } from "@/lib/map/session-state";
+import { navNotices } from "@/lib/map/notices";
+import { useHudNotices } from "@/lib/client/use-hud-notices";
+import { HudNotices } from "./HudNotices";
 
 const ARROW: Record<Banner["arrow"], { glyph: GlyphName; rotate: number }> = {
   left: { glyph: "turnLeft", rotate: 0 }, right: { glyph: "turnRight", rotate: 0 },
@@ -52,14 +55,25 @@ export type NavUi = {
   nowMs: number;
 };
 
-/** The turn banner (top) and status messages. Sits inside the map. */
-export function NavigationBanner({ ui }: { ui: NavUi }) {
+/**
+ * The turn banner and ONE status message. Everything navigation wants to say (session status, a weak position, "guidance paused", a note)
+ * goes through the same prioritiser as the rest of the map (lib/map/notices.ts): the most important message is shown, the others wait.
+ * `inFlow`: part of the map's top stack (nothing can overlap it); otherwise it floats over the map's top edge (the Live page's small map).
+ */
+export function NavigationBanner({ ui, inFlow = false }: { ui: NavUi; inFlow?: boolean }) {
   const { nav, session, signal } = ui;
   const chip = SESSION_TEXT[session];
-  // One message at a time: while the start card is open it already says everything; otherwise a position problem outranks the status chip.
   const showSignal = !!signal && ["stale", "rough", "poor"].includes(signal.grade) && session !== "not-started" && session !== "confirming";
+  const list = navNotices({
+    session: chip && session !== "arrived" && session !== "confirming" ? { id: `session:${session}`, text: session === "error" && nav.error ? nav.error : chip, tone: session === "error" ? "error" : session === "off-route" || session === "recalculating" ? "warn" : "info" } : null,
+    signal: showSignal ? signal!.message : null,
+    uncertain: nav.uncertain && nav.phase === "navigating",
+    notice: nav.notice ?? null,
+  });
+  const notices = useHudNotices(list, 1);
+  const dismiss = (id: string) => { notices.dismiss(id); if (id === "nav-notice") nav.dismissNotice(); };
   return (
-    <div className="pointer-events-none absolute inset-x-2 top-2 z-30 mx-auto max-w-xl space-y-2 md:left-auto md:right-14 md:top-3 md:mx-0" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div className={inFlow ? "pointer-events-none space-y-2 [&>*]:pointer-events-auto" : "pointer-events-none absolute inset-x-2 top-2 z-30 mx-auto max-w-xl space-y-2 md:left-auto md:right-14 md:top-3 md:mx-0"} style={inFlow ? undefined : { paddingTop: "env(safe-area-inset-top, 0px)" }}>
       {nav.phase === "navigating" && nav.banner && (() => {
         const arrow = ARROW[nav.banner.arrow];
         return (
@@ -72,18 +86,7 @@ export function NavigationBanner({ ui }: { ui: NavUi }) {
           </div>
         );
       })()}
-      {chip && session !== "arrived" && session !== "confirming" && !showSignal && (
-        <p role="status" className={`pointer-events-auto rounded-xl px-3 py-2 text-sm font-semibold shadow ${session === "error" ? "bg-clay-light text-clay-ink" : session === "off-route" || session === "recalculating" ? "bg-marigold-light text-[#7a4a00]" : "bg-white text-pine"}`}>
-          {session === "error" && nav.error ? nav.error : chip}
-        </p>
-      )}
-      {showSignal && <p role="status" className="pointer-events-auto rounded-xl bg-marigold-light px-3 py-2 text-sm font-medium text-[#7a4a00] shadow">{signal!.message}</p>}
-      {nav.uncertain && nav.phase === "navigating" && <p role="status" className="pointer-events-auto rounded-xl bg-marigold-light px-3 py-2 text-sm font-medium text-[#7a4a00] shadow">GPS is too vague to place you on the road — guidance is paused.</p>}
-      {nav.notice && (
-        <p role="status" className="pointer-events-auto flex items-start justify-between gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium text-pine shadow">
-          <span>{nav.notice}</span><button type="button" onClick={nav.dismissNotice} aria-label="Dismiss" className="shrink-0 text-ink-muted"><Glyph name="close" size={16} /></button>
-        </p>
-      )}
+      <div className="pointer-events-auto empty:hidden"><HudNotices shown={notices.shown} hiddenCount={0} onDismiss={dismiss} /></div>
     </div>
   );
 }

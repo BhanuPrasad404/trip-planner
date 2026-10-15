@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { EXPLORE_CATEGORY_IDS } from "@/lib/explore/categories";
+import { REGION_CODES } from "@/lib/explore/regions";
 import { MAX_TRIP_DAYS } from "@/lib/types";
 import { isRealISODate } from "@/lib/dates";
 import { REPORT_TAG_IDS } from "@/lib/reports";
@@ -210,6 +212,41 @@ export const nearbySchema = z.object({
   lng: longitude,
   radius_km: z.number().int().min(1).max(30).default(5),
 });
+
+// Explore: discover real places across India. Everything that reaches the map query is validated here (regions and categories are
+// closed lists), and the page size and cursor are bounded.
+export const exploreSchema = z.object({
+  scope: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("state"), code: z.enum(REGION_CODES) }),
+    z.object({ kind: z.literal("point"), lat: latitude, lng: longitude, radius_km: z.number().int().min(1).max(50).default(20) }),
+  ]),
+  category: z.enum([...EXPLORE_CATEGORY_IDS, "all"]).default("all"),
+  sort: z.enum(["notable", "nearest"]).default("notable"),
+  q: z.string().trim().max(80).optional(),
+  anchor: z.object({ lat: latitude, lng: longitude }).optional(),
+  cursor: z.number().int().min(0).max(2000).default(0),
+  limit: z.number().int().min(1).max(30).default(18),
+});
+
+/** A place a traveller saved. The key is the place's identity (an OpenStreetMap element like "way/123", or "season:<id>" for researched places). */
+export const savedPlaceKey = z.string().trim().regex(/^[a-z0-9:_/.-]{3,80}$/i, "Invalid place");
+export const savedPlaceSchema = z.object({
+  key: savedPlaceKey,
+  name: z.string().trim().min(1).max(120),
+  lat: latitude, lng: longitude,
+  category: z.string().trim().max(40).nullable().optional(),
+  region: z.string().trim().max(80).nullable().optional(),
+});
+export const savedPlaceDeleteSchema = z.object({ key: savedPlaceKey });
+
+/** What the owner decides about a trip's real life (kept apart from its planned dates). Only these four, nothing free-form. */
+export const tripLifecycleSchema = z.discriminatedUnion("action", [
+  /** day_end_min: when the traveller says today should end (minutes after midnight), from "leaving at … with … hours". */
+  z.object({ action: z.literal("resume"), day_end_min: z.number().int().min(0).max(1439).optional() }),
+  z.object({ action: z.literal("finish") }),
+  z.object({ action: z.literal("cancel") }),
+  z.object({ action: z.literal("reopen") }),
+]);
 
 export const etaSchema = z.object({
   points: z.array(z.object({ lat: latitude, lng: longitude })).min(2, "Need a start and at least one stop").max(12, "Too many stops"),

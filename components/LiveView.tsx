@@ -125,7 +125,10 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
           <strong>Running past the planned end.</strong> This trip was planned to finish on {live.timing?.lastDate && live.localDate ? dayWithDate(live.timing.lastDate, live.localDate) : "its last day"}; you&apos;re still on Day {driveDay}, so everything below keeps working.
         </p>
       )}
-      {todayDay === null && !live.overrun && (
+      {live.closed && (
+        <p className="rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink-muted"><strong className="text-pine">This trip is {trip.closed_reason === "cancelled" ? "called off" : "finished"}.</strong> Its stops, progress and memories are kept. Nothing starts by itself; you can still start a drive to follow it again.</p>
+      )}
+      {todayDay === null && !live.overrun && !live.closed && (
         <p className="rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink-muted">
           {live.timing?.state === "after" && live.timing.lastDate && live.localDate
             ? <><strong className="text-pine">This trip ended on {dayWithDate(live.timing.lastDate, live.localDate)}</strong>, so this is its saved Day {driveDay}. You can still start a drive to follow it again.{" "}</>
@@ -140,7 +143,7 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
       <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
       <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={firstLeg?.km ?? null} />
-      <LiveTolls live={live} vehicle={vehicle} notify={alerts.notify} />
+      <LiveTolls live={live} vehicle={vehicle} notify={alerts.notify} dismiss={alerts.dismiss} />
       <TripHealthStrip health={result?.health ?? null} />
       {intel.mode === "preview" && result && live.localDate && live.localTime && (
         <p role="note" className="flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">

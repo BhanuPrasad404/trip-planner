@@ -27,3 +27,9 @@ export function buildNav(pathname: string, trips: NavTrip[]): NavItem[] {
     { id: "profile", label: "Profile", href: "/profile", Icon: IconProfile, match: (p) => p === "/profile" },
   ];
 }
+
+/**
+ * The screens where the bottom navigation must never hide: the live trip and the live map. A driver must not have controls move
+ * under their thumb, and these pages manage their own full-screen mode.
+ */
+export const isDrivingSurface = (pathname: string): boolean => /^\/trips\/[^/]+\/(live|map)(\/|$)/.test(pathname);

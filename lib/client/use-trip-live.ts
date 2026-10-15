@@ -14,6 +14,7 @@ import { journeySummary } from "@/lib/map/journey";
 import { DESTINATION_ID, planDriveTargets, type PlanTarget } from "@/lib/map/drive-targets";
 import { tripTiming } from "@/lib/time-context";
 import { liveDayFor } from "@/lib/trip-state";
+import { isClosed, isResumed, resumedDay } from "@/lib/trip/lifecycle";
 import type { PlaceWithSeason, Trip, TripMember } from "@/lib/types";
 import type { VoteSummary } from "@/lib/votes";
 import type { LiveMarker, PoiMarker } from "@/components/TripMap";
@@ -43,7 +44,11 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   const localTime = localNow ? `${pad(localNow.getHours())}:${pad(localNow.getMinutes())}` : null;
   // Which day is this drive on? Inside the planned dates: today's day. Just AFTER the planned end (an overnight drive that
   // crosses midnight on the last day) it is still the last day — the trip is not "in the past" while you are travelling it.
-  const liveDay = localDate ? liveDayFor(trip, localDate) : null;
+  // A trip the owner RESUMED runs today on the first day that still has something to do, whatever its planned dates say; a closed
+  // (finished or cancelled) trip is shown as history and never restarts by itself.
+  const resumed = isResumed(trip);
+  const closed = isClosed(trip);
+  const liveDay = localDate ? liveDayFor(trip, localDate, { resumedDay: resumed ? resumedDay(places, trip.num_days) : null }) : null;
   const todayDay = liveDay?.mode === "today" ? liveDay.day : null;
   const overrun = liveDay?.mode === "overrun";
   const driveDay = todayDay ?? (overrun && liveDay?.day ? liveDay.day : focusDay);
@@ -157,7 +162,10 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
     preview: previewFrom ? { lat: previewFrom.lat, lng: previewFrom.lng, heading: null, speedKmh: null } : null,
     stops: intelStops,
     route: intelRoute,
-    comparePlan: todayDay !== null && driveDay === todayDay,
+    // Planned arrival times belong to the planned date, so a resumed trip is not "behind" them.
+    comparePlan: todayDay !== null && driveDay === todayDay && !resumed,
+    // How long the traveller said they can travel, when they resumed (the engine's "when should today end").
+    dayEndMin: resumed && trip.resume_day_end_min != null ? trip.resume_day_end_min : undefined,
     drivingMin: drive.drivingMin,
     canMoveNextDay: driveDay < trip.num_days,
   });
@@ -209,5 +217,5 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
     return e ? Math.round(CATEGORIES[e.category].hours * 60) : 0;
   };
 
-  return { vehicle, arrivalRef, journey, startedFrom, navigation, gate, liveOk, timing, weatherNote, nowMs, localDate, localTime, todayDay, overrun, driveDay, dayPlaces, remaining, done, driveStops, targets, nextTarget, drive: driveWithNav, intel, intelStops, previewFrom, liveMarkers, poiMarkers, stayMinutes, nextStop: remaining[0] ?? null };
+  return { vehicle, arrivalRef, journey, startedFrom, navigation, gate, liveOk, timing, weatherNote, nowMs, localDate, localTime, todayDay, overrun, resumed, closed, driveDay, dayPlaces, remaining, done, driveStops, targets, nextTarget, drive: driveWithNav, intel, intelStops, previewFrom, liveMarkers, poiMarkers, stayMinutes, nextStop: remaining[0] ?? null };
 }

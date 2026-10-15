@@ -7,17 +7,19 @@
 //   C. Wikipedia articles around the point (the old method, now only a last resort).
 // Then the best photo is chosen from the article's lead image, Wikidata's image, and — only with the place's name in the file
 // name — other images of the article, all behind the hard gates (Commons raster, not a map/flag/logo, verified free licence).
+//   D. Wikimedia Commons itself: photos geotagged next to the place (or found by name, when an article vouches for the place) whose
+//      file name carries the place's name. This also serves places that have NO Wikipedia article (most small temples in India).
 //
 // Honesty rules: a place we could not CHECK (upstream failure) is "unresolved", never "no photo", and is never cached as none.
-import { distanceKm } from "@/lib/geo";
+import { distanceKm, type GeoPoint } from "@/lib/geo";
 import { identity, pickIdentity } from "./match";
 import { chooseBest, explainCandidates, sharesDistinctiveWord, type FileCandidate, type Rejection } from "./rank";
-import { fetchFileMeta, fileKey, type FileMeta } from "./commons-meta";
+import { clearFileMetaCache, fetchFileMeta, fileKey, type FileMeta } from "./commons-meta";
 import { looksNotAPhoto, thumbSet } from "./safety";
 import { FOUND_TTL_MS, NONE_TTL_MS, photoKey, type PhotoStore, type StoredPhoto, type StoreEntry } from "./store";
 import type { FoundVia, NoPhotoReason, PlacePhoto, PlacePhotoQuery } from "./types";
 import type { JsonGetter } from "./wikimedia";
-import { articleImagesUrl, exactTitlesUrl, finalTitle, geosearchUrl, parseArticleImages, parsePages, parseWikidataImages, searchUrl, wikidataClaimsUrl, type WikiPage } from "./wiki-api";
+import { articleImagesUrl, commonsGeoFilesUrl, commonsSearchFilesUrl, exactTitlesUrl, finalTitle, geosearchUrl, parseArticleImages, parseCommonsFiles, parsePages, parseWikidataImages, searchUrl, wikidataClaimsUrl, type CommonsFile, type WikiPage } from "./wiki-api";
 
 /** An exact-title article may sit this far from our point (forts, parks and dams are big, and pins are rarely exact). */
 export const EXACT_MAX_KM = 5;
@@ -25,6 +27,16 @@ const MAX_VARIANTS = 4;
 const MAX_SEARCHES = 12;
 const MAX_GEOSEARCHES = 12;
 const MAX_ARTICLE_FILES = 30;
+/** Commons tier: how many places per call get the extra look, how many files per place are checked, and how close a photo must be. */
+const MAX_COMMONS_PLACES = 20;
+const MAX_COMMONS_FILES = 10;
+const COMMONS_RADIUS_M = 1000;
+/** Without an article to vouch for the place, a photo must be geotagged this close to the traveller's own pin. */
+const PIN_ONLY_MAX_KM = 0.5;
+/** With a verified article, a geotagged photo may sit this close to the article's own coordinates (forts and parks are big). */
+const ARTICLE_ANCHORED_MAX_KM = 1.2;
+/** A name-search hit that carries a geotag must be within this distance of the anchor. */
+const COMMONS_SEARCH_MAX_KM = 3;
 
 /** Everyday amenities never get a "photo of the place": a fuel pump or a toilet block is not on Wikipedia, and a wrong picture is worse than an icon. */
 const UTILITY_TYPES = new Set(["restroom", "parking", "fuel", "pharmacy", "bank"]);
@@ -65,6 +77,8 @@ export type ResolveDeps = {
   allowUpstream?: () => boolean | Promise<boolean>;
   /** At most this many places are looked up upstream per call. */
   maxLookups?: number;
+  /** Diagnostics: ignore every cached answer (shared cache and per-file licence memory) and look everything up again. New answers still replace the old ones. */
+  skipCache?: boolean;
   /** One line per call that had to go upstream: how many places were cached / found / had none / could not be settled. */
   log?: (line: string) => void;
 };
@@ -149,20 +163,70 @@ async function stepGeo(states: State[], get: JsonGetter) {
   }));
 }
 
-const toPhoto = (picked: Picked, file: string, meta: FileMeta): PlacePhoto => {
+const toPhoto = (s: State, file: string, meta: FileMeta, from: FileCandidate["source"]): PlacePhoto => {
+  const picked = s.picked;
+  const viaCommons = !picked || from === "commons_geo" || from === "commons_name";
   const set = thumbSet(meta.thumbUrl as string);
   const w = meta.thumbWidth ?? Math.min(meta.width ?? 500, 500);
   const h = meta.thumbHeight ?? (meta.width && meta.height ? Math.round((w * meta.height) / meta.width) : Math.round(w * 0.66));
   return {
-    url: set?.src ?? (meta.thumbUrl as string), ...(set?.srcSet ? { srcSet: set.srcSet } : {}), width: w, height: h, title: picked.title,
-    pageUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(picked.title.replace(/ /g, "_"))}`, source: "wikipedia",
-    creditUrl: meta.creditUrl, author: meta.author, licence: meta.licence, licenceUrl: meta.licenceUrl, file, wikidata: picked.wikidata, via: picked.via,
+    url: set?.src ?? (meta.thumbUrl as string), ...(set?.srcSet ? { srcSet: set.srcSet } : {}), width: w, height: h, title: picked?.title ?? s.g.name,
+    pageUrl: viaCommons ? meta.creditUrl : `https://en.wikipedia.org/wiki/${encodeURIComponent((picked as Picked).title.replace(/ /g, "_"))}`,
+    source: viaCommons ? "commons" : "wikipedia",
+    creditUrl: meta.creditUrl, author: meta.author, licence: meta.licence, licenceUrl: meta.licenceUrl, file, wikidata: picked?.wikidata ?? null, via: viaCommons ? "commons" : (picked as Picked).via,
   };
 };
 
 const rejectionReason = (r: Rejection): NoPhotoReason => r;
 
-/** Choose a photo for every place that has an article: lead image first, then Wikidata's image and the article's own images. */
+const isRaster = (f: string) => /\.(jpe?g|png|webp)$/i.test(f);
+
+/**
+ * Step D: Commons photos for places whose article gave no usable picture, and for places with no article at all.
+ * Identity evidence, always BOTH name and place: the file name carries a distinctive word of the place's name, and the photo is
+ * geotagged near the place (near the article's coordinates when an article vouches for it, near the traveller's pin when not).
+ * A name-only hit with no geotag is accepted only when a verified article vouches for the place. Never throws.
+ */
+async function stepCommons(states: State[], get: JsonGetter): Promise<Map<State, FileCandidate[]>> {
+  const out = new Map<State, FileCandidate[]>();
+  const eligible = states.slice(0, MAX_COMMONS_PLACES);
+  for (const s of states.slice(MAX_COMMONS_PLACES)) { s.unsure = true; s.trail.push("Commons photo search skipped: too many places in one request, will be asked again later"); }
+  const cells = new Map<string, Promise<CommonsFile[] | null>>();
+  await Promise.all(eligible.map(async (s) => {
+    const anchor: GeoPoint = s.picked ?? s.g;
+    const nearKm = s.picked ? ARTICLE_ANCHORED_MAX_KM : PIN_ONLY_MAX_KM;
+    const cell = `${anchor.lat.toFixed(3)},${anchor.lng.toFixed(3)}`;
+    if (!cells.has(cell)) cells.set(cell, get(commonsGeoFilesUrl(anchor, COMMONS_RADIUS_M)).then((j) => (j === null ? null : parseCommonsFiles(j))));
+    const term = titleVariants(s.g.name)[0] ?? s.g.name;
+    const [geo, named] = await Promise.all([cells.get(cell) as Promise<CommonsFile[] | null>, get(commonsSearchFilesUrl(term)).then((j) => (j === null ? null : parseCommonsFiles(j)))]);
+    if (geo === null) { s.unsure = true; s.trail.push("Commons photos near the point: the request to Commons failed"); }
+    if (named === null) { s.unsure = true; s.trail.push(`Commons search "${term}": the request to Commons failed`); }
+
+    const usableName = (f: CommonsFile) => isRaster(f.file) && !looksNotAPhoto(f.file) && sharesDistinctiveWord(s.g.name, f.file);
+    const picks: { file: string; km: number | null; source: "commons_geo" | "commons_name" }[] = [];
+    for (const f of geo ?? []) {
+      if (f.lat === null || f.lng === null || !usableName(f)) continue;
+      const km = distanceKm(anchor, { lat: f.lat, lng: f.lng });
+      if (km <= nearKm) picks.push({ file: f.file, km, source: "commons_geo" });
+    }
+    for (const f of named ?? []) {
+      if (!usableName(f)) continue;
+      if (f.lat !== null && f.lng !== null) {
+        const km = distanceKm(anchor, { lat: f.lat, lng: f.lng });
+        if (km <= COMMONS_SEARCH_MAX_KM) picks.push({ file: f.file, km, source: "commons_geo" });
+      } else if (s.picked) picks.push({ file: f.file, km: null, source: "commons_name" }); // no geotag to check: only when an article vouches for the place
+    }
+    picks.sort((a, b) => (a.source === b.source ? (a.km ?? 99) - (b.km ?? 99) : a.source === "commons_geo" ? -1 : 1));
+    const seen = new Set<string>();
+    const cands: FileCandidate[] = [];
+    for (const p of picks) { const k = fileKey(p.file); if (seen.has(k)) continue; seen.add(k); cands.push({ file: p.file, source: p.source }); if (cands.length >= MAX_COMMONS_FILES) break; }
+    out.set(s, cands);
+    s.trail.push(`Commons: ${(geo ?? []).length} geotagged files near ${s.picked ? "the article" : "the pin"}, ${(named ?? []).length} found by name "${term}"; ${cands.length} carry the place's name and ${s.picked ? "pass" : "sit within the distance limit"}`);
+  }));
+  return out;
+}
+
+/** Choose a photo for every place: the article's lead image first, then Wikidata's image, the article's own images and Commons photos. */
 async function stepPhotos(states: State[], get: JsonGetter, now: () => number) {
   const withPage = states.filter((s) => s.picked);
   const leadOf = (s: State): FileCandidate[] => (s.picked?.file ? [{ file: s.picked.file, source: "lead" }] : []);
@@ -176,8 +240,9 @@ async function stepPhotos(states: State[], get: JsonGetter, now: () => number) {
   const candidatesOf = new Map<State, FileCandidate[]>(withPage.map((s) => [s, leadOf(s)]));
 
   const finish = (s: State, cands: FileCandidate[]): boolean => {
+    if (!s.picked && cands.length === 0) return false; // nothing to judge: the reason stays what the article steps found (no_page, far…)
     const r = chooseBest(s.g, cands, info);
-    if ("best" in r) { s.outcome = { status: "found", photo: toPhoto(s.picked as Picked, r.best.file, r.best.meta) }; s.trail.push(`photo CHOSEN: "${r.best.file}" (${r.best.source}, ${r.best.meta.licence})`); return true; }
+    if ("best" in r) { s.outcome = { status: "found", photo: toPhoto(s, r.best.file, r.best.meta, r.best.source) }; s.trail.push(`photo CHOSEN: "${r.best.file}" (${r.best.source}, ${r.best.meta.licence})`); return true; }
     s.reason = rejectionReason(r.rejected);
     s.trail.push(`photo candidates:`, ...explainCandidates(s.g, cands, info, whyNot).map((l) => `  ${l}`));
     return false;
@@ -191,9 +256,11 @@ async function stepPhotos(states: State[], get: JsonGetter, now: () => number) {
     if (cands.some((c) => !info.has(fileKey(c.file)))) s.unsure = true; // the licence check itself failed
     if (!finish(s, cands)) needMore.push(s);
   }
-  if (needMore.length === 0) return;
+  const noArticle = states.filter((s) => !s.picked);
+  const stage2 = [...needMore, ...noArticle];
+  if (stage2.length === 0) return;
 
-  // Stage 2: other candidates — Wikidata's image and the article's own images — only for places stage 1 could not settle.
+  // Stage 2: everything else — Wikidata's image, the article's own images and Commons photos — only for places stage 1 could not settle.
   const articleFiles = new Map<string, string[]>();
   await Promise.all(chunk([...new Set(needMore.map((s) => (s.picked as Picked).title))], 20).map(async (titles) => {
     const json = await get(articleImagesUrl(titles));
@@ -208,21 +275,25 @@ async function stepPhotos(states: State[], get: JsonGetter, now: () => number) {
     if (json === null) { needMore.forEach((s) => { if (part.includes((s.picked as Picked).wikidata ?? "")) s.unsure = true; }); return; }
     parseWikidataImages(json).forEach((file, id) => wikidataFile.set(id, file));
   }));
-  for (const s of needMore) {
-    const p = s.picked as Picked;
+  const commons = await stepCommons(stage2, get);
+  for (const s of stage2) {
+    const p = s.picked;
     const cands: FileCandidate[] = [...leadOf(s)];
-    const wd = p.wikidata ? wikidataFile.get(p.wikidata) : undefined;
+    const wd = p?.wikidata ? wikidataFile.get(p.wikidata) : undefined;
     if (wd) cands.push({ file: wd.replace(/ /g, "_"), source: "wikidata" });
-    for (const f of (articleFiles.get(p.title) ?? []).filter((f) => /\.(jpe?g|png|webp)$/i.test(f) && !looksNotAPhoto(f) && sharesDistinctiveWord(s.g.name, f)).slice(0, MAX_ARTICLE_FILES)) {
-      cands.push({ file: f, source: "article" });
+    if (p) {
+      for (const f of (articleFiles.get(p.title) ?? []).filter((f) => isRaster(f) && !looksNotAPhoto(f) && sharesDistinctiveWord(s.g.name, f)).slice(0, MAX_ARTICLE_FILES)) {
+        cands.push({ file: f, source: "article" });
+      }
     }
+    cands.push(...(commons.get(s) ?? []));
     candidatesOf.set(s, cands);
   }
-  await learn(needMore.flatMap((s) => (candidatesOf.get(s) ?? []).map((c) => c.file)));
-  for (const s of needMore) {
+  await learn(stage2.flatMap((s) => (candidatesOf.get(s) ?? []).map((c) => c.file)));
+  for (const s of stage2) {
     const cands = candidatesOf.get(s) ?? [];
     if (cands.some((c) => !info.has(fileKey(c.file)))) s.unsure = true;
-    finish(s, cands);
+    if (finish(s, cands)) s.unsure = false; // found: whatever else could not be checked no longer matters
   }
 }
 
@@ -265,7 +336,8 @@ export async function resolvePlacePhotos(queries: PlacePhotoQuery[], deps: Resol
   if (groups.length === 0) return result;
 
   const known = new Map<string, StoredPhoto>();
-  try { (await deps.store.getMany(groups.map((g) => g.id))).forEach((v, k) => known.set(k, v)); } catch (e) { console.error("[place-photos] cache read:", e instanceof Error ? e.message : e); }
+  if (deps.skipCache) clearFileMetaCache();
+  else try { (await deps.store.getMany(groups.map((g) => g.id))).forEach((v, k) => known.set(k, v)); } catch (e) { console.error("[place-photos] cache read:", e instanceof Error ? e.message : e); }
 
   const misses = groups.filter((g) => !known.has(g.id));
   const outcomes = new Map<string, Outcome>();

@@ -110,3 +110,28 @@ describe("explainCandidates: the diagnostic can never disagree with the decision
     expect(explainCandidates({ name: "A" }, [lead("A_b.jpg"), { file: "A b.jpg", source: "wikidata" }], m)).toHaveLength(1);
   });
 });
+
+describe("Commons sources", () => {
+  const geo = (file: string): FileCandidate => ({ file, source: "commons_geo" });
+  it("a Commons photo needs the place's name in its file name, like an article image", () => {
+    const r = chooseBest(place, [geo("Street_scene.jpg")], world({ "Street_scene.jpg": meta("Street_scene.jpg") }));
+    expect(r).toEqual({ rejected: "image_rejected" });
+    expect(explainCandidates(place, [geo("Street_scene.jpg")], world({ "Street_scene.jpg": meta("Street_scene.jpg") }))[0]).toContain("does not mention the place");
+  });
+  it("is chosen when it is all there is, with the 600 px minimum", () => {
+    const f = "Golconda_Fort_gate.jpg";
+    expect("best" in chooseBest(place, [geo(f)], world({ [f]: meta(f) }))).toBe(true);
+    expect(chooseBest(place, [geo(f)], world({ [f]: meta(f, { width: 500, thumbWidth: 500 }) }))).toEqual({ rejected: "image_rejected" });
+  });
+  it("ranks below an usable lead image and Wikidata's image, above other article images", () => {
+    const l = "Golconda_Fort_lead.jpg", c = "Golconda_Fort_gate.jpg", a = "Golconda_Fort_wall.jpg";
+    const m = world({ [l]: meta(l), [c]: meta(c), [a]: meta(a) });
+    expect((chooseBest(place, [geo(c), { file: a, source: "article" }, lead(l)], m) as { best: { file: string } }).best.file).toBe(l);
+    expect((chooseBest(place, [{ file: a, source: "article" }, geo(c)], m) as { best: { file: string } }).best.file).toBe(c);
+    expect((chooseBest(place, [{ file: c, source: "commons_name" }, { file: a, source: "article" }], m) as { best: { file: string } }).best.file).toBe(a);
+  });
+  it("still never accepts a non-free Commons file", () => {
+    const f = "Golconda_Fort_gate.jpg";
+    expect(chooseBest(place, [geo(f)], world({ [f]: null }))).toEqual({ rejected: "licence" });
+  });
+});

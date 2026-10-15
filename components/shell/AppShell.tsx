@@ -34,7 +34,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col md:flex-row">
       <TimezoneCookie />
       <AppNav trips={trips} userInitial={initial} signOutAction={signOut} />
-      <div className="min-w-0 flex-1 pb-20 md:pb-0">
+      <div className="min-w-0 flex-1 pb-28 md:pb-0">
         <OfflineBanner />
         {children}
       </div>

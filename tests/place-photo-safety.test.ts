@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commonsFilePage, creditText, isFreeLicence, looksNotAPhoto, parseCommonsUrl, safeLicenceUrl, sanitizeCredit, thumbSet, THUMB_WIDTHS } from "@/lib/place-photos/safety";
+import { commonsFilePage, creditText, freeLicenceName, isFreeLicence, licenceFromCode, looksNotAPhoto, parseCommonsUrl, safeLicenceUrl, sanitizeCredit, thumbSet, THUMB_WIDTHS } from "@/lib/place-photos/safety";
 
 const thumb = (file = "Kondapalli_Fort.jpg", w = 500) => `https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/${file}/${w}px-${file}`;
 
@@ -96,4 +96,19 @@ describe("thumbSet: right-sized files, never upscaled, never from an unaccepted 
     expect(thumbSet("https://evil.example/x.jpg")).toBeNull();
     expect(thumbSet("https://upload.wikimedia.org/wikipedia/en/thumb/a/ab/A.jpg/500px-A.jpg")).toBeNull();
   });
+});
+
+describe("freeLicenceName: Commons often offers ALTERNATIVE licences; one acceptable alternative is enough", () => {
+  it.each([
+    ["CC BY-SA 3.0, GFDL", "CC BY-SA 3.0"], ["GFDL 1.2 or later / CC BY-SA 3.0", "CC BY-SA 3.0"], ["CC BY-SA 3.0, 2.5, 2.0, 1.0", "CC BY-SA 3.0"],
+    ["GFDL; CC BY 2.5", "CC BY 2.5"], ["CC BY-SA 4.0", "CC BY-SA 4.0"], ["Public domain", "Public domain"], ["CC0 1.0", "CC0 1.0"], ["CC BY-SA 3.0 IGO", "CC BY-SA 3.0 IGO"],
+  ])("%s → %s", (input, shown) => expect(freeLicenceName(input)).toBe(shown));
+  it.each(["GFDL 1.2", "GFDL, CC BY-NC 3.0", "CC BY-NC-SA 4.0", "CC BY-SA 3.0 and CC BY-NC 3.0", "CC BY-SA 3.0 & GFDL", "Fair use", "", undefined, null, "x, ".repeat(60)])(
+    "never accepts %s (\"and\" means BOTH apply, so one acceptable half proves nothing)", (l) => expect(freeLicenceName(l as string)).toBeNull());
+  it("isFreeLicence agrees with it", () => { expect(isFreeLicence("CC BY-SA 3.0, GFDL")).toBe(true); expect(isFreeLicence("GFDL")).toBe(false); });
+});
+
+describe("licenceFromCode: the machine-readable code is a second opinion", () => {
+  it.each([["cc-by-sa-4.0", "CC BY-SA 4.0"], ["cc-by-3.0", "CC BY 3.0"], ["cc-by-sa-3.0-igo", "CC BY-SA 3.0"], ["cc-zero", "CC0"], ["pd", "Public domain"], ["pd-old-70", "Public domain"]])("%s → %s", (c, shown) => expect(licenceFromCode(c)).toBe(shown));
+  it.each(["gfdl", "cc-by-nc-4.0", "cc-by-nd-2.0", "fairuse", "", undefined, null])("rejects %s", (c) => expect(licenceFromCode(c as string)).toBeNull());
 });

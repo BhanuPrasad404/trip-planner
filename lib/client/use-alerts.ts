@@ -53,7 +53,8 @@ export function useAlerts(utcOffsetMin = 330, opts: { origin?: string } = {}) {
     if (d.inApp || test) {
       setActive((a) => [entry, ...a.filter((x) => x.id !== alert.id)].slice(0, 3));
       if (handler) actions.current.set(alert.id, handler);
-      if (alert.level === 3) window.setTimeout(() => setActive((a) => a.filter((x) => x.id !== alert.id)), 30_000);
+      const ttl = alert.ttlMs ?? (alert.level === 3 ? 30_000 : null);
+      if (ttl) window.setTimeout(() => setActive((a) => a.filter((x) => x.id !== alert.id || x.at !== now)), ttl); // only THIS showing: a newer one with the same id keeps its own lifetime
     }
     if (phoneAllowed) {
       void showPhoneNotification(alert, { silent: !p.sound, url: opts.origin }).then((ok) => { if (ok) ledger.current = recordPhone(ledger.current, now); });

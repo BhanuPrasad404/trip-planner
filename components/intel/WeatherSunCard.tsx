@@ -22,6 +22,11 @@ type Props = {
 const FX_KEY = "tm:weather-fx";
 const FX_FALLBACK: { off?: boolean } = {};
 const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m} min`);
+/** Is this "HH:MM" after sunset or before sunrise? Plain string order works for same-day 24-hour clocks. */
+const isNight = (clock: string, sun: { sunrise: string; sunset: string } | null) => (sun ? clock >= sun.sunset || clock < sun.sunrise : false);
+type Icon = "sun" | "moon" | "rain";
+/** The picture for an hour: rain when rain is likely, else sun or moon from the sun times. Presentation only. */
+const iconFor = (clock: string, precipProb: number | null, sun: { sunrise: string; sunset: string } | null): Icon => ((precipProb ?? 0) >= 60 ? "rain" : isNight(clock, sun) ? "moon" : "sun");
 const rain = (p: number | null, mm: number) => (p !== null ? `${Math.round(p)}% rain` : mm > 0 ? `${mm} mm` : "no rain");
 
 /** Weather right now and the next hours, plus the sun — the two things a traveller checks first. Real forecast data, credited. */
@@ -30,10 +35,10 @@ export function WeatherSunCard({ weather, sun, sunNext, where, updatedAt, tripNo
   const [fx, setFx] = useLocalJson<{ off?: boolean }>(FX_KEY, FX_FALLBACK);
   const scene = sceneFor(weather);
   return (
-    <section aria-labelledby="wx-heading" className="relative isolate rounded-2xl border border-line bg-white p-4 sm:p-5">
+    <section aria-labelledby="wx-heading" className="relative isolate rounded-2xl border border-line bg-white p-4 max-md:rounded-3xl max-md:p-5 sm:p-5">
       <WeatherScene scene={scene} on={!fx.off} />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="wx-heading" className="font-display text-lg font-semibold text-pine">Weather &amp; sun</h2>
+        <h2 id="wx-heading" className="font-display text-lg font-semibold text-pine max-md:text-2xl">Weather &amp; sun</h2>
         <p className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-ink-muted">
           <WhenChip kind="now" detail={age === null ? undefined : age < 1 ? "updated just now" : `updated ${age} min ago`} /> at {where}
         </p>
@@ -48,21 +53,26 @@ export function WeatherSunCard({ weather, sun, sunNext, where, updatedAt, tripNo
 
       <div className="mt-3 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
         {weather ? (
-          <div>
-            <p className="font-display text-4xl font-semibold leading-none text-pine">{weather.tempC}°C</p>
-            <p className="mt-1 text-sm text-ink-muted">{rain(weather.precipProb, weather.precipMm)} this hour</p>
-            {weather.pointKm >= 15 && <p className="mt-1 text-xs text-clay-ink">Forecast point is {weather.pointKm} km away.</p>}
+          <div className="flex items-center justify-between gap-4 sm:block max-md:flex">
+            <div>
+              <p className="font-display text-4xl font-semibold leading-none text-pine max-md:text-6xl">{weather.tempC}°C</p>
+              <p className="mt-1 text-sm text-ink-muted max-md:mt-2 max-md:text-base">{rain(weather.precipProb, weather.precipMm)} this hour</p>
+              {weather.pointKm >= 15 && <p className="mt-1 text-xs text-clay-ink">Forecast point is {weather.pointKm} km away.</p>}
+            </div>
+            {/* A picture for the current hour, on phones only. The words beside it say the same thing. */}
+            <Glyph name={iconFor(weather.next[0]?.clock ?? "12:00", weather.precipProb, sun)} size={64} strokeWidth={1.6} className="hidden shrink-0 text-marigold drop-shadow-[0_0_14px_rgba(232,163,61,0.5)] max-md:block" />
           </div>
         ) : (
           <p className="text-sm text-ink-muted">The forecast isn&apos;t available right now. We don&apos;t guess the weather.</p>
         )}
 
         {weather && weather.next.length > 0 && (
-          <ol className="flex gap-2 overflow-x-auto" aria-label="Next hours">
+          <ol className="flex gap-2 overflow-x-auto max-md:grid max-md:grid-flow-col max-md:auto-cols-fr max-md:gap-2.5" aria-label="Next hours">
             {weather.next.map((h) => (
-              <li key={h.clock} className="shrink-0 rounded-xl bg-sky px-3 py-2 text-center">
-                <p className="font-mono text-xs text-ink-muted">{h.clock}</p>
-                <p className="font-semibold text-pine">{h.tempC}°</p>
+              <li key={h.clock} className="shrink-0 rounded-xl bg-sky px-3 py-2 text-center max-md:min-w-0 max-md:rounded-2xl max-md:border max-md:border-line max-md:px-1 max-md:py-3">
+                <p className="font-mono text-xs text-ink-muted max-md:text-sm">{h.clock}</p>
+                <Glyph name={iconFor(h.clock, h.precipProb, sun)} size={22} className={`mx-auto my-1.5 hidden max-md:block ${iconFor(h.clock, h.precipProb, sun) === "moon" ? "text-[#f3e3b0]" : "text-marigold"}`} />
+                <p className="font-semibold text-pine max-md:text-xl">{h.tempC}°</p>
                 <p className={`text-xs ${(h.precipProb ?? 0) >= 60 ? "font-semibold text-clay-ink" : "text-ink-muted"}`}>{h.precipProb !== null ? `${Math.round(h.precipProb)}%` : "—"}</p>
               </li>
             ))}

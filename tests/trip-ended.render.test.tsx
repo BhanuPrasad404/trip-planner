@@ -16,9 +16,9 @@ describe("past trips on the list and dashboard", () => {
     expect(html).toContain("View on map");
     expect(html).toContain("/trips/00000000-0000-0000-0000-000000000001/map");
   });
-  it("a trip whose dates passed with nothing done is 'Ended', never 'Completed'", () => {
+  it("a trip whose dates passed with nothing done is 'Dates passed', never 'Completed'", () => {
     const html = renderToStaticMarkup(<TripCard trip={past(0, 0)} isOwner />);
-    expect(html).toContain("Ended");
+    expect(html).toContain("Dates passed");
     expect(html).not.toContain(">Completed<");
     expect(html).toContain("View on map");
   });
@@ -27,7 +27,7 @@ describe("past trips on the list and dashboard", () => {
     expect(renderToStaticMarkup(<TripCard trip={t} isOwner />)).not.toContain("View on map");
   });
   it("the chip uses the outcome label when given, the plain state label otherwise", () => {
-    expect(renderToStaticMarkup(<StateChip state="completed" outcome={tripOutcome("completed", { stops: 2, done: 0, skipped: 0 })} />)).toContain("Ended");
+    expect(renderToStaticMarkup(<StateChip state="completed" outcome={tripOutcome("completed", { stops: 2, done: 0, skipped: 0 })} />)).toContain("Dates passed");
     expect(renderToStaticMarkup(<StateChip state="completed" />)).toContain("Completed");
     expect(renderToStaticMarkup(<StateChip state="active" />)).toContain("Active now");
   });

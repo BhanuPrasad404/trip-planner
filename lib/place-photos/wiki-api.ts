@@ -22,6 +22,15 @@ export const geosearchUrl = (p: GeoPoint, radiusM = 3000) =>
   query({ generator: "geosearch", ggsnamespace: "0", ggslimit: "30", ggscoord: `${p.lat.toFixed(5)}|${p.lng.toFixed(5)}`, ggsradius: String(radiusM), ggsprimary: "all", ...PAGE_PROPS });
 /** The image files used inside articles (for pages whose lead image is a map, or missing). */
 export const articleImagesUrl = (titles: string[]) => query({ titles: titles.slice(0, 20).join("|"), redirects: "1", prop: "images", imlimit: "max" });
+const CM = "https://commons.wikimedia.org/w/api.php";
+const commonsQuery = (o: Record<string, string>) => `${CM}?${new URLSearchParams({ action: "query", format: "json", formatversion: "2", ...o })}`;
+/** Photos on Wikimedia Commons that are geotagged around a point (file namespace). Licence and size are checked afterwards, in one batch. */
+export const commonsGeoFilesUrl = (p: GeoPoint, radiusM = 1000) =>
+  commonsQuery({ generator: "geosearch", ggsnamespace: "6", ggslimit: "50", ggscoord: `${p.lat.toFixed(5)}|${p.lng.toFixed(5)}`, ggsradius: String(radiusM), ggsprimary: "all", prop: "coordinates", coprimary: "all", colimit: "max" });
+/** Photos on Commons whose title or description matches a name (file namespace), with their geotag when they have one. */
+export const commonsSearchFilesUrl = (term: string) =>
+  commonsQuery({ generator: "search", gsrsearch: term, gsrnamespace: "6", gsrlimit: "30", prop: "coordinates", coprimary: "all", colimit: "max" });
+
 /** Wikidata's own "image" claim (P18) for up to 10 items. */
 export const wikidataClaimsUrl = (ids: string[]) => `${WD}?${new URLSearchParams({ action: "wbgetentities", format: "json", props: "claims", ids: ids.slice(0, 10).join("|") })}`;
 
@@ -118,6 +127,22 @@ export function parseWikidataImages(json: unknown): Map<string, string> {
       .filter((c) => c.rank !== "deprecated" && typeof c.mainsnak?.datavalue?.value === "string");
     const best = usable.find((c) => c.rank === "preferred") ?? usable[0];
     if (best) out.set(id, best.mainsnak!.datavalue!.value as string);
+  }
+  return out;
+}
+
+export type CommonsFile = { file: string; lat: number | null; lng: number | null };
+
+/** File pages from a Commons geosearch / search answer: the file name (without "File:") and its geotag when it has one. */
+export function parseCommonsFiles(json: unknown): CommonsFile[] {
+  const out: CommonsFile[] = [];
+  for (const raw of rawPages(json)) {
+    const p = pageSchema.safeParse(raw);
+    if (!p.success || p.data.invalid || p.data.missing) continue;
+    if (!/^File:/i.test(p.data.title)) continue;
+    const c = p.data.coordinates?.find((x) => x.primary === true) ?? p.data.coordinates?.[0];
+    const file = p.data.title.replace(/^File:/i, "").trim().replace(/ /g, "_"); // underscores, like every other file name here
+    if (file) out.push({ file, lat: c && Number.isFinite(c.lat) ? c.lat : null, lng: c && Number.isFinite(c.lon) ? c.lon : null });
   }
   return out;
 }

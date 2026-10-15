@@ -105,11 +105,10 @@ export function simplifyLine(line: LngLat[], toleranceM = 30): LngLat[] {
 // ── When to warn ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export const TOLL = {
-  /** At highway speed (40 km/h or more) we warn when the plaza is within about this far ahead. */
+  /** The standard warning: when a plaza is within about this far ahead ALONG THE ROUTE, at any ordinary speed (and when the speed is unknown). */
   farM: 5_000,
-  /** Slower traffic: a shorter warning, so a crawl through a town is not warned about from 5 km away. */
+  /** A crawl (under 15 km/h, e.g. a jam in a town): a shorter warning, so 30 minutes of queueing is not spent holding an alert. */
   midM: 3_000,
-  nearM: 1_500,
   /** Closer than this, a warning is too late to help. */
   tooLateM: 50,
   /** Past the plaza by this much counts as having gone through it. */
@@ -119,8 +118,8 @@ export const TOLL = {
   maxOffsetM: 60,
 } as const;
 
-/** How far ahead to warn, from how fast the traveller is going. Unknown speed uses the middle distance. */
-export const warnDistanceM = (speedKmh: number | null): number => (speedKmh === null || !Number.isFinite(speedKmh) ? TOLL.midM : speedKmh >= 40 ? TOLL.farM : speedKmh >= 15 ? TOLL.midM : TOLL.nearM);
+/** How far ahead to warn. About 5 km at any ordinary speed (or an unknown one); 3 km only when crawling (under 15 km/h). Measured along the road, never in a straight line. */
+export const warnDistanceM = (speedKmh: number | null): number => (speedKmh !== null && Number.isFinite(speedKmh) && speedKmh < 15 ? TOLL.midM : TOLL.farM);
 
 export type TollInput = {
   /** Distance travelled along the active route (m). */
@@ -168,11 +167,16 @@ export function tollAlert(t: TollOnRoute, aheadM: number): AppAlert {
   const where = [t.name, t.ref && t.ref !== t.name ? t.ref : null].filter(Boolean).join(" · ");
   const fee = t.fee ? `Fee in map data: ${t.fee}.` : "No fee is listed in the map data.";
   return {
-    id: `toll:${t.id}`, kind: "toll", level: 2, title: "Toll plaza ahead",
+    id: tollAlertId(t.id), kind: "toll", level: 2, title: "Toll plaza ahead",
     body: `${where ? `${where}: ` : ""}${formatAhead(aheadM)} ahead on your route. ${fee} Have your FASTag or other payment method ready if it applies to your vehicle.`,
     cooldownMs: 12 * 3_600_000,
+    // Gone by itself if it is never dismissed (it is also removed the moment the plaza has been passed).
+    ttlMs: 8 * 60_000,
   };
 }
+
+/** The id the toll alert for this plaza carries (used to remove it once the plaza has been passed). */
+export const tollAlertId = (tollId: string) => `toll:${tollId}`;
 
 /** Plazas still ahead, with the real distance to each, for the list on screen. */
 export function tollsAhead(tolls: TollOnRoute[], alongM: number | null): (TollOnRoute & { aheadM: number | null })[] {

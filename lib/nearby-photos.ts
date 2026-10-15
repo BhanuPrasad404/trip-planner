@@ -6,7 +6,7 @@
 // A place with no real photo gets none. We never show stock or look-alike pictures.
 import { distanceKm, type GeoPoint } from "@/lib/geo";
 import type { NearbyKind, NearbyPhoto, NearbyPlace } from "@/lib/nearby";
-import { looksNotAPhoto, parseCommonsUrl, thumbSet } from "@/lib/place-photos/safety";
+import { imageAddress, looksNotAPhoto, parseCommonsUrl, thumbSet } from "@/lib/place-photos/safety";
 import type { PlacePhoto } from "@/lib/place-photos/types";
 
 export type CommonsImage = { lat: number; lng: number; thumb: string; /** Same photo at standard widths, when known. */ srcSet?: string; pageUrl: string };
@@ -19,7 +19,7 @@ export const COMMONS_KINDS: NearbyKind[] = ["sights"];
 type CommonsPage = {
   title?: string;
   coordinates?: { lat: number; lon: number }[];
-  imageinfo?: { thumburl?: string; descriptionurl?: string }[];
+  imageinfo?: { thumburl?: string; url?: string; width?: number; height?: number; descriptionurl?: string }[];
 };
 
 export function parseCommons(json: unknown): CommonsImage[] {
@@ -29,9 +29,11 @@ export function parseCommons(json: unknown): CommonsImage[] {
   for (const p of Object.values(pages)) {
     const c = p.coordinates?.[0];
     const info = p.imageinfo?.[0];
-    if (!c || !info?.thumburl || !info.descriptionurl) continue;
+    if (!c || !info?.descriptionurl) continue;
+    const addr = imageAddress(info, 330); // Commons does not always send a usable thumburl for large originals: derive it from the original
+    if (!addr) continue;
     try {
-      const thumb = new URL(info.thumburl);
+      const thumb = new URL(addr.url);
       const page = new URL(info.descriptionurl);
       if (page.protocol !== "https:" || page.hostname !== "commons.wikimedia.org") continue;
       // Commons-hosted raster photos only (not svg/pdf/video, not another wiki's local uploads), and never a map/flag/logo/diagram.
@@ -60,7 +62,7 @@ export async function fetchCommonsImages(origin: GeoPoint, radiusKm: number, fet
   const params = new URLSearchParams({
     action: "query", format: "json", generator: "geosearch", ggsnamespace: "6", ggslimit: "50",
     ggscoord: `${origin.lat.toFixed(5)}|${origin.lng.toFixed(5)}`, ggsradius: String(radiusM),
-    prop: "imageinfo|coordinates", iiprop: "url", iiurlwidth: "330", colimit: "50",
+    prop: "imageinfo|coordinates", iiprop: "url|size", iiurlwidth: "330", colimit: "50",
   });
   try {
     const res = await fetchImpl(`https://commons.wikimedia.org/w/api.php?${params}`, {

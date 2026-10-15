@@ -72,9 +72,9 @@ export function tripOutcome(state: TripState, c: TripCounts): TripOutcome {
   if (state !== "completed") return { label: STATE_LABEL[state], kind: state, note: null };
   if (c.done > 0) return { label: "Completed", kind: "completed", note: `${c.done} of ${c.stops} planned stop${c.stops === 1 ? "" : "s"} done${c.skipped ? `, ${c.skipped} skipped` : ""}.` };
   return {
-    label: "Ended",
+    label: "Dates passed",
     kind: "ended",
-    note: c.stops > 0 ? "The planned dates have passed and no stops were marked done, so we don't call it completed." : "The planned dates have passed.",
+    note: c.stops > 0 ? "The planned dates have passed and no stops were marked done, so we don't call it completed. You can resume it, reschedule it, or keep the plan." : "The planned dates have passed.",
   };
 }
 
@@ -85,7 +85,9 @@ export type LiveDay = { mode: "today" | "overrun" | "preview"; day: number | nul
  * (you are still on the last day: arriving after midnight must not turn the trip into a past one while you drive); otherwise a
  * "preview" of whatever day the traveller is looking at.
  */
-export function liveDayFor(trip: { start_date: string | null; num_days: number }, todayISO: string): LiveDay {
+export function liveDayFor(trip: { start_date: string | null; num_days: number }, todayISO: string, opts: { resumedDay?: number | null } = {}): LiveDay {
+  // A trip the owner resumed runs TODAY, on the day they are actually up to, whatever the planned dates say.
+  if (opts.resumedDay != null && Number.isInteger(opts.resumedDay) && opts.resumedDay >= 1 && opts.resumedDay <= tripLength(trip.num_days)) return { mode: "today", day: opts.resumedDay };
   const d = tripDates(trip);
   if (!d || !isRealISODate(todayISO)) return { mode: "preview", day: null };
   if (todayISO >= d.first && todayISO <= d.last) {

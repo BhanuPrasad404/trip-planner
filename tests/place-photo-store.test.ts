@@ -10,7 +10,7 @@ const photo = (o: Partial<PlacePhoto> = {}): PlacePhoto => ({
 const entry = (key: string, found = true): StoreEntry => ({ key, name: "Fort", lat: 17, lng: 78, ttlMs: 1000, value: found ? { status: "found", photo: photo() } : { status: "none", reason: "no_page" } });
 
 describe("RESOLVER_VERSION", () => {
-  it("was bumped when the matching rules changed, so answers cached by the earlier rules are ignored", () => expect(RESOLVER_VERSION).toBeGreaterThanOrEqual(2));
+  it("was bumped when the matching rules changed, so answers cached by the earlier rules are ignored", () => expect(RESOLVER_VERSION).toBeGreaterThanOrEqual(4));
 });
 
 describe("photoKey: the same place however it was typed", () => {
@@ -36,6 +36,14 @@ describe("validateStoredPhoto: the database is not trusted", () => {
     ["a srcset with a foreign address", { srcSet: "https://evil.example/a.jpg 120w" }],
     ["an unknown extra field", { onload: "alert(1)" }],
   ])("rejects %s", (_n, o) => expect(validateStoredPhoto({ ...photo(), ...o })).toBeNull());
+  it("accepts a Commons-sourced photo only with a Commons page link, and a Wikipedia one only with a Wikipedia link", () => {
+    const c = photo({ source: "commons", via: "commons", pageUrl: "https://commons.wikimedia.org/wiki/File:Fort.jpg" });
+    expect(validateStoredPhoto(c)?.source).toBe("commons");
+    expect(validateStoredPhoto({ ...c, pageUrl: "https://en.wikipedia.org/wiki/Fort" })).toBeNull();
+    expect(validateStoredPhoto({ ...c, pageUrl: "https://evil.example/File:Fort.jpg" })).toBeNull();
+    expect(validateStoredPhoto(photo({ pageUrl: "https://commons.wikimedia.org/wiki/File:Fort.jpg" }))).toBeNull();
+    expect(validateStoredPhoto({ ...c, licence: "CC BY-NC 4.0" })).toBeNull();
+  });
   it("rejects junk", () => { for (const j of [null, "x", 5, {}, []]) expect(validateStoredPhoto(j)).toBeNull(); });
 });
 

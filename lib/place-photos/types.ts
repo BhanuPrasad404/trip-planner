@@ -1,7 +1,7 @@
 import type { GeoPoint } from "@/lib/geo";
 
 /** How the place's Wikipedia article was found. "exact" (title or redirect) is the most reliable. */
-export type FoundVia = "exact" | "search" | "geosearch";
+export type FoundVia = "exact" | "search" | "geosearch" | "commons";
 
 export type PlacePhoto = {
   /** Best single size (used when the browser ignores srcset). */
@@ -9,9 +9,10 @@ export type PlacePhoto = {
   /** The same file at the standard thumbnail widths, so a 64 px box does not download 500 px. */
   srcSet?: string;
   width: number; height: number; title: string;
-  /** The Wikipedia article this photo came from. */
+  /** The Wikipedia article this photo came from (for a Commons-sourced photo: its Commons file page). */
   pageUrl: string;
-  source: "wikipedia";
+  /** "wikipedia": the article's own image. "commons": a Commons photo matched to the place by name and geotag. */
+  source: "wikipedia" | "commons";
   /** Commons file page: shows the full author and licence text. */
   creditUrl?: string;
   /** Plain-text author, or null when Commons does not say. */

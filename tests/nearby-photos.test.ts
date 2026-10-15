@@ -37,6 +37,17 @@ describe("OSM photo tags", () => {
     expect(osmPhoto({ wikimedia_commons: "Category:Something" })).toBeNull();
     expect(osmPhoto({})).toBeNull();
   });
+  it("rejects other wikis' local uploads, maps/flags, and turns a Commons PAGE url into a real image address", () => {
+    expect(osmPhoto({ image: "https://upload.wikimedia.org/wikipedia/en/a/ab/X.jpg" })).toBeNull(); // not Commons: licence unknown
+    expect(osmPhoto({ image: "https://upload.wikimedia.org/wikipedia/commons/a/ab/Fort_locator_map.png" })).toBeNull();
+    expect(osmPhoto({ wikimedia_commons: "File:Flag of Telangana.png" })).toBeNull();
+    expect(osmPhoto({ wikimedia_commons: "File:Fort plan.jpg" })).toBeNull();
+    expect(osmPhoto({ wikimedia_commons: "File:Fort movie.webm" })).toBeNull(); // not a raster photo
+    const page = osmPhoto({ image: "https://commons.wikimedia.org/wiki/File:Kondapalli_Fort.jpg" });
+    expect(page?.url).toContain("Special:FilePath/Kondapalli_Fort.jpg"); // used to be the page URL itself, which can never render as an image
+    expect(page?.creditUrl).toBe("https://commons.wikimedia.org/wiki/File:Kondapalli_Fort.jpg");
+    expect(osmPhoto({ image: "https://commons.wikimedia.org/wiki/Category:Forts" })).toBeNull();
+  });
   it("parseOverpass carries the photo and drops unnamed sights", () => {
     const out = parseOverpass(
       { elements: [
@@ -52,8 +63,8 @@ describe("OSM photo tags", () => {
 
 const commonsJson = {
   query: { pages: {
-    "1": { title: "File:A.jpg", coordinates: [{ lat: 17.001, lon: 80.001 }], imageinfo: [{ thumburl: "https://upload.wikimedia.org/a/320px-A.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:A.jpg" }] },
-    "2": { title: "File:B.svg", coordinates: [{ lat: 17.0, lon: 80.0 }], imageinfo: [{ thumburl: "https://upload.wikimedia.org/b/320px-B.svg.png", descriptionurl: "https://commons.wikimedia.org/wiki/File:B.svg" }] },
+    "1": { title: "File:A.jpg", coordinates: [{ lat: 17.001, lon: 80.001 }], imageinfo: [{ thumburl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/A.jpg/330px-A.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:A.jpg" }] },
+    "2": { title: "File:B.svg", coordinates: [{ lat: 17.0, lon: 80.0 }], imageinfo: [{ thumburl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/B.svg/330px-B.svg.png", descriptionurl: "https://commons.wikimedia.org/wiki/File:B.svg" }] },
     "3": { title: "File:C.jpg", coordinates: [{ lat: 17.0, lon: 80.0 }], imageinfo: [{ thumburl: "https://evil.example/c.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:C.jpg" }] },
     "4": { title: "File:D.jpg", imageinfo: [{ thumburl: "https://upload.wikimedia.org/d.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:D.jpg" }] },
   } },
@@ -64,10 +75,21 @@ describe("Commons", () => {
 
   it("keeps only real, geotagged, Wikimedia-hosted raster photos", () => {
     const imgs = parseCommons(commonsJson);
-    expect(imgs).toHaveLength(2); // A and B; C is hosted elsewhere, D has no coordinates
-    expect(imgs.map((i) => i.pageUrl).sort()).toEqual(["https://commons.wikimedia.org/wiki/File:A.jpg", "https://commons.wikimedia.org/wiki/File:B.svg"]);
+    expect(imgs).toHaveLength(1); // A only: B is an svg, C is hosted elsewhere, D has no coordinates
+    expect(imgs.map((i) => i.pageUrl)).toEqual(["https://commons.wikimedia.org/wiki/File:A.jpg"]);
+    expect(imgs[0].srcSet).toContain("120px-A.jpg 120w"); // right-sized files for small boxes
     expect(imgs.some((i) => i.thumb.includes("evil"))).toBe(false);
     expect(imgs.every((i) => i.thumb.startsWith("https://upload.wikimedia.org/"))).toBe(true);
+  });
+  it("drops maps, flags, logos and other-wiki uploads even when they are on Commons or Wikimedia", () => {
+    const page = (name: string, path: string) => ({ title: `File:${name}`, coordinates: [{ lat: 17, lon: 80 }], imageinfo: [{ thumburl: `https://upload.wikimedia.org${path}`, descriptionurl: `https://commons.wikimedia.org/wiki/File:${name}` }] });
+    const out = parseCommons({ query: { pages: {
+      "1": page("Fort_locator_map.png", "/wikipedia/commons/thumb/a/ab/Fort_locator_map.png/330px-Fort_locator_map.png"),
+      "2": page("Flag_of_Telangana.png", "/wikipedia/commons/thumb/a/ab/Flag_of_Telangana.png/330px-Flag_of_Telangana.png"),
+      "3": page("Local_upload.jpg", "/wikipedia/en/thumb/a/ab/Local_upload.jpg/330px-Local_upload.jpg"),
+      "4": page("Fort_gate.jpg", "/wikipedia/commons/thumb/a/ab/Fort_gate.jpg/330px-Fort_gate.jpg"),
+    } } });
+    expect(out.map((i) => i.pageUrl)).toEqual(["https://commons.wikimedia.org/wiki/File:Fort_gate.jpg"]);
   });
   it("is empty (never throws) when the service fails", async () => {
     expect(await fetchCommonsImages(origin, 5, (async () => new Response("x", { status: 500 })) as typeof fetch)).toEqual([]);

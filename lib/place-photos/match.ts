@@ -61,11 +61,12 @@ export const MAX_MATCH_KM = 3;
 /** A bare page ("Kondapalli") only counts for "Kondapalli Fort" when it is practically the same spot. */
 export const BARE_TITLE_MAX_KM = 0.6;
 
-/** The one page that is this place, or null. */
-export function pickPage(place: { name: string } & GeoPoint, candidates: PageCandidate[]): PageCandidate | null {
-  let best: { c: PageCandidate; score: number; km: number } | null = null;
+export type IdentityCandidate = { title: string; lat: number; lng: number };
+
+/** The one candidate that IS this place (name and location both agree), or null. Says nothing about photos. */
+export function pickIdentity<T extends IdentityCandidate>(place: { name: string } & GeoPoint, candidates: T[]): T | null {
+  let best: { c: T; score: number; km: number } | null = null;
   for (const c of candidates) {
-    if (!c.thumb) continue;
     const m = matchTitle(place.name, c.title);
     if (!m) continue;
     const km = distanceKm(place, c);
@@ -73,4 +74,9 @@ export function pickPage(place: { name: string } & GeoPoint, candidates: PageCan
     if (!best || m.score > best.score || (m.score === best.score && km < best.km)) best = { c, score: m.score, km };
   }
   return best?.c ?? null;
+}
+
+/** The one page that is this place AND has a usable thumbnail, or null. */
+export function pickPage(place: { name: string } & GeoPoint, candidates: PageCandidate[]): PageCandidate | null {
+  return pickIdentity(place, candidates.filter((c) => c.thumb));
 }

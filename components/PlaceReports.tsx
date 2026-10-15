@@ -10,6 +10,7 @@ import {
 import { Button } from "./ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import { REPORT_TAG_GLYPH } from "@/lib/glyphs";
+import { SafeImg } from "@/components/ui/SafeImg";
 
 function TagGlyph({ tag }: { tag: string }) {
   return <Glyph name={REPORT_TAG_GLYPH[tag] ?? "info"} size={13} className="mr-0.5 inline align-text-bottom" />;
@@ -117,8 +118,7 @@ export function PlaceReports({ place, reports, userId, onChanged, now }: PlaceRe
           {reports.slice(0, 3).map((r) => (
             <li key={r.id} className="flex gap-3 rounded-xl bg-sky/60 p-2.5 text-sm">
               {r.photoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- user photo from Supabase Storage; already downscaled before upload
-                <img src={r.photoUrl} alt={`Photo of ${place.name} shared by a traveler`} width={96} height={96} loading="lazy" className="h-16 w-16 shrink-0 rounded-lg object-cover sm:h-20 sm:w-20" />
+                <SafeImg src={r.photoUrl} alt={`Photo of ${place.name} shared by a traveler`} width={96} height={96} className="h-16 w-16 shrink-0 rounded-lg object-cover sm:h-20 sm:w-20" fallback={<span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-teal-light px-1 text-center text-[10px] text-ink-muted sm:h-20 sm:w-20">Photo unavailable</span>} />
               )}
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap gap-1.5">

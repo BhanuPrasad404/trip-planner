@@ -26,7 +26,7 @@ export function classify(tags: Record<string, string>): PoiKind | null {
 }
 
 // Only the tags we actually use are stored — keeps the table small and avoids hoarding personal details (e.g. phone numbers of individuals).
-const KEEP = ["brand", "operator", "opening_hours", "cuisine", "diet:vegetarian", "diet:vegan", "wikimedia_commons", "image", "fee", "wheelchair", "fuel:diesel", "website"];
+const KEEP = ["brand", "operator", "opening_hours", "cuisine", "diet:vegetarian", "diet:vegan", "wikimedia_commons", "wikidata", "wikipedia", "heritage", "image", "fee", "wheelchair", "fuel:diesel", "website"];
 const clip = (v: string) => v.trim().slice(0, 200);
 
 export function toRecord(raw: RawPlace, source: string, fetchedAt: string): PoiRecord | null {

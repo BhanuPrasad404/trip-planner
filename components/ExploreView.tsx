@@ -6,6 +6,11 @@ import { googleMapsPlace } from "@/lib/maps-links";
 import { type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { Button } from "./ui/Button";
 import { Glyph, CategoryGlyph, KindGlyph, KindBadge } from "@/components/ui/Glyph";
+import { SafeImg } from "@/components/ui/SafeImg";
+import { PlacePhoto } from "@/components/ui/PlacePhoto";
+import { usePlacePhotos } from "@/lib/client/use-place-photos";
+import { ExplorePlaceSearch } from "@/components/ExplorePlaceSearch";
+import { creditText } from "@/lib/place-photos/safety";
 
 export type ExploreSeasonTag = {
   id: string; place_name: string; lat: number; lng: number; category: string | null; good_months: number[]; reason: string | null; region: string | null;
@@ -28,6 +33,7 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
   const [showUnverified, setShowUnverified] = useState(false);
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [addError, setAddError] = useState<string | null>(null);
+  const [custom, setCustom] = useState<Anchor | null>(null);
   const [anchorId, setAnchorId] = useState(anchors[0]?.id ?? "");
   const [kind, setKind] = useState<NearbyKind>("sights");
   const [busy, setBusy] = useState(false);
@@ -43,6 +49,8 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
   const cats = [...new Set(pool.map((t) => normalizeCategory(t.category)))];
   const matches = (t: ExploreSeasonTag) => !cat || normalizeCategory(t.category) === cat;
   const list = (showOut ? [...inSeason, ...out] : inSeason).filter(matches);
+  // Real photos of the destinations, filled in after the cards are on screen. No confident match = no photo, the card stays as it is.
+  const cardPhotos = usePlacePhotos(list.map((t) => ({ key: `season-${t.id}`, name: t.place_name, lat: t.lat, lng: t.lng })));
 
   async function addIdea(p: { key: string; name: string; lat: number; lng: number; category?: string | null; seasonId?: string; note?: string }) {
     if (!tripId) return;
@@ -55,8 +63,10 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
     setAdded((s) => new Set(s).add(p.key));
   }
 
-  async function discover(k: NearbyKind, id = anchorId) {
-    const a = anchors.find((x) => x.id === id);
+  const allAnchors = custom ? [custom, ...anchors] : anchors;
+
+  async function discover(k: NearbyKind, target: string | Anchor = anchorId) {
+    const a = typeof target === "string" ? allAnchors.find((x) => x.id === target) : target;
     if (!a) return;
     setKind(k); setBusy(true); setError(null);
     try {
@@ -98,6 +108,7 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
               const key = `season-${t.id}`;
               return (
                 <li key={t.id} className="flex flex-col rounded-2xl border border-line bg-white p-5">
+                  {cardPhotos[key] && <div className="mb-3"><PlacePhoto photo={cardPhotos[key]} name={t.place_name} credit sizes="(min-width: 640px) 33vw, 92vw" className="h-36 w-full" fallback={<CategoryGlyph category={normalizeCategory(t.category)} size={28} />} /></div>}
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="break-words font-display text-lg font-semibold text-pine"><CategoryGlyph category={normalizeCategory(t.category)} size={18} className="mr-1.5 inline align-text-bottom text-teal" />{t.place_name}</h3>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${yearRound ? "bg-sky text-ink-muted" : good ? "bg-teal-light text-teal-ink" : "bg-clay-light text-clay-ink"}`}>{yearRound ? "No seasonal pattern" : good ? "In season" : "Out of season"}</span>
@@ -119,14 +130,15 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
       </section>
 
       <section aria-labelledby="around-heading" className="rounded-3xl border border-line bg-white p-5 sm:p-6">
-        <h2 id="around-heading" className="font-display text-2xl font-semibold text-pine">Around {anchors.length > 0 ? "your trip" : "a place"}</h2>
-        <p className="mt-1 text-sm text-ink-muted">Real places from OpenStreetMap, with photos only where a real one exists. Price and rating filters will appear once a source for them is connected — we don&apos;t guess.</p>
-        {anchors.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-muted">Create a trip with a start or destination to explore around it.</p>
+        <h2 id="around-heading" className="font-display text-2xl font-semibold text-pine">Around {custom ? custom.label : anchors.length > 0 ? "your trip" : "a place"}</h2>
+        <p className="mt-1 text-sm text-ink-muted">Real places from OpenStreetMap; well-known ones first. Photos come from Wikipedia and Wikimedia Commons (free licences, credited), and only where a real one exists. Price and rating filters will appear once a source for them is connected — we don&apos;t guess.</p>
+        <div className="mt-4"><ExplorePlaceSearch onPick={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("sights", a); }} /></div>
+        {allAnchors.length === 0 ? (
+          <p className="mt-3 text-sm text-ink-muted">Pick a place above, or create a trip with a start or destination to explore around it.</p>
         ) : (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <label className="text-sm font-semibold text-pine">Around <select value={anchorId} onChange={(e) => { setAnchorId(e.target.value); if (places) void discover(kind, e.target.value); }} className="ml-1 min-h-10 rounded-lg border border-line bg-white px-2 text-sm font-normal">{anchors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
+              <label className="text-sm font-semibold text-pine">Around <select value={anchorId} onChange={(e) => { setAnchorId(e.target.value); if (places) void discover(kind, e.target.value); }} className="ml-1 min-h-10 rounded-lg border border-line bg-white px-2 text-sm font-normal">{allAnchors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
               <div className="flex flex-wrap gap-2" role="group" aria-label="What to look for">
                 {DISCOVER.map((k) => <button key={k} type="button" disabled={busy} aria-pressed={places !== null && kind === k} onClick={() => void discover(k)} className={`min-h-10 rounded-full border px-3 text-sm font-semibold disabled:opacity-60 ${places !== null && kind === k ? "border-teal bg-teal-light text-teal-ink" : "border-line bg-white text-ink-muted hover:border-teal"}`}><KindGlyph kind={k} size={15} className="mr-1.5 inline align-text-bottom" />{DISCOVER_LABEL[k]}</button>)}
               </div>
@@ -134,18 +146,19 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
             <div aria-live="polite" className="mt-3">
               {busy && <p className="text-sm text-ink-muted">Looking…</p>}
               {error && <p role="alert" className="text-sm font-semibold text-clay-ink">{error} <Button size="sm" variant="ghost" onClick={() => void discover(kind)}>Try again</Button></p>}
+              {!busy && places && places.length > 0 && kind === "sights" && <p className="mb-2 text-xs text-ink-muted">We haven&apos;t researched the best months for these places yet, so none are shown as &ldquo;in season&rdquo;. Check the weather before you go.</p>}
               {!busy && places && places.length === 0 && <p className="text-sm text-ink-muted">Nothing found here. The map may list few places in this area.</p>}
               {!busy && places && places.length > 0 && (
                 <ul className="grid gap-3 sm:grid-cols-2">
                   {places.map((p) => (
                     <li key={p.id} className="flex gap-3 rounded-xl border border-line p-3 text-sm">
                       {p.photo ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- real photo (traveler / Wikimedia), lazy-loaded
-                        <img src={p.photo.url} alt={`Photo of ${p.name}`} width={64} height={64} loading="lazy" referrerPolicy="no-referrer" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                        <SafeImg src={p.photo.url} srcSet={p.photo.srcSet} sizes="64px" alt={`Photo of ${p.name}`} width={64} height={64} className="h-16 w-16 shrink-0 rounded-lg object-cover" fallback={<KindBadge kind={p.kind} size={64} />} />
                       ) : <KindBadge kind={p.kind} size={64} />}
                       <div className="min-w-0 flex-1">
-                        <p className="break-words font-semibold text-pine">{p.name}</p>
+                        <p className="break-words font-semibold text-pine">{p.name}{p.notable && <span className="ml-2 align-middle rounded-full bg-teal-light px-2 py-0.5 text-[11px] font-semibold text-teal-ink">Well known</span>}</p>
                         <p className="text-xs text-ink-muted">{p.km} km away{p.hours && ` · ${p.hours}`}</p>
+                        {p.photo?.creditUrl && <a href={p.photo.creditUrl} target="_blank" rel="noopener noreferrer" className="block truncate text-[11px] text-ink-muted underline underline-offset-2">{p.photo.licence ? creditText(p.photo) : "Photo: Wikimedia"}<span className="sr-only"> (opens in a new tab)</span></a>}
                         <div className="mt-1 flex flex-wrap gap-x-4">
                           <a href={googleMapsPlace(p)} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">Google Maps<span className="sr-only"> for {p.name} (opens in a new tab)</span></a>
                           {tripId && (added.has(p.id) ? <span className="py-1.5 font-semibold text-teal-ink"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Added</span></span> : <button type="button" onClick={() => void addIdea({ key: p.id, name: p.name, lat: p.lat, lng: p.lng, category: kind === "sights" ? "other" : kind === "food" ? "food" : kind === "stay" ? "stay" : null })} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2">Add to ideas</button>)}

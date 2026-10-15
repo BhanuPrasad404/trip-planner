@@ -5,6 +5,7 @@ import { distanceKm, isAhead } from "@/lib/geo";
 import { NEARBY_KINDS, NEARBY_KIND_IDS, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatKm } from "@/lib/format";
 import { KindBadge, KindGlyph } from "@/components/ui/Glyph";
+import { SafeImg } from "@/components/ui/SafeImg";
 
 type NearbyPanelProps = {
   /** The place to search around when the device location isn't used (e.g. the next stop). */
@@ -38,8 +39,7 @@ function Thumb({ place }: { place: NearbyPlace }) {
   }
   return (
     <div className="shrink-0">
-      {/* eslint-disable-next-line @next/next/no-img-element -- real photo from Supabase Storage / Wikimedia; sized and lazy-loaded */}
-      <img src={place.photo.url} alt={`Photo of ${place.name}`} width={64} height={64} loading="lazy" referrerPolicy="no-referrer" className="h-16 w-16 rounded-xl object-cover" />
+      <SafeImg src={place.photo.url} srcSet={place.photo.srcSet} sizes="64px" alt={`Photo of ${place.name}`} width={64} height={64} className="h-16 w-16 rounded-xl object-cover" fallback={<KindBadge kind={place.kind} size={64} />} />
     </div>
   );
 }

@@ -19,9 +19,13 @@ import { Button } from "./ui/Button";
 import { Menu, MenuItem, MenuLabel } from "./ui/Menu";
 import { Spinner } from "@/components/ui/Spinner";
 import { Glyph, CategoryGlyph } from "@/components/ui/Glyph";
+import { PlacePhoto, PhotoCredit } from "@/components/ui/PlacePhoto";
+import type { PlacePhoto as PlacePhotoData } from "@/lib/place-photos";
 
 type StopCardProps = {
   place: Place;
+  /** A verified real photo of this place (never a stand-in). Absent = the card looks exactly as before. */
+  photo?: PlacePhotoData | null;
   status: SeasonStatus;
   category: PlaceCategory;
   score: GoScore | null;
@@ -59,7 +63,7 @@ type StopCardProps = {
 };
 
 export function StopCard({
-  place, status, category, score, scoreFor, seasonReason, moveDays, votes, near, farWarning, seasonSource,
+  place, photo, status, category, score, scoreFor, seasonReason, moveDays, votes, near, farWarning, seasonSource,
   onMove, onRemove, onVote, onRelocate, onAlternatives, onStatus, reports, reportCtx, busy, menuOpen, selected, onShowOnMap, weather,
 }: StopCardProps) {
   const [confirming, setConfirming] = useState(false);
@@ -91,6 +95,7 @@ export function StopCard({
     >
       {/* Title row: what it is, where it is, and the menu for everything occasional */}
       <header className="flex items-start gap-3">
+        {photo && <PlacePhoto photo={photo} name={place.name} sizes="64px" className={`h-16 w-16 ${skipped ? "opacity-60" : ""}`} fallback={<CategoryGlyph category={category} size={22} />} />}
         <div className="min-w-0 flex-1">
           <h3 className={`break-words text-[17px] font-semibold leading-snug text-pine ${skipped ? "text-ink-muted" : ""} ${done ? "decoration-teal/60" : ""}`}>
             {!scheduled && <CategoryGlyph category={category} size={17} className="mr-1.5 inline align-text-bottom text-teal" />}
@@ -98,6 +103,7 @@ export function StopCard({
             <span className="sr-only"> ({cat.label})</span>
           </h3>
           {driveLine}
+          {photo && <PhotoCredit photo={photo} className="mt-1" />}
         </div>
         {busy && (
           <span role="status" className="mt-0.5 inline-flex items-center gap-1.5 rounded-full bg-sky px-2.5 py-1 text-xs font-semibold text-ink-muted">

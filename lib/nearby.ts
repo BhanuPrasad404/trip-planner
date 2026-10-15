@@ -1,6 +1,7 @@
 // "What's near me / near this stop": fuel, food, pharmacy, ATM, hospital, stays.
 // Data: OpenStreetMap via the Overpass API (free, real, no key). Set OVERPASS_URL to self-host or use a paid mirror.
 import { distanceKm, type GeoPoint } from "@/lib/geo";
+import { commonsFilePage, looksNotAPhoto, parseCommonsUrl, thumbSet } from "@/lib/place-photos/safety";
 
 export const NEARBY_KINDS = {
   fuel: { label: "Fuel", fallback: "Fuel station", filters: ['["amenity"="fuel"]'] },
@@ -32,6 +33,11 @@ export type NearbyPhoto = {
   source: "osm" | "commons";
   /** Where to credit/see the original (required for Wikimedia Commons). */
   creditUrl?: string;
+  /** The same photo at several standard widths (when known), so small boxes download small images. */
+  srcSet?: string;
+  /** Author and licence when known (photos found through Wikipedia carry both and must show them). */
+  author?: string | null;
+  licence?: string;
 };
 
 export type NearbyPlace = {
@@ -45,6 +51,8 @@ export type NearbyPlace = {
   hours: string | null;
   /** A REAL photo of this place, or null. We never substitute stock or random pictures. */
   photo: NearbyPhoto | null;
+  /** True when OpenStreetMap links this place to Wikipedia/Wikidata or lists it as heritage: a well-known place, worth showing first. */
+  notable?: boolean;
 };
 
 type OverpassElement = {
@@ -62,29 +70,54 @@ export function buildOverpassQuery(kind: NearbyKind, origin: GeoPoint, radiusM: 
   return `[out:json][timeout:8];(${parts});out center 80;`;
 }
 
-const WIKI_HOSTS = new Set(["commons.wikimedia.org", "upload.wikimedia.org"]);
-
-/** Only trust photos that come from Wikimedia: it is the one open source with a clear licence and attribution page. */
+/**
+ * The photo a place's OWN OpenStreetMap entry points to. Only Wikimedia Commons (free licences, with an author/licence page) is
+ * trusted, and only real photographs: not other wikis' local uploads (/wikipedia/en/…), and not maps, flags, logos or seals.
+ */
 export function osmPhoto(tags: Record<string, string>): NearbyPhoto | null {
   const commons = tags.wikimedia_commons;
   if (commons && /^File:[^/\\]{1,200}$/.test(commons)) {
     const file = commons.slice(5);
-    return {
-      url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=320`,
-      source: "osm",
-      creditUrl: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(file)}`,
-    };
+    if (usableCommonsFile(file)) return fromCommonsFile(file);
   }
   const image = tags.image;
   if (image) {
     try {
       const u = new URL(image);
-      if (u.protocol === "https:" && WIKI_HOSTS.has(u.hostname)) return { url: u.toString(), source: "osm", creditUrl: u.toString() };
+      if (u.protocol !== "https:") return null;
+      // A Commons *page* (…/wiki/File:X.jpg) is not an image address: turn it into one.
+      if (u.hostname === "commons.wikimedia.org") {
+        const m = /^\/wiki\/File:([^/\\]{1,200})$/.exec(u.pathname);
+        const file = m ? safeDecode(m[1]) : null;
+        return file && usableCommonsFile(file) ? fromCommonsFile(file) : null;
+      }
+      const c = parseCommonsUrl(image);
+      if (c && !looksNotAPhoto(c.file)) {
+        const set = thumbSet(image);
+        return { url: set?.src ?? image, ...(set?.srcSet ? { srcSet: set.srcSet } : {}), source: "osm", creditUrl: commonsFilePage(c.file) };
+      }
     } catch {
       /* not a URL */
     }
   }
   return null;
+}
+
+const safeDecode = (s: string): string | null => { try { return decodeURIComponent(s); } catch { return null; } };
+const usableCommonsFile = (file: string) => /\.(jpe?g|png|webp)$/i.test(file) && !looksNotAPhoto(file);
+const fromCommonsFile = (file: string): NearbyPhoto => ({
+  // Commons answers this address with a redirect to the pre-sized thumbnail (330 px is one of Wikimedia's standard widths).
+  url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=330`,
+  source: "osm",
+  creditUrl: commonsFilePage(file),
+});
+
+/** A place someone has taken the trouble to link to an encyclopedia entry or list as heritage is, almost by definition, well known. */
+export const isNotable = (tags: Record<string, string> | null | undefined): boolean => !!(tags && (tags.wikidata || tags.wikipedia || tags.heritage || tags["heritage:operator"]));
+
+/** Sights: well-known places first (nearest first within each group). Everything else: nearest first. */
+export function rankNearby(places: NearbyPlace[], kind: NearbyKind): NearbyPlace[] {
+  return [...places].sort((a, b) => (kind === "sights" ? Number(!!b.notable) - Number(!!a.notable) : 0) || a.km - b.km);
 }
 
 export function parseOverpass(json: unknown, origin: GeoPoint, kind: NearbyKind, limit = 12): NearbyPlace[] {
@@ -112,9 +145,10 @@ export function parseOverpass(json: unknown, origin: GeoPoint, kind: NearbyKind,
       km: Math.round(distanceKm(origin, { lat, lng }) * 10) / 10,
       hours: tags.opening_hours ? tags.opening_hours.slice(0, 120) : null,
       photo: osmPhoto(tags),
+      ...(isNotable(tags) ? { notable: true } : {}),
     });
   }
-  return out.sort((a, b) => a.km - b.km).slice(0, limit);
+  return rankNearby(out, kind).slice(0, limit);
 }
 
 // Cache + resilience. The free public Overpass servers are often busy or rate-limited, so:

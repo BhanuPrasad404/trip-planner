@@ -6,11 +6,19 @@ import { searchNearbyDetailed, type NearbyPlace } from "@/lib/nearby";
 import { getPoiService } from "@/lib/poi";
 import { runBackground } from "@/lib/poi/background";
 import { nearbyFromOwnData } from "@/lib/poi/near";
-import { attachPhotos, COMMONS_KINDS, fetchCommonsImages } from "@/lib/nearby-photos";
+import { attachPhotos, attachResolvedPhotos, COMMONS_KINDS, fetchCommonsImages } from "@/lib/nearby-photos";
+import { lookupPlacePhotos } from "@/lib/place-photos";
 import { consumeQuota } from "@/lib/quota";
 import { nearbySchema } from "@/lib/validation/schemas";
 
 export const maxDuration = 25;
+
+/** At most this many sights get a Wikipedia lookup per search, and the search waits at most this long for them. */
+const PHOTO_LOOKUPS = 12;
+const PHOTO_BUDGET_MS = 6_000;
+/** The value if it arrives within `ms`, otherwise null (the work itself keeps going and fills the cache). */
+const settleWithin = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+  new Promise((resolve) => { const t = setTimeout(() => resolve(null), ms); p.then((v) => { clearTimeout(t); resolve(v); }, () => { clearTimeout(t); resolve(null); }); });
 
 // Real places around a point (OpenStreetMap) with REAL photos where they exist.
 // The point is used for this request only and is not stored.
@@ -71,6 +79,23 @@ export async function POST(req: Request) {
     }
   } catch (e) {
     console.error("[api] nearby photos:", e instanceof Error ? e.message : e);
+  }
+
+  // Well-known sights: find their Wikipedia article and its best free photo (cache first). Waits a few seconds at most; anything not
+  // finished in time is cached when it completes, so the next search shows it.
+  if (input.kind === "sights") {
+    try {
+      const missing = places.filter((p) => !p.photo).slice(0, PHOTO_LOOKUPS);
+      if (missing.length > 0) {
+        const found = await settleWithin(
+          lookupPlacePhotos(missing.map((p) => ({ key: p.id, name: p.name, lat: p.lat, lng: p.lng })), { allowUpstream: () => consumeQuota(supabase, "place_photos", 300) }),
+          PHOTO_BUDGET_MS,
+        );
+        if (found) places = attachResolvedPhotos(places, found.photos);
+      }
+    } catch (e) {
+      console.error("[api] nearby resolved photos:", e instanceof Error ? e.message : e);
+    }
   }
 
   return NextResponse.json({ places, stale, source });

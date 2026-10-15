@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { useNowMinute } from "@/lib/client/use-now";
+import { usePlacePhotos } from "@/lib/client/use-place-photos";
 import { useTripRealtime } from "@/lib/client/use-trip-realtime";
 import { dateOfTripDay } from "@/lib/dates";
 import { formatDate, formatDuration } from "@/lib/format";
@@ -90,6 +91,10 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   const days = useMemo(() => Array.from({ length: trip.num_days }, (_, i) => i + 1), [trip.num_days]);
 
   // Everything the UI needs per stop: season status for ITS visit date, category, Go Score.
+  // Real photos of the stops, filled in after the plan is on screen. Stops without a confident match keep their icon.
+  const photoQueries = useMemo(() => places.map((p) => ({ key: p.id, name: p.name, lat: p.lat, lng: p.lng })), [places]);
+  const photos = usePlacePhotos(photoQueries);
+
   const enriched = useMemo(
     () =>
       places.map((p) => {
@@ -316,6 +321,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
 
   const cardProps = (e: (typeof enriched)[number]) => ({
     place: e.place,
+    photo: photos[e.place.id] ?? null,
     status: e.status,
     category: e.category,
     score: e.score,

@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { identity, matchTitle, pickPage, type PageCandidate } from "@/lib/place-photos/match";
-import { clearPlacePhotoCache, findPlacePhotos, parseGeosearch } from "@/lib/place-photos";
+import { describe, expect, it } from "vitest";
+import { identity, matchTitle, pickIdentity, pickPage, type PageCandidate } from "@/lib/place-photos/match";
 
 const thumb = { url: "https://upload.wikimedia.org/x/480px-a.jpg", width: 480, height: 320 };
 const page = (title: string, lat: number, lng: number, t: PageCandidate["thumb"] = thumb): PageCandidate => ({ title, lat, lng, thumb: t });
@@ -64,51 +63,13 @@ describe("pickPage: name AND location must agree", () => {
   });
 });
 
-const wikiJson = (pages: unknown[]) => ({ query: { pages } });
-const wikiPage = (title: string, lat: number, lon: number, src?: string) => ({ title, coordinates: [{ lat, lon }], ...(src ? { thumbnail: { source: src, width: 480, height: 300 } } : {}) });
-
-describe("parseGeosearch", () => {
-  it("keeps only https Wikimedia raster photos and handles both response shapes", () => {
-    const good = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/F.jpg/480px-F.jpg";
-    const out = parseGeosearch(wikiJson([
-      wikiPage("A", 1, 1, good), wikiPage("B", 1, 1, "http://upload.wikimedia.org/x.jpg"), wikiPage("C", 1, 1, "https://evil.example/x.jpg"),
-      wikiPage("D", 1, 1, "https://upload.wikimedia.org/x.svg.png"), { title: "NoCoords" },
-    ]));
-    expect(out.map((p) => [p.title, !!p.thumb])).toEqual([["A", true], ["B", false], ["C", false], ["D", false]]);
-    expect(parseGeosearch({ query: { pages: { "1": wikiPage("A", 1, 1, good) } } })).toHaveLength(1);
-    expect(parseGeosearch(null)).toEqual([]);
+describe("pickIdentity: name AND location, independent of whether a thumbnail exists", () => {
+  const fort = { name: "Kondapalli Fort", lat: 16.62, lng: 80.54 };
+  it("picks the right page even with no photo on it (the photo is chosen separately now)", () => {
+    expect(pickIdentity(fort, [{ title: "Undavalli Caves", lat: 16.497, lng: 80.582 }, { title: "Kondapalli Fort", lat: 16.621, lng: 80.541 }])?.title).toBe("Kondapalli Fort");
   });
-});
-
-describe("findPlacePhotos", () => {
-  beforeEach(() => clearPlacePhotoCache());
-  const good = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/F.jpg/480px-F.jpg";
-  const ok = (pages: unknown[]) => vi.fn(async () => new Response(JSON.stringify(wikiJson(pages)), { status: 200 }));
-
-  it("returns a credited photo only for the place that matches, and nothing for the rest", async () => {
-    const f = ok([wikiPage("Undavalli Caves", 16.497, 80.582, good)]);
-    const out = await findPlacePhotos([
-      { key: "cave", name: "Undavalli Caves", lat: 16.498, lng: 80.582 },
-      { key: "dhaba", name: "Sri Rama Fastfood", lat: 16.498, lng: 80.583 },
-    ], f as unknown as typeof fetch);
-    expect(Object.keys(out)).toEqual(["cave"]);
-    expect(out.cave.pageUrl).toBe("https://en.wikipedia.org/wiki/Undavalli_Caves");
-    expect(out.cave.source).toBe("wikipedia");
-  });
-  it("makes one request per ~100 m cell and caches it", async () => {
-    const f = ok([]);
-    const q = { key: "a", name: "Nowhere Fort", lat: 16.5, lng: 80.5 };
-    await findPlacePhotos([q, { ...q, key: "b", name: "Other Temple" }], f as unknown as typeof fetch);
-    await findPlacePhotos([q], f as unknown as typeof fetch);
-    expect(f).toHaveBeenCalledTimes(1);
-  });
-  it("never throws: upstream errors just mean no photos, and failures are not cached", async () => {
-    const bad = vi.fn(async () => new Response("no", { status: 503 }));
-    const q = { key: "a", name: "Undavalli Caves", lat: 16.498, lng: 80.582 };
-    expect(await findPlacePhotos([q], bad as unknown as typeof fetch)).toEqual({});
-    const thrower = vi.fn(async () => { throw new Error("offline"); });
-    expect(await findPlacePhotos([q], thrower as unknown as typeof fetch)).toEqual({});
-    const f = ok([wikiPage("Undavalli Caves", 16.497, 80.582, good)]);
-    expect(Object.keys(await findPlacePhotos([q], f as unknown as typeof fetch))).toEqual(["a"]); // recovered, not stuck on the failure
+  it("still refuses a same-named page in another part of the state, and a village far from the pin", () => {
+    expect(pickIdentity(fort, [{ title: "Kondapalli Fort", lat: 17.5, lng: 78.4 }])).toBeNull();
+    expect(pickIdentity(fort, [{ title: "Kondapalli", lat: 16.9, lng: 80.54 }])).toBeNull();
   });
 });

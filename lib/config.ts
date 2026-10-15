@@ -162,9 +162,9 @@ export function getSetupStatus(env: Env = process.env): Setup[] {
     },
     {
       id: "geocoder", label: "Place search contact", ok: !!ua && /@|https?:/.test(ua), required: false,
-      problem: ua && /@|https?:/.test(ua) ? null : "GEOCODER_USER_AGENT has no contact email/site. OpenStreetMap's rules ask for one.",
+      problem: ua && /@|https?:/.test(ua) ? null : "GEOCODER_USER_AGENT has no contact email/site. OpenStreetMap's and Wikimedia's rules (place search and place photos) both ask for one.",
       fix: ua && /@|https?:/.test(ua) ? null : "Set GEOCODER_USER_AGENT=Trailmate/1.0 (you@example.com) in .env.local.",
-      fallback: "Search works, but may be blocked by OpenStreetMap if usage grows.",
+      fallback: "Search and photos work, but OpenStreetMap or Wikimedia may throttle or block us if usage grows.",
     },
   ];
 }

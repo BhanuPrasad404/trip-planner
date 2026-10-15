@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Pulse, PulseSignal, PulseSource } from "@/lib/intel/pulse";
 import { Glyph } from "@/components/ui/Glyph";
+import { SafeImg } from "@/components/ui/SafeImg";
 
 type Props = { name: string; lat: number; lng: number; hours?: string | null; hoursCheckedAt?: string | null; /** True only for trip stops — never for Radar places. */ showTravelerPhotos?: boolean };
 
@@ -84,8 +85,7 @@ export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null,
                 <ul className="mt-2 flex gap-2 overflow-x-auto" aria-label="Recent traveler photos">
                   {pulse.photos.map((p) => (
                     <li key={p.url} className="shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- real traveler photo, already downscaled */}
-                      <img src={p.url} alt={`Traveler photo of ${name}, ${p.ageText}`} width={96} height={96} loading="lazy" className="h-24 w-24 rounded-lg object-cover" />
+                      <SafeImg src={p.url} alt={`Traveler photo of ${name}, ${p.ageText}`} width={96} height={96} className="h-24 w-24 rounded-lg object-cover" fallback={<span className="flex h-24 w-24 items-center justify-center rounded-lg bg-teal-light px-1 text-center text-[11px] text-ink-muted">Photo unavailable</span>} />
                       <span className="block text-center text-[11px] text-ink-muted">{p.ageText}</span>
                     </li>
                   ))}

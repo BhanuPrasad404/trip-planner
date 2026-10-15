@@ -1,6 +1,6 @@
 // "What's around this point" answered from OUR places database (filled tile by tile), not from a public map server per request.
 import { distanceKm } from "@/lib/geo";
-import { osmPhoto, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
+import { isNotable, osmPhoto, rankNearby, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import type { PoiService } from "./service";
 import { groupsOfKinds, KIND_META, type PoiKind } from "./types";
 
@@ -36,8 +36,8 @@ export async function nearbyFromOwnData(svc: PoiService, kind: NearbyKind, origi
       km: Math.round(distanceKm(origin, r) * 10) / 10,
       hours: r.tags.opening_hours ?? null,
       photo: osmPhoto(r.tags),
+      ...(isNotable(r.tags) ? { notable: true } : {}),
     });
   }
-  places.sort((a, b) => a.km - b.km);
-  return { places: places.slice(0, limit), pending: cov.pending, complete: cov.ready === cov.total };
+  return { places: rankNearby(places, kind).slice(0, limit), pending: cov.pending, complete: cov.ready === cov.total };
 }

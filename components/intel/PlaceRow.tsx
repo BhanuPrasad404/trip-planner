@@ -5,6 +5,7 @@ import type { OpenStatus } from "@/lib/intel/hours";
 import { PulseCard } from "./PulseCard";
 import { Glyph, KindBadge } from "@/components/ui/Glyph";
 import type { PoiPhoto } from "@/lib/intel/poi-media";
+import { SafeImg } from "@/components/ui/SafeImg";
 
 type Props = {
   kind: PoiKind;
@@ -32,8 +33,7 @@ export function PlaceRow({ kind, name, lat, lng, etaMin, aheadKm, detourMin, ope
   return (
     <li className="flex gap-3 py-3 text-sm">
       {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element -- the place's own Wikimedia photo, small thumbnail
-        <img src={photo.url} alt={`Photo of ${name}`} width={56} height={56} loading="lazy" referrerPolicy="no-referrer" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+        <SafeImg src={photo.url} srcSet={photo.srcSet} sizes="56px" alt={`Photo of ${name}`} width={56} height={56} className="h-14 w-14 shrink-0 rounded-xl object-cover" fallback={<KindBadge kind={kind} size={56} />} />
       ) : (
         <KindBadge kind={kind} size={56} />
       )}

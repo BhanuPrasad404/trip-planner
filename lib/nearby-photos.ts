@@ -6,8 +6,10 @@
 // A place with no real photo gets none. We never show stock or look-alike pictures.
 import { distanceKm, type GeoPoint } from "@/lib/geo";
 import type { NearbyKind, NearbyPhoto, NearbyPlace } from "@/lib/nearby";
+import { looksNotAPhoto, parseCommonsUrl, thumbSet } from "@/lib/place-photos/safety";
+import type { PlacePhoto } from "@/lib/place-photos/types";
 
-export type CommonsImage = { lat: number; lng: number; thumb: string; pageUrl: string };
+export type CommonsImage = { lat: number; lng: number; thumb: string; /** Same photo at standard widths, when known. */ srcSet?: string; pageUrl: string };
 
 export const COMMONS_PHOTO_KM = 0.3;
 
@@ -31,10 +33,12 @@ export function parseCommons(json: unknown): CommonsImage[] {
     try {
       const thumb = new URL(info.thumburl);
       const page = new URL(info.descriptionurl);
-      if (thumb.protocol !== "https:" || thumb.hostname !== "upload.wikimedia.org") continue;
       if (page.protocol !== "https:" || page.hostname !== "commons.wikimedia.org") continue;
-      if (!/\.(jpe?g|png|webp)(\?|$)/i.test(thumb.pathname + thumb.search)) continue; // skip svg/pdf/video
-      out.push({ lat: c.lat, lng: c.lon, thumb: thumb.toString(), pageUrl: page.toString() });
+      // Commons-hosted raster photos only (not svg/pdf/video, not another wiki's local uploads), and never a map/flag/logo/diagram.
+      const file = parseCommonsUrl(thumb.toString());
+      if (!file || looksNotAPhoto(file.file)) continue;
+      const set = thumbSet(thumb.toString());
+      out.push({ lat: c.lat, lng: c.lon, thumb: set?.src ?? thumb.toString(), ...(set?.srcSet ? { srcSet: set.srcSet } : {}), pageUrl: page.toString() });
     } catch {
       /* malformed URL — skip */
     }
@@ -56,7 +60,7 @@ export async function fetchCommonsImages(origin: GeoPoint, radiusKm: number, fet
   const params = new URLSearchParams({
     action: "query", format: "json", generator: "geosearch", ggsnamespace: "6", ggslimit: "50",
     ggscoord: `${origin.lat.toFixed(5)}|${origin.lng.toFixed(5)}`, ggsradius: String(radiusM),
-    prop: "imageinfo|coordinates", iiprop: "url", iiurlwidth: "320", colimit: "50",
+    prop: "imageinfo|coordinates", iiprop: "url", iiurlwidth: "330", colimit: "50",
   });
   try {
     const res = await fetchImpl(`https://commons.wikimedia.org/w/api.php?${params}`, {
@@ -88,8 +92,20 @@ export function attachPhotos(places: NearbyPlace[], sources: { commons?: Commons
     if (p.photo) return p; // the place's own OSM photo
     if (COMMONS_KINDS.includes(p.kind)) {
       const w = nearest(p, sources.commons ?? [], COMMONS_PHOTO_KM);
-      if (w) return { ...p, photo: { url: w.thumb, source: "commons", creditUrl: w.pageUrl } satisfies NearbyPhoto };
+      if (w) return { ...p, photo: { url: w.thumb, ...(w.srcSet ? { srcSet: w.srcSet } : {}), source: "commons", creditUrl: w.pageUrl } satisfies NearbyPhoto };
     }
     return p;
+  });
+}
+
+/**
+ * Photos found by the Wikipedia resolver (matched by name AND place, licence verified) for places that still have none.
+ * A place's own OSM photo and a Commons photo already attached are never replaced.
+ */
+export function attachResolvedPhotos(places: NearbyPlace[], found: Record<string, PlacePhoto>): NearbyPlace[] {
+  return places.map((p) => {
+    const f = p.photo ? null : found[p.id];
+    if (!f) return p;
+    return { ...p, photo: { url: f.url, ...(f.srcSet ? { srcSet: f.srcSet } : {}), source: "commons", creditUrl: f.creditUrl ?? f.pageUrl, author: f.author ?? null, ...(f.licence ? { licence: f.licence } : {}) } satisfies NearbyPhoto };
   });
 }

@@ -305,6 +305,8 @@ export const placePhotosSchema = z.object({
     lat: latitude,
     lng: longitude,
   })).min(1, "No places").max(30, "Too many places at once"),
+  /** Ask the server to say WHY a place has no photo (shown in the network response only; never in the UI). */
+  debug: z.boolean().optional(),
 });
 
 /** Change a trip's dates or length. Only what is sent changes; start_date null means "no dates". */

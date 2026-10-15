@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>You're offline · Trailmate</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+    background: #eaf4f1; color: #1c2430; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 26rem; }
+  .icon { width: 72px; height: 72px; margin: 0 auto 20px; color: #0b3d3a; }
+  .icon .wave { animation: fade 2.4s ease-in-out infinite; }
+  .icon .wave:nth-of-type(2) { animation-delay: .3s; }
+  .icon .wave:nth-of-type(3) { animation-delay: .6s; }
+  @keyframes fade { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .icon .wave { animation: none; opacity: .6; } }
+  h1 { margin: 0 0 8px; font-size: 1.5rem; color: #0b3d3a; }
+  p { margin: 0 0 16px; color: #3d4a57; }
+  button { min-height: 48px; padding: 0 24px; border: 0; border-radius: 12px; background: #e8a33d; color: #0b3d3a; font: inherit; font-weight: 700; cursor: pointer; }
+  button:focus-visible { outline: 3px solid #0b3d3a; outline-offset: 2px; }
+  #status { min-height: 1.5em; margin-top: 12px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path class="wave" d="M2 8.8a15 15 0 0 1 20 0"/><path class="wave" d="M5.5 12.4a10 10 0 0 1 13 0"/><path class="wave" d="M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none"/><path d="M3 3l18 18"/>
+  </svg>
+  <h1>You're offline</h1>
+  <p>Trailmate couldn't reach the internet, so this page couldn't open. Nothing you saved has been lost.</p>
+  <p>If you are on a trip, your phone's GPS still works. Open the page again once you have a signal.</p>
+  <button id="retry" type="button">Try again</button>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+<script>
+  var status = document.getElementById("status");
+  function go() {
+    status.textContent = "Checking…";
+    fetch("/api/ping?t=" + Date.now(), { cache: "no-store" })
+      .then(function () { location.reload(); })
+      .catch(function () { status.textContent = "Still offline. We'll keep trying."; });
+  }
+  document.getElementById("retry").addEventListener("click", go);
+  window.addEventListener("online", go);
+  setInterval(function () { if (document.visibilityState === "visible") go(); }, 15000);
+</script>
+</body>
+</html>

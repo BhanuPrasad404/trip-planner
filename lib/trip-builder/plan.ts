@@ -1,6 +1,6 @@
 // One plan for one travel style: order the places along the road, drop what cannot fit (never a must-do), split into days,
 // make each day respect opening hours / golden hour / weather, then explain and check it.
-import { PRIORITY_LABEL, STYLES, type StyleId } from "./config";
+import { PRIORITY_LABEL, STYLES, type StyleConfig, type StyleId } from "./config";
 import { findClusters, type ClusterMap } from "./clusters";
 import { assembleDays, planWarnings } from "./explain";
 import { costMatrix, dayLoads, returnNode } from "./loads";
@@ -80,8 +80,12 @@ function addBackSuggestions(ctx: Ctx, days: number[][], removed: RemovedStop[], 
   return out;
 }
 
-export function buildPlan(input: BuilderInput, styleId: StyleId, shared?: { clusters?: ClusterMap }): PlanOption {
-  const style = STYLES[styleId];
+/**
+ * `override` lets a caller replace parts of the named style for ONE run (the traveller's own day window or driving limit, from "Describe my
+ * trip"). It never changes STYLES, so every other caller keeps the standard numbers.
+ */
+export function buildPlan(input: BuilderInput, styleId: StyleId, shared?: { clusters?: ClusterMap; override?: Partial<Omit<StyleConfig, "id">> }): PlanOption {
+  const style: StyleConfig = shared?.override ? { ...STYLES[styleId], ...shared.override, id: styleId } : STYLES[styleId];
   const ctx = makeCtx(input, style);
   const clusters = shared?.clusters ?? findClusters(ctx);
   const cost = costMatrix(ctx);

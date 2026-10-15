@@ -4,7 +4,10 @@ import { AiNotConfiguredError, AiRequestError, PROVIDER_NAME, callTool } from "@
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { aiProviderId, diagnoseAi } from "@/lib/config";
 import { nominatimGeocoder } from "@/lib/geocode";
-import { runImport } from "@/lib/import/pipeline";
+import { runImport, type FitRunner } from "@/lib/import/pipeline";
+import { getMatrix } from "@/lib/routing";
+import { evaluateBrief, type BriefCandidate } from "@/lib/trip-builder/brief";
+import { normalizeCategory } from "@/lib/categories";
 import { resolveShortMapsUrl, stripUrls } from "@/lib/maps-url";
 import { consumeQuota, importDailyLimit } from "@/lib/quota";
 import { importSchema } from "@/lib/validation/schemas";
@@ -48,6 +51,27 @@ export async function POST(req: Request) {
   ]);
   if (tagsError) return dbError(tagsError, "import: load season tags");
 
+  // "Describe my trip": the feasibility check. Needs a start point; routing falls back to estimates (and says so) if the service is down.
+  const startPoint = trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat as number, lng: trip.start_lng as number, label: (trip.start_city as string | null) ?? "your start" } : null;
+  const fit: FitRunner | undefined = startPoint
+    ? async ({ candidates, constraints }) => {
+        const existingRows: BriefCandidate[] = (existing ?? []).slice(0, 30).map((e, i) => ({ id: `existing-${i}`, name: e.name as string, lat: e.lat as number, lng: e.lng as number, category: normalizeCategory(null), confidence: 1, existing: true }));
+        const fresh: BriefCandidate[] = candidates
+          .filter((c) => c.lat != null && c.lng != null && !c.duplicate)
+          .map((c) => ({ id: c.key, name: c.name, lat: c.lat as number, lng: c.lng as number, category: c.category, confidence: c.confidence }));
+        const all = [...existingRows, ...fresh];
+        if (all.length === 0) return null;
+        const matrix = await getMatrix([startPoint, ...all]);
+        const result = evaluateBrief({
+          candidates: all, start: startPoint, numDays: Math.max(1, Math.floor(trip.num_days as number)), startDateISO: (trip.start_date as string | null) ?? null,
+          utcOffsetMin: 330, constraints, matrix,
+        });
+        // Stops already on the trip are not part of the list the traveller is reviewing; keep them out of the per-candidate answer.
+        const isExisting = (id: string) => id.startsWith("existing-");
+        return { ...result, dropped: result.dropped.filter((d) => !isExisting(d.id)) };
+      }
+    : undefined;
+
   try {
     const result = await runImport(
       {
@@ -69,7 +93,7 @@ export async function POST(req: Request) {
         seasonTags: tags ?? [],
         existing: existing ?? [],
       },
-      { llm: callTool, geocode: nominatimGeocoder, resolveUrl: (u) => resolveShortMapsUrl(u) }
+      { llm: callTool, geocode: nominatimGeocoder, resolveUrl: (u) => resolveShortMapsUrl(u), fit }
     );
     return NextResponse.json(result);
   } catch (err) {

@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { StateChip } from "@/components/StateChip";
+import { TravelersRow } from "@/components/TravelersRow";
 import { TripTabs } from "@/components/shell/TripTabs";
 import { parseISODate, addDays } from "@/lib/dates";
-import { formatDate, safeColor } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { getMembers, getTrip, getTripCounts, todayISO } from "@/lib/server/trip-data";
 import { tripOutcome, tripState } from "@/lib/trip-state";
 
@@ -34,14 +35,7 @@ export default async function TripLayout({ children, params }: { children: React
             {start && end ? `${formatDate(start, fmt)} – ${formatDate(end, fmt)}` : "Dates not set"}
             {" · "}{trip.num_days} {trip.num_days === 1 ? "day" : "days"}
           </p>
-          <ul className="mt-3 flex items-center" aria-label="Travelers">
-            {members.map((m, i) => (
-              <li key={m.id} title={m.display_name ?? "Traveler"} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white" style={{ backgroundColor: safeColor(m.avatar_color), marginLeft: i === 0 ? 0 : -8 }}>
-                <span aria-hidden="true">{m.display_name?.[0]?.toUpperCase() ?? "?"}</span>
-                <span className="sr-only">{m.display_name ?? "Traveler"}</span>
-              </li>
-            ))}
-          </ul>
+          <TravelersRow members={members} />
           <div className="mt-3"><TripTabs tripId={trip.id} activeNow={state === "active"} /></div>
         </div>
       </div>

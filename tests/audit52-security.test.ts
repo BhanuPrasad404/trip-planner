@@ -92,8 +92,17 @@ describe("every API route authenticates (or is secret-gated)", () => {
     return readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, d)) : e.name === "route.ts" ? [new URL(e.name, d).pathname] : []));
   })(new URL("app/api/", root));
   it("found routes", () => expect(routes.length).toBeGreaterThan(40));
-  it.each(routes.map((p) => [p.split("/app/api/")[1], p] as const))("%s", (_n, p) => {
+  // Public ON PURPOSE: the connectivity probe has to work with no sign-in (and when the session service itself is unreachable). It is only
+  // allowed to stay public while it is provably inert: no imports at all (so no database, no secrets, no user data), a 204, never cached.
+  const PUBLIC_BY_DESIGN = new Set(["ping/route.ts"]);
+  it.each(routes.map((p) => [p.split("/app/api/")[1], p] as const))("%s", (n, p) => {
     const src = readFileSync(decodeURIComponent(p).replace(/^\/([A-Za-z]:)/, "$1"), "utf8");
+    if (PUBLIC_BY_DESIGN.has(n)) {
+      expect(/^\s*import\s/m.test(src), "a public route must import nothing").toBe(false);
+      expect(/require\(|fetch\(|process\.env|supabase|cookies\(|headers\(/i.test(src)).toBe(false);
+      expect(src).toContain("status: 204"); expect(src).toContain("no-store");
+      return;
+    }
     expect(/auth\.getUser\(|INGEST_SECRET|Origin check|origin/.test(src)).toBe(true);
   });
 });

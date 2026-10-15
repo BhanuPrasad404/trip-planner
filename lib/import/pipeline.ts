@@ -1,11 +1,12 @@
 import { distanceKm } from "@/lib/geo";
 import { FAR_PIN_KM } from "@/lib/pin-check";
 import { normalizeCategory, type PlaceCategory } from "@/lib/categories";
-import { extractPlaces, suggestPlaces, type AiPlace, type ImageInput, type SuggestContext } from "@/lib/ai/extract";
+import { extractPlaces, readBrief, type AiPlace, type ImageInput, type SuggestContext } from "@/lib/ai/extract";
 import type { ToolCaller } from "@/lib/ai/anthropic";
 import type { Geocoder } from "@/lib/geocode";
 import { extractUrls, isGoogleMapsUrl, isShortMapsUrl, parseMapsUrl, stripUrls } from "@/lib/maps-url";
 import { matchSeasonTag, nameSimilarity, type SeasonTagLite } from "@/lib/season-match";
+import type { BriefConstraints, BriefFit } from "@/lib/trip-builder/brief";
 
 export type CandidateSource = "maps_link" | "ai_text" | "screenshot" | "ai_suggestion";
 
@@ -28,12 +29,21 @@ export type ImportCandidate = {
   duplicate: boolean;
   /** Much further from where the trip is going than a normal stop — likely the wrong place. */
   far: boolean;
+  /**
+   * "Describe my trip" only: what the feasibility check decided about this place. Absent when no check was run (no start point, routing
+   * unavailable) or the place could not be located. `dropped` places start unticked, with the reason.
+   */
+  fit?: { state: "kept" | "dropped"; day?: number; order?: number; arriveMin?: number; code?: string; reason?: string };
 };
+
+export type FitRunner = (args: { candidates: ImportCandidate[]; constraints: BriefConstraints }) => Promise<BriefFit | null>;
 
 export type ImportDeps = {
   llm?: ToolCaller;
   geocode: Geocoder;
   resolveUrl: (url: string) => Promise<string | null>;
+  /** Checks, with real road times, which suggested places fit the trip (lib/trip-builder/brief.ts). Optional: without it suggestions are unchecked. */
+  fit?: FitRunner;
 };
 
 export type ImportInput = {
@@ -52,13 +62,18 @@ const MAX_URLS = 10;
 const DUP_KM = 0.3;
 const FAR_KM = FAR_PIN_KM;
 
-export async function runImport(input: ImportInput, deps: ImportDeps): Promise<{ candidates: ImportCandidate[]; notes: string[] }> {
+export type ImportResult = { candidates: ImportCandidate[]; notes: string[]; fit?: BriefFit | null };
+
+export async function runImport(input: ImportInput, deps: ImportDeps): Promise<ImportResult> {
   const notes: string[] = [];
+  let stated: BriefConstraints | null = null;
   const raw: Omit<ImportCandidate, "key" | "seasonTagId" | "seasonReason" | "seasonGoodMonths" | "duplicate">[] = [];
 
   if (input.mode === "suggest") {
     if (!deps.llm) throw new Error("llm required");
-    const ai = await suggestPlaces(input.text, input.context ?? { startCity: null, startDate: null, numDays: 3 }, deps.llm);
+    const reading = await readBrief(input.text, input.context ?? { startCity: null, startDate: null, numDays: 3 }, deps.llm);
+    const ai = reading.places;
+    stated = reading.constraints;
     if (ai.length === 0) notes.push("The AI couldn't come up with confident suggestions for that brief. Try adding more detail.");
     await geocodeAll(ai, "ai_suggestion", input.bias ?? null, input.biasLabel ?? null, deps, raw);
   } else {
@@ -150,7 +165,30 @@ export async function runImport(input: ImportInput, deps: ImportDeps): Promise<{
     };
   });
 
-  return { candidates, notes };
+  // 4) "Describe my trip": check what actually fits, with real road times. The AI only suggested places and read the stated limits; it
+  //    never decides what fits. If the check cannot run we say so rather than leaving suggestions looking vetted.
+  let fit: BriefFit | null | undefined;
+  if (input.mode === "suggest" && stated) {
+    if (!deps.fit) { fit = null; }
+    else {
+      try { fit = await deps.fit({ candidates, constraints: stated }); }
+      catch (err) { console.error("[import] fit check failed:", err instanceof Error ? err.message : err); fit = null; }
+    }
+    if (fit) {
+      const byId = new Map<string, { day: number; order: number; arriveMin: number }>();
+      for (const d of fit.plan?.days ?? []) for (const st of d.stops) byId.set(st.placeId, { day: d.day, order: st.order, arriveMin: st.arriveMin });
+      const dropped = new Map(fit.dropped.map((d) => [d.id, d]));
+      for (const c of candidates) {
+        const drop = dropped.get(c.key);
+        if (drop) { c.fit = { state: "dropped", code: drop.code, reason: drop.reason }; c.warnings.push(`Left out of the plan: ${drop.reason}`); }
+        else if (byId.has(c.key)) c.fit = { state: "kept", ...byId.get(c.key)! };
+      }
+    } else {
+      notes.push("We couldn't check these suggestions against real driving times, so we can't say whether they all fit. Check each one before you add it.");
+    }
+  }
+
+  return { candidates, notes, ...(fit !== undefined ? { fit } : {}) };
 }
 
 async function geocodeAll(

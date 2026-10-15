@@ -3,11 +3,12 @@ import { Glyph } from "@/components/ui/Glyph";
 export type PlanTool = "plan" | "leave" | "import" | "dates";
 
 /**
- * The top of the Plan page, kept to what a traveller needs first: which trip, when, how big, and the three things they can do.
+ * The top of the Plan page, kept to what a traveller needs first: when, how big, and the three things they can do.
+ * The trip's NAME is not repeated here: the trip layout above already shows it as the page's heading (a second one cost a line of
+ * phone screen and gave the page two level-1 headings).
  * Everything else is one tap away in a panel that opens below, one at a time, so the page opens on the itinerary.
  */
-export function PlanHeader({ name, dates, meta, status, countdown, active, onTool, hasDates }: {
-  name: string;
+export function PlanHeader({ dates, meta, status, countdown, active, onTool, hasDates }: {
   /** "Thu, 15 Oct to Fri, 16 Oct" or "No dates yet" */
   dates: string;
   /** "2 days · 4 places" */
@@ -30,8 +31,7 @@ export function PlanHeader({ name, dates, meta, status, countdown, active, onToo
       <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="truncate font-display text-xl font-semibold text-pine">{name}</h1>
-            <p className="mt-0.5 text-sm font-medium text-pine">{dates}</p>
+            <p className="text-base font-semibold text-pine">{dates}</p>
             <p className="text-sm text-ink-muted">{meta}{status ? ` · ${status}` : ""}</p>
           </div>
           <button type="button" aria-pressed={active === "dates"} onClick={() => onTool("dates")} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold ${active === "dates" ? "border-teal bg-teal-light/50 text-teal-ink" : hasDates ? "border-line text-pine hover:bg-sky" : "border-marigold bg-marigold-light text-[#7a4a00]"}`}>

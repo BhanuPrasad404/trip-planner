@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fileToDataUrl } from "@/lib/client/image";
+import { fileToBudgetedDataUrl } from "@/lib/client/image";
+import { isOfflineError } from "@/lib/client/connectivity";
+import { useOnline } from "@/lib/client/use-connectivity";
+import { BriefFitCard } from "@/components/BriefFitCard";
+import type { BriefFit } from "@/lib/trip-builder/brief";
+import { hhmm } from "@/lib/trip-builder";
 import { getSeasonStatus, visitMonth } from "@/lib/season";
 import type { ImportCandidate } from "@/lib/import/pipeline";
 import { SeasonBadge } from "./SeasonBadge";
@@ -40,6 +45,8 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
   const [images, setImages] = useState<{ name: string; dataUrl: string }[]>([]);
   const [candidates, setCandidates] = useState<ImportCandidate[]>([]);
   const [notes, setNotes] = useState<string[]>([]);
+  const [fit, setFit] = useState<BriefFit | null>(null);
+  const online = useOnline();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -68,7 +75,7 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
       let skipped = 0;
       for (const f of Array.from(files)) {
         if (next.length >= MAX_IMAGES) { skipped++; continue; }
-        next.push({ name: f.name, dataUrl: await fileToDataUrl(f) });
+        next.push({ name: f.name, dataUrl: await fileToBudgetedDataUrl(f, next.reduce((n, i) => n + i.dataUrl.length, 0)) });
       }
       setImages(next);
       if (skipped > 0) setFileNote(`You can add up to ${MAX_IMAGES} screenshots at a time, so ${skipped} ${skipped === 1 ? "was" : "were"} left out. Remove one to add another, or import the rest in a second go.`);
@@ -102,11 +109,11 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
       const list: ImportCandidate[] = body.candidates ?? [];
       setCandidates(list);
       setNotes(body.notes ?? []);
-      // Far-away matches (likely the wrong place) start UNticked; the user can still opt in.
-      setSelected(new Set(list.filter((c) => c.lat != null && !c.duplicate && !c.far).map((c) => c.key)));
+      setFit(tab === "brief" ? (body.fit ?? null) : null);
+      setSelected(initialSelection(list));
       setPhase("review");
-    } catch {
-      setError("Network problem — check your connection and try again.");
+    } catch (e) {
+      setError(isOfflineError(e) ? e.message : "Network problem — check your connection and try again.");
       setPhase("form");
     }
   }
@@ -141,8 +148,8 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
         return;
       }
       onDone(body.added ?? chosen.length);
-    } catch {
-      setError("Network problem — check your connection and try again.");
+    } catch (e) {
+      setError(isOfflineError(e) ? e.message : "Network problem — check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -208,14 +215,14 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
               placeholder={
                 tab === "paste"
                   ? "Google Maps links, a reel caption, a WhatsApp message listing places…"
-                  : "e.g. 4 friends from Hyderabad, monsoon weekend, we love waterfalls and easy treks, budget stay"
+                  : "e.g. 4 friends from Hyderabad, heading south, start by 8 am, no more than 5 hours of driving a day, we love lakes and temples, Srisailam is a must"
               }
               className="mt-1.5 w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/40"
             />
             <p className="mt-1.5 text-sm text-ink-muted">
               {tab === "paste"
                 ? "Instagram and YouTube block automatic link reading, so paste the caption or add a screenshot of the reel. Google Maps links work directly."
-                : "AI-suggested places for your travel month and start city. They may be wrong, so check each one. Nothing is added until you confirm."}
+                : "We suggest places for your travel month and start city, then check them against real driving times for your trip's days. Mention your limits (when you start, how long you can drive, which way you're heading, what you must see) and we'll plan around them. Suggestions may be wrong, so check each one. Nothing is added until you confirm."}
             </p>
           </div>
 
@@ -254,9 +261,10 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
 
           <FormError message={error} />
 
-          <Button type="submit" disabled={!canAnalyse} loading={phase === "loading"} loadingLabel="Finding places… this can take a few seconds" className="w-full sm:w-auto">
+          <Button type="submit" disabled={!canAnalyse || !online} loading={phase === "loading"} loadingLabel="Finding places… this can take a few seconds" className="w-full sm:w-auto">
             {tab === "brief" ? "Suggest places" : "Find places"}
           </Button>
+          {!online && <p className="text-sm font-medium text-clay-ink">You&apos;re offline. Finding places needs an internet connection; your text and screenshots are kept here.</p>}
           <p role="status" aria-live="polite" className={phase === "loading" ? "text-sm text-ink-muted" : "sr-only"}>{phase === "loading" ? (tab === "paste" && images.length > 0 ? "Reading your screenshot, then finding each place on the map. This can take up to a minute." : "Finding places on the map. This can take a few seconds.") : ""}</p>
         </form>
       )}
@@ -267,6 +275,7 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
           {notes.map((n) => (
             <p key={n} className="rounded-xl bg-marigold-light px-4 py-3 text-sm text-[#7a4a00]">{n}</p>
           ))}
+          {fit && <BriefFitCard fit={fit} />}
 
           {candidates.length === 0 ? (
             <p className="py-4 text-center text-base text-ink-muted">Nothing found. Go back and try different text.</p>
@@ -292,6 +301,10 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
                         <span className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                           <span className="rounded-full bg-sky px-2.5 py-1 font-semibold text-ink-muted">{c.source === "ai_suggestion" && <Glyph name="sparkles" size={12} className="mr-1 inline align-text-bottom" />}{sourceLabel[c.source]}{c.source === "ai_suggestion" ? " · double-check" : ""}</span>
                           {status && <SeasonBadge status={status} />}
+                          {c.fit?.state === "kept" && c.fit.day != null && (
+                            <span className="rounded-full bg-teal-light px-2.5 py-1 font-semibold text-pine">Day {c.fit.day}{c.fit.arriveMin != null ? ` · ${hhmm(c.fit.arriveMin)}` : ""}</span>
+                          )}
+                          {c.fit?.state === "dropped" && <span className="rounded-full bg-clay-light px-2.5 py-1 font-semibold text-clay-ink">Left out of the plan</span>}
                         </span>
                         {c.note && <span className="mt-1.5 block text-sm text-ink-muted">{c.note}</span>}
                         {c.warnings.filter((w) => !w.startsWith("AI suggestion")).map((w) => (
@@ -306,10 +319,11 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
           )}
 
           <FormError message={error} />
+          {!online && <p className="text-sm font-medium text-clay-ink">You&apos;re offline. Your choices are kept; adding them needs an internet connection.</p>}
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button variant="ghost" onClick={() => setPhase("form")} disabled={saving}>Back</Button>
-            <Button onClick={save} loading={saving} loadingLabel="Adding…" disabled={selected.size === 0}>
+            <Button onClick={save} loading={saving} loadingLabel="Adding…" disabled={selected.size === 0 || !online}>
               {`Add ${selected.size} to Ideas`}
             </Button>
           </div>
@@ -317,6 +331,14 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
       )}
     </section>
   );
+}
+
+/**
+ * Which results start ticked. Far-away matches (likely the wrong place) and places the feasibility check left out start UNticked; the
+ * traveller can still opt in. Places that could not be located can never be added.
+ */
+export function initialSelection(list: ImportCandidate[]): Set<string> {
+  return new Set(list.filter((c) => c.lat != null && !c.duplicate && !c.far && c.fit?.state !== "dropped").map((c) => c.key));
 }
 
 /** One plain sentence about what came back, so the result is never a silent list. */

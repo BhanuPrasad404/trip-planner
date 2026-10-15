@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/server/trip-data";
 import { tripState } from "@/lib/trip-state";
 import { AppNav } from "./AppNav";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { TimezoneCookie } from "./TimezoneCookie";
 import type { NavTrip } from "./nav";
 
@@ -33,7 +34,10 @@ export async function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col md:flex-row">
       <TimezoneCookie />
       <AppNav trips={trips} userInitial={initial} signOutAction={signOut} />
-      <div className="min-w-0 flex-1 pb-20 md:pb-0">{children}</div>
+      <div className="min-w-0 flex-1 pb-20 md:pb-0">
+        <OfflineBanner />
+        {children}
+      </div>
     </div>
   );
 }

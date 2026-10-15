@@ -343,7 +343,6 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   return (
     <div className="flex-1">
       <PlanHeader
-        name={trip.name}
         dates={headerDates}
         meta={headerMeta}
         status={headerStatus}

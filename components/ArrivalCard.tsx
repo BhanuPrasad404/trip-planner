@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 
-export type ArrivalNext = { name: string; km: number | null; minutes: number | null; mapsHref: string | null };
+export type ArrivalNext = { name: string; km: number | null; minutes: number | null; mapsHref: string | null; /** How to read km ("about 12 km", "(estimated)"); preferred over km. */ kmText?: string | null };
 
 type Props = {
   prompt: { name: string; distanceM: number; accuracyM: number } | null;
@@ -103,7 +103,7 @@ export function ArrivalCard(p: Props) {
 
           {!choosing && p.next && (
             <div className="mt-3 border-t border-line pt-3">
-              <p className="text-sm text-ink-muted"><span className="font-semibold text-pine">Next: {p.next.name}</span>{p.next.km !== null ? ` · ${p.next.km < 10 ? p.next.km.toFixed(1) : Math.round(p.next.km)} km` : ""}{p.next.minutes !== null ? ` · about ${p.next.minutes} min` : ""}</p>
+              <p className="text-sm text-ink-muted"><span className="font-semibold text-pine">Next: {p.next.name}</span>{p.next.kmText ? ` · ${p.next.kmText}` : p.next.km !== null ? ` · ${p.next.km < 10 ? p.next.km.toFixed(1) : Math.round(p.next.km)} km` : ""}{p.next.minutes !== null ? ` · about ${p.next.minutes} min` : ""}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {p.onNavigate && <Button size="sm" onClick={p.onNavigate}><Glyph name="navigate" size={16} />Navigate from here</Button>}
                 {p.next.mapsHref && <a href={p.next.mapsHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line px-3.5 text-sm font-bold text-pine hover:bg-teal-light sm:min-h-10"><Glyph name="external" size={15} />Open in Google Maps<span className="sr-only"> (opens in a new tab)</span></a>}

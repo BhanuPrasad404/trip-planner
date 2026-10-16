@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { SeasonBadge } from "@/components/SeasonBadge";
+import { LandingSample } from "@/components/LandingSample";
+import { SAMPLE_MONTHS, sampleStops } from "@/lib/landing-sample";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Logo } from "@/components/Logo";
 import { LinkButton } from "@/components/ui/Button";
@@ -61,38 +62,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Static product preview — illustrative sample, not live data */}
+          {/* Example route built from our real season data (lib/landing-sample.ts): no invented stops, times or numbers. */}
           <div className="mx-auto w-full max-w-md lg:max-w-none">
-            <div className="overflow-hidden rounded-3xl bg-white shadow-2xl shadow-pine/20 ring-1 ring-line">
-              <div className="bg-pine px-5 py-4 text-white">
-                <p className="text-xs font-semibold uppercase tracking-widest text-white/75">Illustration · not a real trip</p>
-                <p className="mt-1 font-display text-2xl font-semibold">Hyderabad → Maharashtra</p>
-              </div>
-              <ol className="px-5 py-2">
-                {[
-                  { time: "08:30", name: "Tiger's Leap Viewpoint", status: "good" as const },
-                  {
-                    time: "11:00",
-                    name: "Kalu Waterfall",
-                    status: "wrong_season" as const,
-                    note: "Dry outside monsoon (Jun–Sep) — not worth visiting other months.",
-                  },
-                  { time: "13:30", name: "Della Adventure Park", status: "good" as const },
-                ].map((s) => (
-                  <li key={s.name} className="flex gap-3 border-b border-line py-4 last:border-b-0">
-                    <span className="w-12 shrink-0 pt-0.5 font-mono text-xs text-ink-muted">{s.time}</span>
-                    <div>
-                      <p className="text-base font-semibold">{s.name}</p>
-                      <div className="mt-1.5">
-                        <SeasonBadge status={s.status} />
-                      </div>
-                      {s.note && <p className="mt-2 text-sm text-ink-muted">{s.note}</p>}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <p className="mt-3 text-center text-xs text-ink-muted">An example of how a day looks — the stops and times here are made up to show the idea.</p>
+            <LandingSample byMonth={Object.fromEntries(SAMPLE_MONTHS.map((m) => [m, sampleStops(m)]))} />
+            <p className="mt-3 text-center text-xs text-ink-muted">Example from our researched season data (the sources are listed on each place in the app). Your own trip uses your dates, live weather and real driving times.</p>
           </div>
         </section>
 

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
+import { getSupabaseEnv } from "@/lib/env";
+import { deleteTrip } from "@/lib/server/trip-delete";
+import { createAdminClient, hasAdminAccess } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { updateTripSchema, uuid } from "@/lib/validation/schemas";
+import { deleteTripSchema, updateTripSchema, uuid } from "@/lib/validation/schemas";
 
 /**
  * Change a trip's start date and/or number of days (owner only).
@@ -49,4 +52,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (error) return dbError(error, "trip patch: update");
   if (!updated || updated.length === 0) return jsonError("Trip not found", 404);
   return NextResponse.json({ ok: true, movedToIdeas });
+}
+
+/**
+ * Permanently delete a trip (owner only) with its stops, votes, members, live locations and stored trip files.
+ * The owner types the trip name to confirm. "Finish" and "Call it off" (the lifecycle route) remain the way to close a trip and keep it.
+ */
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!uuid.safeParse(id).success) return jsonError("Invalid trip id", 400);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return jsonError("Please sign in", 401);
+  const parsed = await parseBody(req, deleteTripSchema);
+  if (parsed.error) return parsed.error;
+
+  const result = await deleteTrip({
+    supabase,
+    admin: hasAdminAccess() ? createAdminClient() : null,
+    supabaseUrl: getSupabaseEnv().url,
+    userId: user.id,
+    tripId: id,
+    confirmName: parsed.data.confirm_name,
+  });
+  if (!result.ok) return jsonError(result.error, result.status);
+  return NextResponse.json({ ok: true, filesRemoved: result.filesRemoved });
 }

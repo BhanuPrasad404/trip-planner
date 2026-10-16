@@ -8,7 +8,7 @@ export type ProgressStop = { id: string; name: string; status: "planned" | "done
  * Today's progress, from the real state of each stop. The bar and the little vehicle move ONLY when a stop is marked (done or skipped);
  * they are not a looping decoration. Nothing here is estimated: it is "N of M stops", the next stop and, when we have it, the real distance.
  */
-export function TripProgress({ stops, vehicle, nextName, nextKm }: { stops: ProgressStop[]; vehicle: Vehicle; nextName: string | null; nextKm: number | null }) {
+export function TripProgress({ stops, vehicle, nextName, nextKm, nextKmText }: { stops: ProgressStop[]; vehicle: Vehicle; nextName: string | null; nextKm: number | null; /** The distance as it should be read ("about 12 km", "(estimated)"); preferred over nextKm. */ nextKmText?: string | null }) {
   const counted = stops.filter((s) => s.status !== "skipped");
   const done = counted.filter((s) => s.status === "done").length;
   const total = counted.length;
@@ -32,7 +32,7 @@ export function TripProgress({ stops, vehicle, nextName, nextKm }: { stops: Prog
           ))}
         </ol>
       </div>
-      {nextName && <p className="mt-2 text-sm text-ink-muted">Next: <strong className="text-pine">{nextName}</strong>{nextKm !== null ? ` · ${nextKm < 10 ? nextKm.toFixed(1) : Math.round(nextKm)} km` : ""}</p>}
+      {nextName && <p className="mt-2 text-sm text-ink-muted">Next: <strong className="text-pine">{nextName}</strong>{nextKmText ? ` · ${nextKmText}` : nextKm !== null ? ` · ${nextKm < 10 ? nextKm.toFixed(1) : Math.round(nextKm)} km` : ""}</p>}
       {!nextName && done === total && total > 0 && <p className="mt-2 text-sm font-semibold text-teal-ink">That&apos;s every stop for today.</p>}
     </section>
   );

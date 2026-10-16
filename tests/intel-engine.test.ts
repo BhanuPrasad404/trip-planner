@@ -373,3 +373,14 @@ describe("weather right now and the sun (the things a traveller checks first)", 
     expect(buildIntel(scenario()).sunNext).toMatchObject({ label: "Sunset", tomorrow: false });
   });
 });
+
+describe("remaining km is measured from where I am on the road (Task 10)", () => {
+  it("the farther along I am, the less is left — the route's start is not where I am", () => {
+    const atStart = buildIntel(scenario());
+    const along40 = buildIntel(scenario({ position: { lat: 17, lng: 80 + 40 * KM_TO_LNG } }));
+    const atEnd = buildIntel(scenario({ position: { lat: 17, lng: 80 + 106 * KM_TO_LNG } }));
+    expect(atStart.remainingKm - along40.remainingKm).toBeGreaterThan(39);
+    expect(atStart.remainingKm - along40.remainingKm).toBeLessThan(41);
+    expect(atEnd.remainingKm).toBeLessThan(1);
+  });
+});

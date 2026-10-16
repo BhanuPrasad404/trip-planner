@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "./ui/Button";
 import { FormError, TextField } from "./ui/Field";
 import { LEGAL_VERSION } from "@/lib/legal";
+import { GoogleButton } from "./GoogleButton";
 
 type AuthFormProps = { mode: "login" | "signup"; next: string; initialError?: string | null; initialNotice?: string | null };
 
@@ -120,6 +121,13 @@ export function AuthForm({ mode, next, initialError = null, initialNotice = null
         onChange={(e) => setPassword(e.target.value)}
         hint={isSignup ? "At least 8 characters." : undefined}
       />
+      {!isSignup && (
+        <p className="-mt-3 text-right text-sm">
+          <Link href="/forgot-password" className="font-semibold text-teal-ink underline underline-offset-2">
+            Forgot password?
+          </Link>
+        </p>
+      )}
 
       {isSignup && (
         <label className="flex items-start gap-3 text-sm text-ink">
@@ -138,6 +146,11 @@ export function AuthForm({ mode, next, initialError = null, initialNotice = null
       <Button type="submit" loading={loading} loadingLabel={isSignup ? "Creating account…" : "Logging in…"} className="w-full">
         {isSignup ? "Create account" : "Log in"}
       </Button>
+
+      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-ink-muted" aria-hidden="true">
+        <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
+      </div>
+      <GoogleButton next={next} blockedReason={isSignup && !agreed ? "Please tick the box to confirm you agree to the Terms and the Privacy Policy." : null} />
 
       <p className="text-center text-sm text-ink-muted">
         {isSignup ? "Already have an account? " : "New to Trailmate? "}

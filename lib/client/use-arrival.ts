@@ -113,9 +113,12 @@ export function useArrival({ tripId, stops, enabled, session, arrivalRef, mark, 
   const keepEarlier = useCallback(() => setDone((d) => (d ? { ...d, earlier: [] } : d)), []);
   const closeDone = useCallback(() => setDone(null), []);
 
+  // A prompt is only for a stop that still exists and is still to be visited: never "you've arrived" at a deleted stop.
+  const open = (id: string) => stops.some((s) => s.id === id && s.status === "planned");
+  const doneView = done && stops.some((s) => s.id === done.stopId) ? { ...done, earlier: done.earlier.filter((e) => stops.some((s) => s.id === e.id)) } : null;
   return {
-    prompt: enabled && prompt && prompt.session === session ? prompt : null,
-    unsure: enabled && unsure && unsure.session === session ? unsure : null,
-    done, busy, confirm, dismiss, confirmUnsure, dismissUnsure, undo, skipEarlier, keepEarlier, closeDone,
+    prompt: enabled && prompt && prompt.session === session && open(prompt.stopId) ? prompt : null,
+    unsure: enabled && unsure && unsure.session === session && open(unsure.stopId) ? unsure : null,
+    done: doneView, busy, confirm, dismiss, confirmUnsure, dismissUnsure, undo, skipEarlier, keepEarlier, closeDone,
   };
 }

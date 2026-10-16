@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { StateChip } from "@/components/StateChip";
+import { TripGoneWatcher } from "@/components/TripGoneWatcher";
 import { TripLifecycleCard } from "@/components/TripLifecycleCard";
 import { createClient } from "@/lib/supabase/server";
 import { lifecycleChip, lifecycleOf } from "@/lib/trip/lifecycle";
@@ -50,6 +51,7 @@ export default async function TripLayout({ children, params }: { children: React
         </div>
       </div>
       {children}
+      <TripGoneWatcher tripId={trip.id} />
     </>
   );
 }

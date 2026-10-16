@@ -55,7 +55,7 @@ describe("useVisits: works with no signal, and catches up when it returns", () =
     store = {}; online = true; serverStatus = 200; sent = []; winListeners = {};
     vi.useFakeTimers(); vi.setSystemTime(T0);
     vi.stubGlobal("window", {
-      localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } },
+      localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; }, removeItem: (k: string) => { delete store[k]; }, get length() { return Object.keys(store).length; }, key: (i: number) => Object.keys(store)[i] ?? null },
       addEventListener: (n: string, f: () => void) => { (winListeners[n] ??= []).push(f); }, removeEventListener: (n: string, f: () => void) => { winListeners[n] = (winListeners[n] ?? []).filter((x) => x !== f); },
       setTimeout: (f: () => void, ms: number) => setTimeout(f, ms), clearTimeout: (i: number) => clearTimeout(i), setInterval: (f: () => void, ms: number) => setInterval(f, ms), clearInterval: (i: number) => clearInterval(i),
     });
@@ -65,51 +65,57 @@ describe("useVisits: works with no signal, and catches up when it returns", () =
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   let api: ReturnType<typeof useVisits>; let synced: number; let r: TestRenderer.ReactTestRenderer;
-  const Probe = () => { api = useVisits("trip1", () => { synced++; }, () => T0); return null; };
+  const Probe = () => { api = useVisits("trip1", "u1", () => { synced++; }, () => T0); return null; };
+  const waiting = () => api.outbox.items.map((x) => (x.kind === "status" ? `${x.placeId}:${x.status}` : x.kind));
   const mount = async () => { synced = 0; await act(async () => { r = TestRenderer.create(createElement(Probe)); }); };
   afterEach(() => { act(() => r?.unmount()); });
 
   it("online: the answer is sent at once, the server is told to refresh, and nothing stays queued", async () => {
     await mount();
     let res: string | undefined; await act(async () => { res = await api.mark("p1", "done", "Fort"); });
-    expect(res).toBe("saved"); expect(sent).toEqual([{ id: "p1", status: "done" }]); expect(api.queued).toEqual([]); expect(synced).toBe(1);
+    expect(res).toBe("saved"); expect(sent).toEqual([{ id: "p1", status: "done" }]); expect(waiting()).toEqual([]); expect(synced).toBe(1);
   });
   it("OFFLINE: nothing is sent, the answer is kept on the phone and shown at once", async () => {
     online = false; await mount();
     let res: string | undefined; await act(async () => { res = await api.mark("p1", "done", "Fort"); });
-    expect(res).toBe("queued"); expect(sent).toEqual([]); expect(api.queued.map((x) => `${x.placeId}:${x.status}`)).toEqual(["p1:done"]);
-    expect(JSON.parse(store["tm:visits:trip1"]).items).toHaveLength(1); // survives a reload
+    expect(res).toBe("queued"); expect(sent).toEqual([]); expect(waiting()).toEqual(["p1:done"]);
+    expect(JSON.parse(store["tm:outbox:u1:trip1"]).items).toHaveLength(1); // survives a reload — saved for THIS person only
   });
   it("a network failure mid-send is treated like being offline: kept, not lost", async () => {
     serverStatus = -1; await mount();
     let res: string | undefined; await act(async () => { res = await api.mark("p1", "done"); });
-    expect(res).toBe("queued"); expect(api.queued).toHaveLength(1); expect(synced).toBe(0);
+    expect(res).toBe("queued"); expect(waiting()).toHaveLength(1); expect(synced).toBe(0);
   });
   it("when the connection returns, everything waiting is sent in order and the page is refreshed", async () => {
     online = false; await mount();
     await act(async () => { await api.mark("p1", "done"); await api.mark("p2", "skipped"); });
     expect(sent).toEqual([]); online = true;
     await act(async () => { winListeners.online?.forEach((f) => f()); await vi.advanceTimersByTimeAsync(10); });
-    expect(sent).toEqual([{ id: "p1", status: "done" }, { id: "p2", status: "skipped" }]); expect(api.queued).toEqual([]); expect(synced).toBe(1);
+    expect(sent).toEqual([{ id: "p1", status: "done" }, { id: "p2", status: "skipped" }]); expect(waiting()).toEqual([]); expect(synced).toBe(1);
   });
   it("answers waiting from before a reload are sent on the next visit", async () => {
+    store["tm:outbox:u1:trip1"] = JSON.stringify({ items: [{ kind: "status", placeId: "p9", status: "done", at: T0 - 1000 }] });
+    await mount(); await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(sent).toEqual([{ id: "p9", status: "done" }]); expect(waiting()).toEqual([]);
+  });
+  it("the OLD queue (saved without a person, so it could be anyone's) is deleted, never shown or sent", async () => {
     store["tm:visits:trip1"] = JSON.stringify({ items: [q("p9", "done", T0 - 1000)] });
     await mount(); await act(async () => { await vi.advanceTimersByTimeAsync(50); });
-    expect(sent).toEqual([{ id: "p9", status: "done" }]); expect(api.queued).toEqual([]);
+    expect(sent).toEqual([]); expect(waiting()).toEqual([]); expect(store["tm:visits:trip1"]).toBeUndefined();
   });
   it("still offline on retry: keeps the rest and does not hammer the server", async () => {
     online = false; await mount(); await act(async () => { await api.mark("p1", "done"); });
     await act(async () => { await vi.advanceTimersByTimeAsync(5 * 20_000); });
-    expect(sent).toEqual([]); expect(api.queued).toHaveLength(1);
+    expect(sent).toEqual([]); expect(waiting()).toHaveLength(1);
   });
   it("a refusal drops the answer and says why, instead of retrying forever", async () => {
     serverStatus = 404; await mount();
     await act(async () => { await api.mark("p1", "done", "Bhongir Fort"); });
-    expect(api.queued).toEqual([]); expect(api.failed).toContain("Bhongir Fort"); expect(api.failed).toMatch(/removed|may not/);
+    expect(waiting()).toEqual([]); expect(api.failed).toContain("Bhongir Fort"); expect(api.failed).toMatch(/removed|may not/);
   });
   it("undo offline: 'done' then 'planned' leaves a single answer, 'planned'", async () => {
     online = false; await mount();
     await act(async () => { await api.mark("p1", "done"); await api.mark("p1", "planned"); });
-    expect(api.queued.map((x) => x.status)).toEqual(["planned"]);
+    expect(waiting()).toEqual(["p1:planned"]);
   });
 });

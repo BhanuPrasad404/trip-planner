@@ -1,5 +1,5 @@
 {
-  "_note": "Single source of truth for curated season data. Edit here, then run `npm run build:season` to regenerate the SQL migration. Coordinates are approximate (about 10 km) and are used ONLY to match a user's pin to this record. 'researched' = the season window agrees across 2+ sources (see source_urls); reasons are paraphrased summaries, not quotes.",
+  "_note": "Single source of truth for curated season data. Edit here, then run `npm run build:season`: it writes a NEW migration (an applied migration is never rewritten). Coordinates are approximate (about 10 km) and are used ONLY to match a user's pin to this record. 'researched' = the season window agrees across 2+ sources from different websites (see source_urls); 'draft' = fewer sources or they disagree, shown in the app as Draft. Reasons are paraphrased summaries, not quotes.",
   "places": [
     {
       "place_name": "Undavalli Caves",
@@ -416,11 +416,229 @@
       ],
       "reason": "Little rain and not too hot from December to April.",
       "region": "Andhra Pradesh",
-      "confidence": "researched",
+      "confidence": "draft",
       "source_urls": [
         "https://media.lonelyplanet.com/shop/pdfs/india-17-telangana-andhra-pradesh-preview.pdf"
       ],
       "last_checked": "2026-10-06"
+    },
+    {
+      "place_name": "Laknavaram Lake",
+      "lat": 18.1504,
+      "lng": 80.0696,
+      "category": "lake",
+      "good_months": [
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "A rain-fed lake that is fullest and most pleasant from the end of the monsoon through winter. In summer it shrinks and the heat is hard going.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://chalbanjare.com/telangana/tourist-attraction/laknavaram-cheruvu-warangal",
+        "https://www.telangana360.com/2015/12/laknavaram-lake-cheruvu.html",
+        "https://www.tourtravelworld.com/india/warangal/laknavaram-lake.htm"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Pakhal Lake",
+      "lat": 17.9528,
+      "lng": 80.0014,
+      "category": "lake",
+      "good_months": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Best in the cool, dry winter months. The lake shrinks in summer. It sits in a wildlife sanctuary, so the Forest Department sets access and safari timings.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://traveltriangle.com/blog/pakhal-lake-and-wildlife-sanctuary/",
+        "https://www.telangana360.com/2015/12/pakhal-wildlife-sanctuary.html",
+        "https://www.explurger.com/pd/1b1mvh5en042mh1ds"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Bhadrachalam Temple",
+      "lat": 17.6669,
+      "lng": 80.8828,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Pleasant from October to March; April and May are very hot. Sri Rama Navami (March-April) and Vaikunta Ekadasi (December-January) bring very large crowds. Heavy monsoon rain can affect travel.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://chalbanjare.com/telangana/tourist-attraction/sree-seetha-ramachandraswamy-vari-devasthanam-bhadrachalam",
+        "https://travelsetu.com/guide/bhadrachalam-temple-tourism/best-time-to-visit-bhadrachalam-temple",
+        "https://www.holidify.com/places/bhadrachalam/sri-sitaramachandra-swamy-temple-sightseeing-1336.html"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Yadagirigutta Temple",
+      "lat": 17.5892,
+      "lng": 78.9446,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "reason": "Pleasant from October to March; April to June is very hot. The Brahmotsavam in Phalguna (February-March), weekends and holidays are very crowded.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://blog.yatradham.org/yadagirigutta-sri-lakshmi-narasimha-swamy-temple/",
+        "https://www.oneindia.com/temples/sri-lakshmi-narasimha-swamy-temple-yadagirigutta-i985/",
+        "https://www.savaari.com/blog/hyderabad/hyderabad-to-yadagirigutta/"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Nagarjuna Sagar Dam",
+      "lat": 16.5756,
+      "lng": 79.3117,
+      "category": "lake",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Winter is best for sightseeing and summer is very hot. The spillway gates open only after a good monsoon (often September-October), a big sight that depends on the year's rain.",
+      "region": "Telangana",
+      "confidence": "draft",
+      "source_urls": [
+        "https://www.holidify.com/places/nagarjunsagar/",
+        "https://traveltriangle.com/blog/nagarjunasagar-dam/",
+        "https://incredibleindia.gov.in/en/telangana/hyderabad/nagarjuna-sagar-dam"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Ananthagiri Hills",
+      "lat": 17.3119,
+      "lng": 77.8631,
+      "category": "hill_station",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "Cool and pleasant from October to February. Summer reaches about 40 C and the streams dry up; in the monsoon the trails get slippery and adventure activities may be closed.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://prod.incredibleindia.gov.in/content/incredible-india-v2/en/destinations/states/telangana/itineraries/ananthagiri-road-trip.html",
+        "https://www.holidify.com/places/ananthagiri-hills/best-time-to-visit.html",
+        "https://www.telangana360.com/2016/06/ananthagiri-hills-vikarabad.html"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Bhongir Fort",
+      "lat": 17.5157,
+      "lng": 78.8927,
+      "category": "fort",
+      "good_months": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "The climb is in full sun, so the cooler months are best. April to June can top 40 C, and in the monsoon the rock paths get slippery.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.incredibleindia.gov.in/en/telangana/bhongir",
+        "https://traveltriangle.com/blog/bhongir-fort/",
+        "https://www.telangana360.com/2016/06/bhuvanagiri-or-bhongir-fort.html"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Mallela Theertham Waterfall",
+      "lat": 16.2661,
+      "lng": 78.8564,
+      "category": "waterfall",
+      "good_months": [
+        10,
+        11,
+        12,
+        1
+      ],
+      "reason": "Rain-fed: the best flow is from after the monsoon into winter; March to June is the driest. The steps are slippery after rain, and it is deep in the Nallamala forest with forest checks and no shops.",
+      "region": "Telangana",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.telangana360.com/2016/06/mallela-theertham-waterfalls.html",
+        "https://www.oyorooms.com/travel-guide/waterfalls-near-hyderabad/amp/",
+        "https://muddietrails.com/experiences/mallelateertham-waterfalls-day-trip-hyderabad/"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Srisailam Temple",
+      "lat": 16.0742,
+      "lng": 78.8681,
+      "category": "temple",
+      "good_months": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "October to February has the best weather for the pilgrimage. March to June is very hot and the monsoon makes the ghat road slippery. Maha Shivaratri and Karthika Masam bring very large crowds.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.holidify.com/places/srisailam/best-time-to-visit.html",
+        "https://hurryupcabs.com/blogdetails/hyderabad-to-srisailam-distance",
+        "https://bhaktibharat.org/temples/famous-shiva-temples-yatra/mallikarjuna-srisailam-best-time-visit"
+      ],
+      "last_checked": "2026-10-16"
+    },
+    {
+      "place_name": "Tirumala Temple",
+      "lat": 13.6833,
+      "lng": 79.3472,
+      "category": "temple",
+      "good_months": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "reason": "November to February has the most comfortable weather but is also the busiest; April and May are very hot. Brahmotsavam (September/October) and Vaikunta Ekadasi (December/January) draw huge crowds.",
+      "region": "Andhra Pradesh",
+      "confidence": "researched",
+      "source_urls": [
+        "https://www.holidify.com/places/tirupati/best-time-to-visit.html",
+        "https://www.sotc.in/tourism/tirupati-tourism/best-time-to-visit-tirupati",
+        "https://www.rajpark.com/m/tirupati-hotel/blog/best-time-to-visit-tirupati-balaji.html"
+      ],
+      "last_checked": "2026-10-16"
     }
   ]
 }

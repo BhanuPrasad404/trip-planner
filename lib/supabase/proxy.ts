@@ -4,9 +4,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv } from "@/lib/env";
+import { WELCOME_PATH, consentFree, needsConsent } from "@/lib/oauth";
 
 const PROTECTED_PREFIXES = ["/trips", "/trip", "/join"];
-const AUTH_PAGES = ["/login", "/signup"];
+// /reset-password is deliberately NOT here: the reset link signs the person in before they choose the new password.
+const AUTH_PAGES = ["/login", "/signup", "/forgot-password"];
 
 const matches = (path: string, prefixes: string[]) =>
   prefixes.some((p) => path === p || path.startsWith(`${p}/`));
@@ -16,6 +18,7 @@ export async function updateSession(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   let signedIn = false;
+  let mustAgree = false;
   try {
     const { url, anonKey } = getSupabaseEnv();
     const supabase = createServerClient(url, anonKey, {
@@ -33,6 +36,7 @@ export async function updateSession(request: NextRequest) {
     // getClaims() verifies the JWT locally (no Auth-server round trip on every request).
     const { data } = await supabase.auth.getClaims();
     signedIn = Boolean(data?.claims?.sub);
+    mustAgree = signedIn && needsConsent(data?.claims);
   } catch (err) {
     console.error("[proxy] session check failed:", err instanceof Error ? err.message : err);
   }
@@ -42,6 +46,14 @@ export async function updateSession(request: NextRequest) {
     loginUrl.pathname = "/login";
     loginUrl.search = `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Signed in through Google but never agreed to the Terms: the one-time welcome step first (pages only; data stays protected by RLS).
+  if (mustAgree && !pathname.startsWith("/api/") && !consentFree(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = WELCOME_PATH;
+    url.search = `?next=${encodeURIComponent(pathname + search)}`;
+    return NextResponse.redirect(url);
   }
 
   if (signedIn && matches(pathname, AUTH_PAGES)) {

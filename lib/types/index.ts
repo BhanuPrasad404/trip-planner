@@ -21,6 +21,8 @@ export type Trip = {
   closed_at?: string | null;
   closed_reason?: "finished" | "cancelled" | null;
   invite_code: string;
+  /** When the invite link stops working; null/absent = never (absent until the invite migration is applied). */
+  invite_expires_at?: string | null;
   created_at: string;
 };
 

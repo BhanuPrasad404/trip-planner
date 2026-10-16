@@ -8,12 +8,14 @@ import { AlertBanners } from "./AlertCenter";
 import { useAlerts } from "@/lib/client/use-alerts";
 import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
 import { useVisits } from "@/lib/client/use-visits";
-import { applyQueued } from "@/lib/client/visit-queue";
+import { applyOutboxToPlaces } from "@/lib/client/outbox";
+import { OutboxStatus } from "./OutboxStatus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { enrichPlaces } from "@/lib/client/enrich";
 import { useTripActions } from "@/lib/client/use-trip-actions";
 import { useTripLive } from "@/lib/client/use-trip-live";
+import { useTripChanges } from "@/lib/client/use-trip-changes";
 import type { RadarItem } from "@/lib/intel/types";
 import type { PlaceWithSeason, Trip, TripMember } from "@/lib/types";
 import type { VoteSummary } from "@/lib/votes";
@@ -49,8 +51,9 @@ export function MapView({ trip, places: serverPlaces, members, votes, conditions
   const router = useRouter();
   const [, startTransition] = useTransition();
   const refresh = () => startTransition(() => router.refresh());
-  const visits = useVisits(trip.id, refresh);
-  const places = useMemo(() => applyQueued(serverPlaces, visits.queued), [serverPlaces, visits.queued]);
+  // Changes made with no signal (this person's own, on this trip) are shown at once and sent when the connection is back.
+  const visits = useVisits(trip.id, userId, refresh);
+  const places = useMemo(() => applyOutboxToPlaces(serverPlaces, visits.outbox.items), [serverPlaces, visits.outbox.items]);
   // Also tell the traveller if Trailmate is in the background (the card itself is the alert while the app is open).
   const alerts = useAlerts(INDIA_UTC_OFFSET_MIN, { origin: `/trips/${trip.id}/live` });
   const onArrivalPrompt = (stop: { id: string; name: string }) => alerts.notify({ id: `arrival:${stop.id}`, kind: "arrival", level: 2, title: `You've arrived at ${stop.name}`, body: "Open Trailmate to mark this stop as visited.", inApp: false, cooldownMs: 12 * 3_600_000 });
@@ -69,8 +72,10 @@ export function MapView({ trip, places: serverPlaces, members, votes, conditions
   const enriched = useMemo(() => enrichPlaces(places, trip, today, conditions), [places, trip, today, conditions]);
   const [vehicle, setVehicle] = useVehicle(trip.id);
   const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces: showAll, vehicle });
-  const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime });
+  const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime, outbox: visits.outbox });
   const { drive, intel, driveDay, todayDay, navigation } = live;
+  // Changes made elsewhere (another member deleted a stop, or I did on another device) reach this map at once.
+  useTripChanges({ tripId: trip.id, places: serverPlaces, driving: drive.active, onChange: refresh });
   // A finished trip (planned dates over, not a late finish): show its saved journey, not an active drive.
   const ended = (live.closed || (live.timing?.state === "after" && !live.overrun && !live.resumed)) && !drive.active;
   const endedOn = live.timing?.lastDate && live.localDate ? dayWithDate(live.timing.lastDate, live.localDate) : null;
@@ -183,6 +188,7 @@ export function MapView({ trip, places: serverPlaces, members, votes, conditions
         )}
       </div>
       <NavigationPanel ui={navUi.ui} />
+      <OutboxStatus outbox={visits.outbox} floating />
       <LiveArrival live={live} vehicle={vehicle} tripId={trip.id} mark={visits.mark} failed={visits.failed} onClearFailed={visits.clearFailed} onPrompt={onArrivalPrompt} />
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />
     </main>

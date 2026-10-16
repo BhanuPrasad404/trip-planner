@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DeleteTripButton } from "@/components/DeleteTripButton";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
 import { InvitePanel } from "@/components/InvitePanel";
+import { MembersPanel } from "@/components/MembersPanel";
 import { SharePlan } from "@/components/SharePlan";
 import { TripPrefsForm } from "@/components/TripPrefsForm";
 import { dateOfTripDay } from "@/lib/dates";
@@ -17,7 +19,7 @@ export const metadata: Metadata = { title: "Trip overview", robots: { index: fal
 
 export default async function TripOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { trip, places, today, userId } = await loadTripBundle(id, `/trips/${id}`, { weather: false, reports: false });
+  const { trip, places, members, today, userId } = await loadTripBundle(id, `/trips/${id}`, { weather: false, reports: false });
   const state = tripState(trip, today);
   const scheduled = places.filter((p) => p.day_number !== null);
   const ideas = places.filter((p) => p.day_number === null);
@@ -74,9 +76,17 @@ export default async function TripOverviewPage({ params }: { params: Promise<{ i
 
       <aside className="space-y-6" aria-label="Trip settings and sharing">
         <TripPrefsForm tripId={id} tripType={trip.trip_type ?? "friends"} rangeKm={trip.vehicle_range_km ?? 350} isOwner={trip.owner_id === userId} />
-        <InvitePanel inviteUrl={`${getSiteUrl()}/join/${trip.invite_code}`} tripName={trip.name} />
+        <MembersPanel tripId={trip.id} tripName={trip.name} members={members} ownerId={trip.owner_id} userId={userId} />
+        <InvitePanel inviteUrl={`${getSiteUrl()}/join/${trip.invite_code}`} tripName={trip.name} tripId={trip.id} isOwner={trip.owner_id === userId} expiresAt={trip.invite_expires_at ?? null} />
         <SharePlan text={shareText} />
         <FeedbackPanel tripId={trip.id} />
+        {trip.owner_id === userId && (
+          <section aria-labelledby="danger-zone" className="rounded-3xl border border-clay/30 bg-white p-5">
+            <h2 id="danger-zone" className="font-display text-lg font-semibold text-clay-ink">Delete this trip</h2>
+            <p className="mt-1 mb-3 text-sm text-ink-muted">Removes it for everyone, with all stops, votes and members. To keep it, finish it or call it off instead.</p>
+            <DeleteTripButton tripId={trip.id} tripName={trip.name} />
+          </section>
+        )}
       </aside>
     </main>
   );

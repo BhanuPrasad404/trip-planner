@@ -8,6 +8,11 @@ import { useRouter } from "next/navigation";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { useNowMinute } from "@/lib/client/use-now";
 import { usePlacePhotos } from "@/lib/client/use-place-photos";
+import { useTripChanges } from "@/lib/client/use-trip-changes";
+import { useOutbox } from "@/lib/client/use-outbox";
+import { OFFLINE_SAVED_TEXT, applyOutboxToPlaces, applyOutboxToVotes } from "@/lib/client/outbox";
+import { OutboxStatus } from "./OutboxStatus";
+import { announceStopsChanged } from "@/lib/client/stop-signal";
 import { useTripRealtime } from "@/lib/client/use-trip-realtime";
 import { dateOfTripDay } from "@/lib/dates";
 import { formatDate, formatDuration } from "@/lib/format";
@@ -82,11 +87,17 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   // Done / skip / undo, votes and remove show their result the instant you tap (the card says "Saving…" until the server confirms;
   // a failed save is taken back and the error shown). Fresh server data always replaces these local changes. See lib/optimistic.ts.
   const [ov, setOv] = useState<Overrides>(NO_OVERRIDES);
-  const places = useMemo(() => applyPlaceOverrides(serverPlaces, ov, serverPlaces), [serverPlaces, ov]);
-  const votes = useMemo(() => applyVoteOverrides(serverVotes, ov, serverVotes), [serverVotes, ov]);
-
   const refresh = () => startTransition(() => router.refresh());
+  // Votes, done/skip, moves and pin fixes made with no signal: kept on this phone for THIS person, shown at once, sent when online.
+  const outbox = useOutbox(trip.id, userId, refresh);
+  const offlinePlaces = useMemo(() => applyOutboxToPlaces(serverPlaces, outbox.items), [serverPlaces, outbox.items]);
+  const offlineVotes = useMemo(() => applyOutboxToVotes(serverVotes, outbox.items), [serverVotes, outbox.items]);
+  const places = useMemo(() => applyPlaceOverrides(offlinePlaces, ov, serverPlaces), [offlinePlaces, ov, serverPlaces]);
+  const votes = useMemo(() => applyVoteOverrides(offlineVotes, ov, serverVotes), [offlineVotes, ov, serverVotes]);
+
   useTripRealtime(trip.id, userId, refresh, (name) => setNotice(`A group member just added “${name}”.`));
+  // Inserts and edits arrive through useTripRealtime; this adds what Realtime cannot filter by trip: stops DELETED elsewhere.
+  useTripChanges({ tripId: trip.id, places: serverPlaces, driving: false, onChange: refresh, listenToRows: false });
 
   const days = useMemo(() => Array.from({ length: trip.num_days }, (_, i) => i + 1), [trip.num_days]);
 
@@ -220,6 +231,10 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   const activeISO = activeDate ? isoDate(activeDate) : null;
 
   async function call(url: string, init: RequestInit, failMsg: string): Promise<Record<string, unknown> | null> {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setError("This needs a connection. Nothing was changed — try again when you're back online.");
+      return null;
+    }
     try {
       const res = await fetch(url, init);
       const body = await res.json().catch(() => null);
@@ -227,16 +242,19 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
         setError(body?.error ?? failMsg);
         return null;
       }
+      // Tell the trip's other open screens (Live, Map, other members) — deletes especially cannot reach them any other way.
+      if (init.method && init.method !== "GET") void announceStopsChanged(trip.id);
       return body ?? {};
     } catch {
       setError("Network problem — check your connection and try again.");
       return null;
     }
   }
-  const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
   async function removePlace(id: string) {
     setError(null);
+    // Deleting can't be undone and others may have changed the trip meanwhile, so it is never queued.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return setError("Deleting a stop needs a connection. Nothing was deleted — try again when you're back online.");
     setBusyId(id);
     setOv((cur) => withPlaceOverride(cur, serverPlaces, serverVotes, id, { removed: true }));
     if (await call(`/api/places/${id}`, { method: "DELETE" }, "Couldn't remove this stop.")) refresh();
@@ -244,13 +262,14 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     setBusyId(null);
   }
 
+  const nameOf = (id: string) => serverPlaces.find((p) => p.id === id)?.name;
+
   async function movePlace(id: string, day: number | null) {
     setError(null);
     setBusyId(id);
-    if (await call(`/api/places/${id}`, json("PATCH", { day_number: day }), "Couldn't move this stop.")) {
-      setNotice(day === null ? "Moved to Ideas." : `Moved to Day ${day}.`);
-      refresh();
-    }
+    const r = await outbox.send({ kind: "move", placeId: id, day }, nameOf(id));
+    if (r === "saved") setNotice(day === null ? "Moved to Ideas." : `Moved to Day ${day}.`);
+    if (r === "queued") setNotice(OFFLINE_SAVED_TEXT);
     setBusyId(null);
   }
 
@@ -258,8 +277,9 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     setError(null);
     setBusyId(id);
     setOv((cur) => withVoteOverride(cur, serverPlaces, serverVotes, id, vote));
-    if (await call(`/api/places/${id}/vote`, json("POST", { vote }), "Couldn't save your vote.")) refresh();
-    else setOv((cur) => dropOverride(cur, id)); // it did not work: your vote goes back to what it was
+    const r = await outbox.send({ kind: "vote", placeId: id, vote }, nameOf(id));
+    if (r !== "saved") setOv((cur) => dropOverride(cur, id)); // queued: the outbox now shows it; refused: your vote goes back
+    if (r === "queued") setNotice(OFFLINE_SAVED_TEXT);
     setBusyId(null);
   }
 
@@ -267,18 +287,18 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     setError(null);
     setBusyId(id);
     setOv((cur) => withPlaceOverride(cur, serverPlaces, serverVotes, id, { status }));
-    if (await call(`/api/places/${id}`, json("PATCH", { status }), "Couldn't update this stop.")) refresh();
-    else setOv((cur) => dropOverride(cur, id)); // it did not work: the stop goes back to how it was
+    const r = await outbox.send({ kind: "status", placeId: id, status }, nameOf(id));
+    if (r !== "saved") setOv((cur) => dropOverride(cur, id)); // queued: the outbox now shows it; refused: the stop goes back
+    if (r === "queued") setNotice(OFFLINE_SAVED_TEXT);
     setBusyId(null);
   }
 
   async function relocatePlace(id: string, to: PickedPlace) {
     setError(null);
     setBusyId(id);
-    if (await call(`/api/places/${id}`, json("PATCH", { lat: to.lat, lng: to.lng, address: to.address }), "Couldn't move the pin.")) {
-      setNotice("Pin moved. Use Plan my trip again to refresh driving times.");
-      refresh();
-    }
+    const r = await outbox.send({ kind: "relocate", placeId: id, lat: to.lat, lng: to.lng, address: to.address ?? null }, nameOf(id));
+    if (r === "saved") setNotice("Pin moved. Use Plan my trip again to refresh driving times.");
+    if (r === "queued") setNotice(`${OFFLINE_SAVED_TEXT} Use Plan my trip again afterwards to refresh driving times.`);
     setBusyId(null);
   }
 
@@ -339,7 +359,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     onAlternatives: findAlternatives,
     onStatus: setStatus,
     reports: reports[e.place.id],
-    reportCtx: { userId, now: reportNow, onChanged: refresh },
+    reportCtx: { userId, now: reportNow, onChanged: refresh, outbox },
     busy: busyId === e.place.id,
     selected: selectedId === e.place.id,
     weather: weatherVisual(conditions[e.place.id] ?? null, e.category),
@@ -407,6 +427,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
         )}
         <div aria-live="polite" className="space-y-3 empty:hidden">
           <FormError message={error} />
+          <OutboxStatus outbox={outbox} />
           {notice && <p ref={noticeRef} id="plan-notice" tabIndex={-1} role="status" className="scroll-mt-24 rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink outline-none">{notice}</p>}
         </div>
       </div>

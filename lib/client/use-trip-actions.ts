@@ -2,6 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { snapshotPlaces, type PlaceSnapshot } from "@/lib/snapshot";
+import { announceStopsChanged } from "./stop-signal";
+import { OFFLINE_SAVED_TEXT } from "./outbox";
+import type { Outbox } from "./use-outbox";
 import type { PlaceWithSeason } from "@/lib/types";
 import { GRADE_LIMITS_M, STALE_MS } from "@/lib/location/quality";
 
@@ -35,7 +38,7 @@ const getPosition = () =>
  * Every change the Autopilot or the traveller makes to the plan goes through here, so each one is
  * (1) explicit, (2) explained afterwards, and (3) UNDOABLE: a snapshot of what changed is kept until the next action.
  */
-export function useTripActions({ tripId, places, onChanged, localDate, localTime, earlyDay }: Args) {
+export function useTripActions({ tripId, places, onChanged, localDate, localTime, earlyDay, outbox }: Args & { /** Done / skip / move work without signal through the person's outbox. */ outbox?: Outbox }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [replanning, setReplanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +46,10 @@ export function useTripActions({ tripId, places, onChanged, localDate, localTime
   const [undo, setUndo] = useState<UndoState | null>(null);
 
   const call = useCallback(async (url: string, init: RequestInit, failMsg: string): Promise<Record<string, unknown> | null> => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setError("This needs a connection (it uses live road data). Nothing was changed — try again when you're back online.");
+      return null;
+    }
     try {
       const res = await fetch(url, init);
       const body = await res.json().catch(() => null);
@@ -50,25 +57,32 @@ export function useTripActions({ tripId, places, onChanged, localDate, localTime
         setError(body?.error ?? failMsg);
         return null;
       }
+      // Every action here changes stops: tell the trip's other open screens (deletes cannot reach them any other way).
+      if (init.method && init.method !== "GET") void announceStopsChanged(tripId);
       return body ?? {};
     } catch {
       setError("Network problem — check your connection and try again.");
       return null;
     }
-  }, []);
+  }, [tripId]);
 
   const setStatus = useCallback(
     async (id: string, status: "planned" | "done" | "skipped", label?: string) => {
       setError(null);
       setBusyId(id);
       const before = snapshotPlaces(places, [id]);
-      if (await call(`/api/places/${id}`, json("PATCH", { status }), "Couldn't update this stop.")) {
+      if (outbox) {
+        const name = places.find((p) => p.id === id)?.name;
+        const r = await outbox.send({ kind: "status", placeId: id, status }, name);
+        if (r === "saved" && status !== "planned" && label) setUndo({ label, places: before, deleteIds: [] });
+        if (r === "queued") setNotice(OFFLINE_SAVED_TEXT);
+      } else if (await call(`/api/places/${id}`, json("PATCH", { status }), "Couldn't update this stop.")) {
         if (status !== "planned" && label) setUndo({ label, places: before, deleteIds: [] });
         onChanged();
       }
       setBusyId(null);
     },
-    [call, onChanged, places]
+    [call, onChanged, places, outbox]
   );
 
   const moveToDay = useCallback(
@@ -76,14 +90,19 @@ export function useTripActions({ tripId, places, onChanged, localDate, localTime
       setError(null);
       setBusyId(id);
       const before = snapshotPlaces(places, [id]);
-      if (await call(`/api/places/${id}`, json("PATCH", { day_number: day }), "Couldn't move this stop.")) {
+      if (outbox) {
+        const name = places.find((p) => p.id === id)?.name;
+        const r = await outbox.send({ kind: "move", placeId: id, day }, name);
+        if (r === "saved") { setNotice(day === null ? "Moved to Ideas." : `Moved to Day ${day}.`); if (label) setUndo({ label, places: before, deleteIds: [] }); }
+        if (r === "queued") setNotice(OFFLINE_SAVED_TEXT);
+      } else if (await call(`/api/places/${id}`, json("PATCH", { day_number: day }), "Couldn't move this stop.")) {
         setNotice(day === null ? "Moved to Ideas." : `Moved to Day ${day}.`);
         if (label) setUndo({ label, places: before, deleteIds: [] });
         onChanged();
       }
       setBusyId(null);
     },
-    [call, onChanged, places]
+    [call, onChanged, places, outbox]
   );
 
   const replanFromNow = useCallback(async (): Promise<{ text: string; warnings: string[] } | null> => {

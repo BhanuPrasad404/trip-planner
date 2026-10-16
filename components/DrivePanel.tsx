@@ -8,6 +8,7 @@ import type { Drive, DriveTarget } from "@/lib/client/use-drive";
 import { Button } from "./ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import { DESTINATION_ID } from "@/lib/map/drive-targets";
+import { kmText, remainingDistance, type Remaining } from "@/lib/trip/remaining";
 
 type DrivePanelProps = {
   drive: Drive;
@@ -17,6 +18,8 @@ type DrivePanelProps = {
   stops: DriveTarget[];
   /** Typical time spent at a stop, in minutes (added between stops when working out arrival times). */
   stayMinutes: (stopId: string) => number;
+  /** The shared "how far from where I am" answer (lib/trip/remaining.ts). Worked out here from `drive` when not given. */
+  distanceLeft?: Remaining | null;
   /** True when the day being driven is TODAY, so "behind plan" is meaningful. */
   comparePlan: boolean;
   dayLabel: string;
@@ -27,14 +30,17 @@ type DrivePanelProps = {
 const toneClass = { ok: "bg-teal-light text-teal-ink", late: "bg-clay-light text-clay-ink", early: "bg-sky text-ink-muted" } as const;
 const dotClass = { live: "bg-teal", recent: "bg-marigold", stale: "bg-line" } as const;
 
-export function DrivePanel({ drive, members, userId, stops, stayMinutes, comparePlan, dayLabel, nowMs }: DrivePanelProps) {
+export function DrivePanel({ drive, members, userId, stops, stayMinutes, comparePlan, dayLabel, nowMs, distanceLeft }: DrivePanelProps) {
   const { active, share, me, quality, error, route, members: live } = drive;
 
   const now = new Date(nowMs);
   const minuteOfDay = now.getHours() * 60 + now.getMinutes();
   const byId = new Map(stops.map((s) => [s.id, s]));
-  const routeStops = route ? route.stopIds.map((id) => byId.get(id)).filter((s): s is DriveTarget => !!s) : [];
-  const summary = route && me ? summarizeDrive(route.legs, routeStops, minuteOfDay, comparePlan, stayMinutes) : null;
+  // Same numbers as every other screen: from my position, through the remaining stops only (never a deleted one).
+  const left = distanceLeft !== undefined ? distanceLeft : remainingDistance({ targets: stops, route, nav: null, me, quality, nowMs: me?.at ?? 0 });
+  const routeStops = left ? left.stops.map((s) => byId.get(s.id)).filter((s): s is DriveTarget => !!s) : [];
+  const summary = left && me && routeStops.length === left.legs.length ? summarizeDrive(left.legs, routeStops, minuteOfDay, comparePlan, stayMinutes) : null;
+  const dist = (km: number) => (left ? kmText(km, left) : formatDistance(km));
   const delay = summary ? delayText(summary.next.delayMin) : null;
 
   const others = members.filter((m) => m.user_id !== userId);
@@ -93,7 +99,7 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
                   )}
                 </div>
                 <p className="mt-2 font-mono text-sm">
-                  <span className="text-2xl font-semibold">{formatDistance(summary.next.km)}</span>
+                  <span className="text-2xl font-semibold">{dist(summary.next.km)}</span>
                   <span className="text-white/80"> · {summary.next.minutes} min · arrive </span>
                   <span className="text-lg font-semibold">{summary.next.eta}</span>
                 </p>
@@ -103,6 +109,7 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
           </div>
 
           {me && quality?.usable && <p className="text-xs text-ink-muted">Position: {quality.message}</p>}
+          {left?.note && left.basis !== "estimated" && quality?.usable && <p className="text-xs text-ink-muted">{left.note}</p>}
 
           {summary && summary.stops.length > 1 && (
             <div>
@@ -111,12 +118,12 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
                 {summary.stops.slice(1).map((s) => (
                   <li key={s.id} className="flex items-baseline justify-between gap-3 py-2">
                     <span className="min-w-0 break-words font-medium">{s.name}</span>
-                    <span className="shrink-0 font-mono text-xs text-ink-muted">{formatDistance(s.km)} · {s.eta}</span>
+                    <span className="shrink-0 font-mono text-xs text-ink-muted">{dist(s.km)} · {s.eta}</span>
                   </li>
                 ))}
               </ol>
               <p className="mt-1 text-xs text-ink-muted">
-                {formatDistance(summary.totalKm)} of driving left · last stop about {summary.finishEta}. Arrival times include a typical stay at each stop.
+                {dist(summary.totalKm)} of driving left{left && !left.coversAll ? ` to ${left.lastName}` : ""} · {left && !left.coversAll ? "there" : "last stop"} about {summary.finishEta}. Arrival times include a typical stay at each stop.
               </p>
             </div>
           )}

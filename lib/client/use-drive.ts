@@ -10,6 +10,9 @@ import { shouldPublish, type Fix } from "@/lib/live";
 import { createClient } from "@/lib/supabase/client";
 import type { RouteLeg } from "@/lib/eta";
 import { useLiveMembers, type LiveMember } from "./use-live-members";
+import { TRIP_GONE_EVENT } from "@/lib/trip/deletion";
+import { routeMatchesTargets } from "@/lib/trip/stop-change";
+import { ROUTE_STOP_LIMIT } from "@/lib/trip/remaining";
 
 export type DriveTarget = { id: string; name: string; lat: number; lng: number; plannedArrival: string | null };
 /** `at` = when we received it; `fixAt` = when the device says it measured it (use this for freshness). */
@@ -44,7 +47,7 @@ export type Drive = {
 
 const ETA_MOVE_KM = 1; // refresh the route after moving this far…
 const ETA_MAX_AGE_MS = 90_000; // …or after this long, whichever comes first
-const MAX_ETA_STOPS = 8;
+const MAX_ETA_STOPS = ROUTE_STOP_LIMIT;
 
 /**
  * Drive mode: follows this device's GPS, optionally shares it with the trip's members,
@@ -316,6 +319,31 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
     setDrivingMin(null);
   }, []);
 
+  // The stops changed (one was deleted, finished, skipped, added or moved — by me or by another member). Road legs measured for the
+  // OLD list must never be shown with the new one: an answer still on its way is dropped, and the legs are measured again at once
+  // from the last position — without waiting for the next GPS reading, which may never come (parked, or a chosen start point).
+  const stopsKey = stops.slice(0, MAX_ETA_STOPS).map((s) => s.id).join(",");
+  const firstKey = useRef(stopsKey);
+  useEffect(() => {
+    if (firstKey.current === stopsKey) return; // nothing changed since the first render
+    firstKey.current = stopsKey;
+    if (lastEta.current?.key === stopsKey) return;
+    etaGen.current += 1;
+    etaBusy.current = false;
+    lastEta.current = null;
+    etaRetryAt.current = 0;
+    if (!stopsKey) return; // no stops left: the old route is no longer handed out (see currentRoute below)
+    const m = meRef.current;
+    if (m) void refreshRoute(m);
+  }, [stopsKey, refreshRoute]);
+
+  // The trip was deleted while driving (TripGoneWatcher): stop GPS and sharing at once instead of navigating to stops that no longer exist.
+  useEffect(() => {
+    const onGone = (e: Event) => { if ((e as CustomEvent<{ tripId?: string }>).detail?.tripId === tripId) { shareRef.current = false; stop(); } };
+    window.addEventListener(TRIP_GONE_EVENT, onGone);
+    return () => window.removeEventListener(TRIP_GONE_EVENT, onGone);
+  }, [tripId, stop]);
+
   const setShare = useCallback(
     (next: boolean) => {
       setShareState(next);
@@ -327,5 +355,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   );
 
   const quality = assessFix(me, clock || me?.at || 0);
-  return { active, share, me, manualPlace, setManual, quality, locating: active && !me, session, error, shareFailed: shareFailed && active && share, route, drivingMin, members, start, stop, setShare };
+  // Only a route measured for exactly today's current stops is ever handed out (never one through a deleted stop).
+  const currentRoute = route && routeMatchesTargets(route.stopIds, stopsKey ? stopsKey.split(",") : [], MAX_ETA_STOPS) ? route : null;
+  return { active, share, me, manualPlace, setManual, quality, locating: active && !me, session, error, shareFailed: shareFailed && active && share, route: currentRoute, drivingMin, members, start, stop, setShare };
 }

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { fileToDataUrl } from "@/lib/client/image";
+import { OFFLINE_SAVED_TEXT } from "@/lib/client/outbox";
+import type { Outbox } from "@/lib/client/use-outbox";
 import { createClient } from "@/lib/supabase/client";
 import {
   REPORT_PHOTO_BUCKET, REPORT_TAGS, REPORT_TAG_IDS, summarizeReports, timeAgo,
@@ -24,9 +26,11 @@ type PlaceReportsProps = {
   onChanged: () => void;
   /** Time is passed in (not read here) so server and client render the same text. */
   now: Date;
+  /** With no signal, an update with tags/note (no photo) is kept on the phone and sent later. */
+  outbox?: Outbox;
 };
 
-export function PlaceReports({ place, reports, userId, onChanged, now }: PlaceReportsProps) {
+export function PlaceReports({ place, reports, userId, onChanged, now, outbox }: PlaceReportsProps) {
   const [open, setOpen] = useState(false);
   const [tags, setTags] = useState<ReportTag[]>([]);
   const [note, setNote] = useState("");
@@ -34,6 +38,7 @@ export function PlaceReports({ place, reports, userId, onChanged, now }: PlaceRe
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const summary = summarizeReports(reports, now);
   const toggle = (t: ReportTag) => setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : cur.length >= 6 ? cur : [...cur, t]));
@@ -52,6 +57,22 @@ export function PlaceReports({ place, reports, userId, onChanged, now }: PlaceRe
   async function submit() {
     setError(null);
     if (tags.length === 0 && !note.trim() && !photo) return setError("Pick a tag, write a note or add a photo.");
+    setSavedOffline(false);
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (offline && photo) {
+      // A photo is too big to keep safely in phone storage, so it is never queued.
+      return setError("Photos need a connection. Remove the photo to save the update on your phone now, or try again when you're online.");
+    }
+    if (outbox && !photo) {
+      // Text and tags only: through the outbox, so it is kept on the phone when there is no signal.
+      setBusy(true);
+      const r = await outbox.send({ kind: "report", clientId: crypto.randomUUID(), placeName: place.name, lat: place.lat, lng: place.lng, tags, note: note.trim() || null }, place.name);
+      setBusy(false);
+      if (r === "failed") return; // the reason is shown in the waiting-changes strip
+      setOpen(false); setTags([]); setNote(""); setPhoto(null);
+      if (r === "queued") setSavedOffline(true);
+      return;
+    }
     setBusy(true);
     try {
       let photo_path: string | null = null;
@@ -88,6 +109,7 @@ export function PlaceReports({ place, reports, userId, onChanged, now }: PlaceRe
 
   return (
     <div className="mt-4 border-t border-line pt-3.5">
+      {savedOffline && <p role="status" className="mb-2 rounded-xl border border-marigold/40 bg-marigold-light px-3 py-2 text-sm text-ink">Your update about {place.name}: {OFFLINE_SAVED_TEXT}</p>}
       {/* One calm line: what travellers said recently, and a clear button to add to it */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <p className="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-muted">

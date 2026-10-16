@@ -6,14 +6,21 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
 // browser blocks storage (private mode, full disk): then it simply remembers for this visit only. Used for choices that belong to THIS
 // device (dismissed alerts, what-if inputs); anything the whole trip group should see belongs in the database instead.
 const listeners = new Set<() => void>();
-const memory = new Map<string, string>(); // used only when the browser refuses storage
+// Used ONLY for keys the browser refused to store. (It used to shadow every key, so a value deleted from storage — sign-out, a deleted
+// trip, another person's outbox on a shared phone — came back from this copy for the rest of the visit.)
+const memory = new Map<string, string>();
 
 function readRaw(key: string): string | null {
-  try { return window.localStorage.getItem(key) ?? memory.get(key) ?? null; } catch { return memory.get(key) ?? null; }
+  if (memory.has(key)) return memory.get(key) ?? null;
+  try { return window.localStorage.getItem(key); } catch { return null; }
 }
 function writeRaw(key: string, value: string) {
-  memory.set(key, value);
-  try { window.localStorage.setItem(key, value); } catch { /* blocked: the in-memory copy still works for this visit */ }
+  try {
+    window.localStorage.setItem(key, value);
+    memory.delete(key);
+  } catch {
+    memory.set(key, value); // blocked or full: remember it for this visit only
+  }
   listeners.forEach((l) => l());
 }
 function subscribe(cb: () => void) {

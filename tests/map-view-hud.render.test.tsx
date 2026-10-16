@@ -13,7 +13,7 @@ vi.mock("@/components/TripMapLazy", () => ({ TripMapLazy: (p: Record<string, unk
 vi.mock("@/lib/client/use-trip-live", () => ({ useTripLive: () => h.live }));
 vi.mock("@/lib/client/use-toll-watch", () => ({ useTollWatch: () => h.tolls }));
 vi.mock("@/lib/client/use-alerts", () => ({ useAlerts: () => ({ ...h.alerts, notify: () => true, act: () => {} }) }));
-vi.mock("@/lib/client/use-visits", () => ({ useVisits: () => ({ queued: [], mark: () => {}, failed: [], clearFailed: () => {} }) }));
+vi.mock("@/lib/client/use-visits", () => ({ useVisits: () => ({ outbox: { items: [], send: async () => "saved", syncing: false, failed: null, clearFailed: () => {}, notice: null, clearNotice: () => {} }, mark: () => {}, failed: null, clearFailed: () => {}, syncing: false }) }));
 vi.mock("@/lib/client/use-trip-actions", () => ({ useTripActions: () => ({ insertStop: () => {}, setStatus: async () => {}, undo: null, replanning: false, runUndo: async () => {}, dismissUndo: () => {} }) }));
 vi.mock("@/lib/client/use-vehicle", () => ({ useVehicle: () => ["car", () => {}] }));
 vi.mock("@/lib/client/use-map-theme", () => ({ useMapTheme: () => ["light", () => {}] }));

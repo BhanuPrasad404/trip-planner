@@ -1,5 +1,6 @@
 "use client";
 
+import type { Outbox } from "@/lib/client/use-outbox";
 import { dbTime12 } from "@/lib/travel/clock";
 import { useState } from "react";
 import { CATEGORIES, type PlaceCategory } from "@/lib/categories";
@@ -49,7 +50,7 @@ type StopCardProps = {
   onStatus?: (placeId: string, status: "planned" | "done" | "skipped") => void;
   /** Community updates for this place (photos, conditions) and what's needed to post one. */
   reports?: ReportView[];
-  reportCtx?: { userId: string; now: Date; onChanged: () => void };
+  reportCtx?: { userId: string; now: Date; onChanged: () => void; /** Lets a text update be kept on the phone when there is no signal. */ outbox?: Outbox };
   /** A request for this stop is running (shows "Saving…"). */
   busy?: boolean;
   /** Open the "more actions" menu on first render (tests and screenshots). */
@@ -277,6 +278,7 @@ export function StopCard({
               userId={reportCtx.userId}
               now={reportCtx.now}
               onChanged={reportCtx.onChanged}
+              outbox={reportCtx.outbox}
             />
           )}
         </div>

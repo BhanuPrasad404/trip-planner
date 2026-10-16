@@ -11,13 +11,15 @@ import { AlertBanners, AlertSettings } from "./AlertCenter";
 import { useAlerts } from "@/lib/client/use-alerts";
 import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
 import { useVisits } from "@/lib/client/use-visits";
-import { applyQueued } from "@/lib/client/visit-queue";
+import { applyOutboxToPlaces } from "@/lib/client/outbox";
+import { OutboxStatus } from "./OutboxStatus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { enrichPlaces } from "@/lib/client/enrich";
 import { useTripActions } from "@/lib/client/use-trip-actions";
 import { useTripLive } from "@/lib/client/use-trip-live";
-import { formatDistance } from "@/lib/live";
+import { useTripChanges } from "@/lib/client/use-trip-changes";
+import { kmText } from "@/lib/trip/remaining";
 import { delayText } from "@/lib/live";
 import { googleMapsDirections } from "@/lib/maps-links";
 import type { Advice, RadarItem } from "@/lib/intel/types";
@@ -51,8 +53,9 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
   const [, startTransition] = useTransition();
   const refresh = () => startTransition(() => router.refresh());
   // Answers the traveller gave that the server has not heard yet (no signal) are shown at once, so "next stop" moves on.
-  const visits = useVisits(trip.id, refresh);
-  const places = useMemo(() => applyQueued(serverPlaces, visits.queued), [serverPlaces, visits.queued]);
+  // Changes made with no signal (this person's own, on this trip) are shown at once and sent when the connection is back.
+  const visits = useVisits(trip.id, userId, refresh);
+  const places = useMemo(() => applyOutboxToPlaces(serverPlaces, visits.outbox.items), [serverPlaces, visits.outbox.items]);
   // Also tell the traveller if Trailmate is in the background (the card itself is the alert while the app is open).
   const alerts = useAlerts(INDIA_UTC_OFFSET_MIN, { origin: `/trips/${trip.id}/live` });
   const onArrivalPrompt = (stop: { id: string; name: string }) => alerts.notify({ id: `arrival:${stop.id}`, kind: "arrival", level: 2, title: `You've arrived at ${stop.name}`, body: "Open Trailmate to mark this stop as visited.", inApp: false, cooldownMs: 12 * 3_600_000 });
@@ -66,8 +69,10 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
   const enriched = useMemo(() => enrichPlaces(places, trip, today, conditions), [places, trip, today, conditions]);
   const [vehicle, setVehicle] = useVehicle(trip.id);
   const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, vehicle });
-  const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime, earlyDay: live.drive.active && live.timing?.state === "before" ? live.driveDay : null });
+  const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime, earlyDay: live.drive.active && live.timing?.state === "before" ? live.driveDay : null, outbox: visits.outbox });
   const { drive, intel, nextStop, driveDay, todayDay } = live;
+  // Changes made elsewhere (another member deleted a stop, or I did on another device) reach this screen at once.
+  useTripChanges({ tripId: trip.id, places: serverPlaces, driving: drive.active, onChange: refresh });
   const navUi = useNavUi(live, follow, setFollow, (id, name) => void actions.setStatus(id, "done", `Marked ${name} done`));
 
   const result = intel.result;
@@ -99,16 +104,19 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
   // The next place to head for: the next planned stop or, with none left, the trip's destination.
   const nextTarget = live.nextTarget;
   const nextPlanned = dbTime12(nextStop?.arrival_time);
-  const firstLeg = drive.route && nextTarget && drive.route.stopIds[0] === nextTarget.id ? drive.route.legs[0] : null;
+  // How far from where I am now (the same answer the Drive panel, the map and the arrival card use).
+  const left = live.distanceLeft && nextTarget && live.distanceLeft.next.id === nextTarget.id ? live.distanceLeft : null;
   const fallback = nextTarget
     ? {
         title: drive.active ? `Head to ${nextTarget.name}` : `Next: ${nextTarget.name}`,
-        detail: firstLeg
-          ? `${formatDistance(firstLeg.km)} · about ${firstLeg.minutes} min${nextPlanned && nextTarget.kind === "stop" ? ` · planned ${nextPlanned}` : ""}. You're on track — nothing needs your attention.`
+        detail: left
+          ? `${kmText(left.next.km, left)} · about ${left.next.minutes} min${nextPlanned && nextTarget.kind === "stop" ? ` · planned ${nextPlanned}` : ""}. ${left.note ?? "You're on track — nothing needs your attention."}`
           : `${nextPlanned && nextTarget.kind === "stop" ? `Planned for ${nextPlanned}. ` : ""}${drive.active ? "Working out the route…" : "Start your drive to see the route, distance and arrival time."}`,
         navigateTo: { lat: nextTarget.lat, lng: nextTarget.lng },
         action: drive.active ? null : ("start-drive" as const),
       }
+    : drive.active
+      ? { title: "No more stops today", detail: live.stopRemoved.message ?? "Nothing is left on today's route. Add a stop in the plan, or end the drive.", navigateTo: null, action: "plan" as const, href: `/trips/${trip.id}/plan` }
     : live.done > 0
       ? { title: "That's everything for today", detail: `${live.done} stop${live.done === 1 ? "" : "s"} done. Rest well — tomorrow's plan is ready.`, navigateTo: null, action: null }
       : { title: `Nothing planned for Day ${driveDay}`, detail: "Add or schedule a stop and this page starts helping.", navigateTo: null, action: "plan" as const, href: `/trips/${trip.id}/plan` };
@@ -142,7 +150,7 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
       <DriveGateCard drive={drive} gate={live.gate} />
       <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
-      <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={firstLeg?.km ?? null} />
+      <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={left?.next.km ?? null} nextKmText={left ? kmText(left.next.km, left) : null} />
       <LiveTolls live={live} vehicle={vehicle} notify={alerts.notify} dismiss={alerts.dismiss} />
       <TripHealthStrip health={result?.health ?? null} />
       {intel.mode === "preview" && result && live.localDate && live.localTime && (
@@ -174,7 +182,7 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
             {drive.active && !follow && <button type="button" onClick={navUi.ui.onRecenter} className="absolute bottom-3 left-3 min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow"><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Follow me</span></button>}
           </div>
           <NavigationPanel ui={navUi.ui} floating={false} />
-          <DrivePanel drive={drive} members={members} userId={userId} stops={live.driveStops} stayMinutes={live.stayMinutes} comparePlan={todayDay !== null && driveDay === todayDay} dayLabel={`Day ${driveDay}`} nowMs={live.nowMs} />
+          <DrivePanel drive={drive} distanceLeft={live.distanceLeft} members={members} userId={userId} stops={live.driveStops} stayMinutes={live.stayMinutes} comparePlan={todayDay !== null && driveDay === todayDay} dayLabel={`Day ${driveDay}`} nowMs={live.nowMs} />
         </div>
 
         <div className="space-y-5">
@@ -228,6 +236,7 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
       </div>
 
       <AlertBanners alerts={alerts.active} onDismiss={alerts.dismiss} onAction={alerts.act} />
+      <OutboxStatus outbox={visits.outbox} />
       <LiveArrival live={live} vehicle={vehicle} tripId={trip.id} mark={visits.mark} failed={visits.failed} onClearFailed={visits.clearFailed} onPrompt={onArrivalPrompt} />
 
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />

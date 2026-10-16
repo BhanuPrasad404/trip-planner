@@ -299,7 +299,7 @@ describe("random trips never break the rules (200 generated instances)", () => {
       for (const o of trip.options) assertPlanRules(input, o);
       expect(JSON.stringify(buildTrip(input))).toBe(JSON.stringify(buildTrip(input)));
     }
-  });
+  }, 20_000); // ~4 s alone; the full suite runs ~180 files in parallel and pushed it past the 5 s default.
   it("plans 30 places in well under two seconds", () => {
     const r = rng(5);
     const specs: Spec[] = Array.from({ length: 30 }, (_, i) => ({ name: `P${i}`, at: [14 + r() * 8, 72 + r() * 7] as [number, number] }));

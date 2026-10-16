@@ -15,8 +15,8 @@ const TABS: { id: "all" | TripState; label: string }[] = [
   { id: "all", label: "All" }, { id: "active", label: "Active" }, { id: "upcoming", label: "Upcoming" }, { id: "draft", label: "Drafts" }, { id: "completed", label: "Completed" },
 ];
 
-export default async function TripsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const { tab } = await searchParams;
+export default async function TripsPage({ searchParams }: { searchParams: Promise<{ tab?: string; deleted?: string; left?: string }> }) {
+  const { tab, deleted, left } = await searchParams;
   const { supabase, user, loaded } = await requireUserAnd("/trips", async (sb) => await sb.from("trips").select("*").order("created_at", { ascending: false }).limit(100));
   const { data, error } = loaded;
   if (error) console.error("[trips] list failed:", error.message);
@@ -29,6 +29,9 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
   return (
     <main id="main" className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader eyebrow="Your journeys" title="My trips" subtitle="Everything you're planning, travelling and remembering — in one place." />
+
+      {left && <p role="status" className="mt-4 rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">You left the trip. Your votes and live location were removed; the stops you added stay with the group.</p>}
+      {deleted && <p role="status" className="mt-4 rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">Trip deleted. Its stops, votes and members were removed for everyone.</p>}
 
       <nav aria-label="Filter trips" className="mt-6 flex flex-wrap gap-2">
         {TABS.map((t) => (

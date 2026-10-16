@@ -46,6 +46,9 @@ export const metadata: Metadata = {
   },
   description,
   applicationName: "Trailmate",
+  // Installed on an iPhone home screen: opens like an app, with the Trailmate name under the icon (app/apple-icon.tsx).
+  appleWebApp: { capable: true, title: "Trailmate", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
   openGraph: {
     type: "website",
     siteName: "Trailmate",

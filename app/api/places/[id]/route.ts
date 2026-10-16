@@ -16,12 +16,24 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   } = await supabase.auth.getUser();
   if (!user) return jsonError("Please sign in", 401);
 
-  // RLS guarantees only trip members can delete; .select() tells us if anything matched.
-  const { data, error } = await supabase.from("places").delete().eq("id", id).select("id");
+  // RLS guarantees only trip members can delete; .select() tells us if anything matched (and where the stop sat in the day).
+  const { data, error } = await supabase.from("places").delete().eq("id", id).select("id, trip_id, day_number, sequence_order");
   if (error) return dbError(error, "delete place");
   if (!data || data.length === 0) return jsonError("Place not found", 404);
 
-  return NextResponse.json({ ok: true });
+  // The stop AFTER the deleted one kept "drive from the previous point" numbers measured from the deleted stop. That leg no longer
+  // exists, so its saved km/minutes are cleared (shown as unknown / straight-line until the day is planned again), never reused.
+  const gone = data[0] as { trip_id: string; day_number: number | null; sequence_order: number | null };
+  if (gone.day_number !== null && gone.sequence_order !== null) {
+    const { data: after, error: findError } = await supabase
+      .from("places").select("id").eq("trip_id", gone.trip_id).eq("day_number", gone.day_number).gt("sequence_order", gone.sequence_order)
+      .order("sequence_order", { ascending: true }).limit(1);
+    const nextId = (after as { id: string }[] | null)?.[0]?.id;
+    const { error: clearError } = findError || !nextId ? { error: findError } : await supabase.from("places").update({ drive_km: null, drive_minutes: null }).eq("id", nextId);
+    if (clearError) console.error("[api] delete place: could not clear the next stop's old leg:", clearError.code, clearError.message);
+  }
+
+  return NextResponse.json({ ok: true, trip_id: gone.trip_id });
 }
 
 // STRICT on purpose: a request is EITHER a move OR a relocation. Mixed or unknown fields are rejected

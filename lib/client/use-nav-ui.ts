@@ -37,6 +37,7 @@ export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) =>
     onToggleHeading: () => setHeadingUp((v) => !v),
     // Only a real stop can be marked done; arriving at the trip destination just ends the drive.
     onArrivedDone: t && t.kind !== "destination" && onArrivedDone ? () => onArrivedDone(t.id, t.name) : undefined,
+    noMoreStops: drive.active && !t ? { planHref: `/trips/${gate.tripId}/plan` } : null,
   };
   const nav: NavMapProps = {
     phase: navigation.phase, routes: navigation.routes, selectedId: navigation.selectedId, choices: navigation.choices,

@@ -1,6 +1,7 @@
 // The ways an alert can reach the traveller outside the page itself. Each one fails quietly: if a browser cannot do it, the in-app card
 // is still there. Nothing here runs unless the traveller allowed it, and notification permission is only ever requested from a tap.
 import type { AppAlert, Permission } from "@/lib/alerts/delivery";
+import { pwaIconPath } from "@/lib/pwa";
 
 export function notificationPermission(): Permission {
   try {
@@ -38,7 +39,7 @@ export async function showPhoneNotification(alert: AppAlert, opts: { silent: boo
   const options: NotificationOptions & { renotify?: boolean } = {
     body: alert.body, tag: alert.id, silent: opts.silent, data: { url: opts.url ?? "/" },
     requireInteraction: alert.level === 1, // only a critical alert stays until dismissed
-    icon: "/favicon.ico",
+    icon: pwaIconPath("192"),
   };
   try {
     if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {

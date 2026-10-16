@@ -41,15 +41,19 @@ describe("database: trip membership", () => {
 });
 
 describe("database: invites", () => {
-  const join = /create or replace function public\.join_trip_by_code[\s\S]*?\$\$;/.exec(allSql)![0];
-  it.fails("OPEN P2: invite links can expire or be revoked", () => {
+  // The LATEST definition counts (a later migration replaces the function).
+  const latest = (name: string) => [...allSql.matchAll(new RegExp(String.raw`create or replace function public\.${name}[\s\S]*?\$\$;`, "g"))].at(-1)![0];
+  const join = latest("join_trip_by_code");
+  it("FIXED (20261023000000): invite links can expire or be revoked", () => {
     expect(/invite_expires_at|invite_revoked|regenerate_invite|invite_code\s*=\s*substr/i.test(allSql.replace(/alter column invite_code set default[^;]*;/i, "")) || /expires|revoked/i.test(join)).toBe(true);
   });
   it.fails("OPEN P2: legacy 8-character invite codes are replaced by the 12-character default", () => {
     expect(/update public\.trips\s+set invite_code/i.test(allSql)).toBe(true);
   });
-  it.fails("OPEN P2: code guessing is throttled (join_trip_by_code is callable directly through PostgREST)", () => {
-    expect(/consume_quota|pg_sleep|attempt/i.test(join)).toBe(true);
+  it("FIXED (20261023000000): code guessing is throttled (join_trip_by_code is callable directly through PostgREST)", () => {
+    // The old entry point now goes through join_trip_with_invite, which counts failed attempts per person.
+    expect(join).toMatch(/join_trip_with_invite/);
+    expect(latest("join_trip_with_invite")).toMatch(/invite_attempts[\s\S]*v_failures >= 10/);
   });
 });
 

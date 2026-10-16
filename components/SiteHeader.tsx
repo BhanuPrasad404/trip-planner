@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/actions/auth";
+import { SignOutForm } from "./SignOutForm";
 import { Logo } from "./Logo";
 import { Button, LinkButton } from "./ui/Button";
 
@@ -38,11 +39,11 @@ export async function SiteHeader({ tone = "light" }: { tone?: "light" | "dark" }
               >
                 My trips
               </Link>
-              <form action={signOut}>
+              <SignOutForm action={signOut} userId={user.id}>
                 <Button type="submit" variant={dark ? "secondary" : "ghost"} size="sm">
                   Sign out
                 </Button>
-              </form>
+              </SignOutForm>
             </>
           ) : (
             <>

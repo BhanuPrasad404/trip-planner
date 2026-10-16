@@ -57,7 +57,7 @@ All external services are free-tier/public. **Paid replacements are needed befor
 proxy.ts                         session refresh + optimistic redirects (NOT the security boundary; RLS is)
 next.config.ts                   security headers, turbopack.root = process.cwd()
 app/
-  page.tsx                       landing (contains a fake "sample trip" preview)
+  page.tsx                       landing (example route built from the real season data: lib/landing-sample.ts)
   login, signup, auth/callback
   trips/page.tsx                 trip list + NewTripForm
   trip/[id]/page.tsx             server: loads trip, places(+season_tags), members, votes, weather → <TripPlanner/>
@@ -192,7 +192,7 @@ Limits on "works for everyone":
 - 12 fixed Indian start-city quick-pick chips (`lib/cities.ts`; search covers any city).
 - Fallback speed 45 km/h and road factor 1.35 (`lib/routing.ts`); default map centre India.
 
-Dummy/demo: landing-page "Sample trip: Hyderabad → Maharashtra" (invented stops/times); `supabase/seed.sql` (fixed IDs + the owner's real user UUID; dev only); form placeholder examples (Kondapalli Fort, "Vijayawada weekend").
+Dummy/demo: (FIXED 16 Oct: the landing example is now a real Warangal → Bogatha route from data/season-tags.json, no invented times or numbers); `supabase/seed.sql` (fixed IDs + the owner's real user UUID; dev only); form placeholder examples (Kondapalli Fort, "Vijayawada weekend").
 
 Guesses/settings users can't change: per-category visit hours (`lib/categories.ts`), auto-plan 10 h/day starting 08:00, far-pin 400 km, match radius 25 km, Go Score thresholds, daily quotas (40/150/20), 200 places/trip, 30 days/trip.
 

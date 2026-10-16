@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import { Spinner } from "@/components/ui/Spinner";
 import type { GlyphName } from "@/lib/glyphs";
@@ -53,6 +53,8 @@ export type NavUi = {
   onArrivedDone?: () => void;
   /** Wall-clock now (ms), from the latest GPS reading; lets arrival times say "tomorrow" after midnight. */
   nowMs: number;
+  /** Driving, but today's route has nothing left (every stop done, skipped or removed): say so plainly instead of an empty panel. */
+  noMoreStops?: { planHref: string } | null;
 };
 
 /**
@@ -109,6 +111,15 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
           </div>
           <Button size="sm" variant="secondary" className="min-h-11" onClick={nav.stop}>Cancel</Button>
         </div>
+      </Shell>
+    );
+  }
+  if (!target && ui.noMoreStops) {
+    return (
+      <Shell floating={floating}>
+        <p role="status" className="font-display text-lg font-semibold text-pine">No more stops today</p>
+        <p className="mt-0.5 text-sm text-ink-muted">Nothing is left on today&apos;s route. Add a stop in the plan, or end the drive.</p>
+        <div className="mt-3"><LinkButton href={ui.noMoreStops.planHref} size="sm" variant="secondary" className="min-h-11">Open the plan</LinkButton></div>
       </Shell>
     );
   }
@@ -172,7 +183,7 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
   const p = nav.progress;
   const expanded = more || nav.alternatives.length > 0 || nav.altLoading;
   const etaText = journey ? formatDuration(Math.max(1, journey.remainingMin)) : p ? formatDuration(Math.max(1, Math.round(p.remainingS / 60))) : "—";
-  const subText = journey ? `${kmN(journey.remainingKm)} · arrive about ${clock(journey.etaMs, ui.nowMs)}` : p ? `${km(p.remainingM)} · arrive about ${clock(p.etaMs, ui.nowMs)}` : "Working out your position…";
+  const subText = journey ? `${journey.kmLabel ?? kmN(journey.remainingKm)} · arrive about ${clock(journey.etaMs, ui.nowMs)}` : p ? `${km(p.remainingM)} · arrive about ${clock(p.etaMs, ui.nowMs)}` : "Working out your position…";
   return (
     <Shell floating={floating}>
       {/* Always visible: where, how long, how far — and the two controls you may need in a hurry. */}

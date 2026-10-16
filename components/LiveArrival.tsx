@@ -6,6 +6,7 @@ import { useArrival } from "@/lib/client/use-arrival";
 import type { useTripLive } from "@/lib/client/use-trip-live";
 import type { VisitStatus } from "@/lib/client/visit-queue";
 import { googleMapsDirections } from "@/lib/maps-links";
+import { kmText } from "@/lib/trip/remaining";
 import type { Vehicle } from "@/lib/vehicle";
 import type { ArrivalStatus, ArrivalStop } from "@/lib/trip/arrival";
 
@@ -33,8 +34,9 @@ export function LiveArrival({ live, vehicle = "car", tripId, mark, failed, onCle
 
   const progress = useMemo(() => ({ done: stops.filter((s) => s.status === "done").length, total: stops.filter((s) => s.status !== "skipped").length }), [stops]);
   const next = live.nextTarget;
-  const leg = live.drive.route && next && live.drive.route.stopIds[0] === next.id ? live.drive.route.legs[0] : null;
-  const nextInfo: ArrivalNext | null = next ? { name: next.name, km: leg?.km ?? null, minutes: leg?.minutes ?? null, mapsHref: googleMapsDirections(next, vehicle) } : null;
+  // From where the traveller is now — the same numbers as the Drive panel and the map.
+  const left = live.distanceLeft && next && live.distanceLeft.next.id === next.id ? live.distanceLeft : null;
+  const nextInfo: ArrivalNext | null = next ? { name: next.name, km: left?.next.km ?? null, minutes: left?.next.minutes ?? null, kmText: left ? kmText(left.next.km, left) : null, mapsHref: googleMapsDirections(next, vehicle) } : null;
   // Navigation to the next stop starts from where the traveller is NOW (it asks for a route from the latest reading).
   const onNavigate = live.drive.active && next ? () => live.navigation.arm() : null;
 

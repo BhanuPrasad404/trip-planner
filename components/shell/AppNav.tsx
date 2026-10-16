@@ -1,5 +1,6 @@
 "use client";
 
+import { SignOutForm } from "@/components/SignOutForm";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
@@ -21,9 +22,9 @@ const write = (v: boolean) => {
   listeners.forEach((l) => l());
 };
 
-type Props = { trips: NavTrip[]; userInitial: string; signOutAction: () => Promise<void> };
+type Props = { trips: NavTrip[]; userInitial: string; signOutAction: () => Promise<void>; userId?: string | null };
 
-export function AppNav({ trips, userInitial, signOutAction }: Props) {
+export function AppNav({ trips, userInitial, signOutAction, userId = null }: Props) {
   const pathname = usePathname() ?? "/";
   const collapsed = useSyncExternalStore(subscribe, read, () => false);
   const [drawer, setDrawer] = useState(false);
@@ -144,9 +145,9 @@ export function AppNav({ trips, userInitial, signOutAction }: Props) {
           <button type="button" aria-label="Close menu" onClick={closeDrawer} className="absolute inset-0 bg-black/50" />
           <div className="tm-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-white">
             <ul className="space-y-1">{items.filter((i) => !["dashboard", "trips", "live", "map"].includes(i.id)).map((i) => link(i, false, closeDrawer))}</ul>
-            <form action={signOutAction} className="mt-3 border-t border-white/10 pt-3">
+            <SignOutForm action={signOutAction} userId={userId} className="mt-3 border-t border-white/10 pt-3">
               <button type="submit" className="min-h-11 w-full rounded-xl bg-white/10 text-sm font-semibold">Sign out</button>
-            </form>
+            </SignOutForm>
           </div>
         </div>
       )}

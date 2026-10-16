@@ -3,6 +3,7 @@ import { createElement, act } from "react";
 import TestRenderer from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDrive, type Drive, type Me } from "@/lib/client/use-drive";
+import { TRIP_GONE_EVENT } from "@/lib/trip/deletion";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -19,6 +20,7 @@ let watchCalls: number; let cleared: number[]; let currentCalls: number;
 let permState: "granted" | "denied" | "prompt"; let permStatus: { state: string; onchange: null | (() => void) };
 let docListeners: Record<string, (() => void)[]>;
 let secure: boolean;
+let winListeners: Record<string, ((e: Event) => void)[]>;
 
 const T0 = 1_800_000_000_000;
 let clock = T0;
@@ -41,7 +43,12 @@ beforeEach(() => {
     permissions: { query: async () => { permStatus.state = permState; return permStatus; } },
   });
   // A top-level page: window.self === window.top (otherwise the hook would rightly diagnose "embedded in another page").
-  const win: Record<string, unknown> = { setInterval: (f: () => void, ms: number) => setInterval(f, ms), clearInterval: (id: number) => clearInterval(id) };
+  winListeners = {};
+  const win: Record<string, unknown> = {
+    setInterval: (f: () => void, ms: number) => setInterval(f, ms), clearInterval: (id: number) => clearInterval(id),
+    addEventListener: (n: string, f: (e: Event) => void) => { (winListeners[n] ??= []).push(f); },
+    removeEventListener: (n: string, f: (e: Event) => void) => { winListeners[n] = (winListeners[n] ?? []).filter((x) => x !== f); },
+  };
   Object.defineProperty(win, "isSecureContext", { get: () => secure });
   win.self = win; win.top = win;
   vi.stubGlobal("window", win);
@@ -188,5 +195,22 @@ describe("useDrive — permission problems", () => {
     await mount(); await startDrive();
     expect(drive.active).toBe(false);
     expect(drive.error).toMatch(/can't share your location/i);
+  });
+});
+
+describe("useDrive — the trip is deleted while driving", () => {
+  const gone = (tripId: string) => act(() => { for (const f of winListeners[TRIP_GONE_EVENT] ?? []) f({ detail: { tripId } } as unknown as Event); });
+  it("stops GPS and the drive at once", async () => {
+    await mount(); await startDrive(); await emit(reading());
+    expect(drive.active).toBe(true);
+    gone("trip-1");
+    expect(drive.active).toBe(false);
+    expect(drive.me).toBeNull();
+    expect(cleared).toContain(7);
+  });
+  it("ignores news about a different trip", async () => {
+    await mount(); await startDrive(); await emit(reading());
+    gone("some-other-trip");
+    expect(drive.active).toBe(true);
   });
 });

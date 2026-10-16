@@ -11,3 +11,6 @@ export type SeasonRow = {
   last_checked: string;
 };
 export function buildSql(places: SeasonRow[]): string;
+export const SEASON_FILE_RE: RegExp;
+export function seasonMigrations(files: string[]): string[];
+export function nextVersion(files: string[], now?: Date): string;

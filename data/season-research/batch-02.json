@@ -1,0 +1,445 @@
+{
+  "_note": "APPROVED 2026-10-16 by the owner (option a: all as proposed; Nagarjuna Sagar Dam kept as draft) and moved into data/season-tags.json. Kept here as the evidence: quotes and links for each place. NOT read by the app. Each 'record' is in data/season-tags.json format (confidence 'draft' until approved). Researched 2026-10-16: every quote was taken from a fetched page; three were re-checked by hand. After approval: move the records into data/season-tags.json (with the approved confidence) and run npm run build:season.",
+  "places": [
+    {
+      "record": {
+        "place_name": "Laknavaram Lake",
+        "lat": 18.1504,
+        "lng": 80.0696,
+        "category": "lake",
+        "good_months": [
+          11,
+          12,
+          1,
+          2,
+          3
+        ],
+        "reason": "A rain-fed lake that is fullest and most pleasant from the end of the monsoon through winter. In summer it shrinks and the heat is hard going.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://chalbanjare.com/telangana/tourist-attraction/laknavaram-cheruvu-warangal",
+          "https://www.telangana360.com/2015/12/laknavaram-lake-cheruvu.html",
+          "https://www.tourtravelworld.com/india/warangal/laknavaram-lake.htm"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 sources that name months include Nov-Mar (2 of them also include October).",
+        "evidence": [
+          {
+            "source": "chalbanjare.com",
+            "quote": "from October to March"
+          },
+          {
+            "source": "telangana360.com",
+            "quote": "October to March is ideal for visiting."
+          },
+          {
+            "source": "tourtravelworld.com",
+            "quote": "during November-March"
+          },
+          {
+            "source": "holidify.com (no months)",
+            "quote": "monsoon and winter months ... primarily rain fed lake"
+          }
+        ],
+        "decide": "Add October? Two sources say Oct-Mar, one says Nov-Mar."
+      }
+    },
+    {
+      "record": {
+        "place_name": "Pakhal Lake",
+        "lat": 17.9528,
+        "lng": 80.0014,
+        "category": "lake",
+        "good_months": [
+          11,
+          12,
+          1,
+          2
+        ],
+        "reason": "Best in the cool, dry winter months. The lake shrinks in summer. It sits in a wildlife sanctuary, so the Forest Department sets access and safari timings.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://traveltriangle.com/blog/pakhal-lake-and-wildlife-sanctuary/",
+          "https://www.telangana360.com/2015/12/pakhal-wildlife-sanctuary.html",
+          "https://www.explurger.com/pd/1b1mvh5en042mh1ds"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 include Nov-Feb; the edges differ (Oct-Mar, Oct-Apr).",
+        "evidence": [
+          {
+            "source": "traveltriangle.com",
+            "quote": "November through February"
+          },
+          {
+            "source": "explurger.com",
+            "quote": "from October to March"
+          },
+          {
+            "source": "telangana360.com",
+            "quote": "October - April"
+          }
+        ],
+        "decide": null
+      }
+    },
+    {
+      "record": {
+        "place_name": "Bhadrachalam Temple",
+        "lat": 17.6669,
+        "lng": 80.8828,
+        "category": "temple",
+        "good_months": [
+          10,
+          11,
+          12,
+          1,
+          2,
+          3
+        ],
+        "reason": "Pleasant from October to March; April and May are very hot. Sri Rama Navami (March-April) and Vaikunta Ekadasi (December-January) bring very large crowds. Heavy monsoon rain can affect travel.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://chalbanjare.com/telangana/tourist-attraction/sree-seetha-ramachandraswamy-vari-devasthanam-bhadrachalam",
+          "https://travelsetu.com/guide/bhadrachalam-temple-tourism/best-time-to-visit-bhadrachalam-temple",
+          "https://www.holidify.com/places/bhadrachalam/sri-sitaramachandra-swamy-temple-sightseeing-1336.html"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 4 sources include Oct-Mar (2 say Sep-Apr).",
+        "evidence": [
+          {
+            "source": "chalbanjare.com",
+            "quote": "from October to March"
+          },
+          {
+            "source": "travelsetu.com",
+            "quote": "typically from October to March"
+          },
+          {
+            "source": "holidify.com",
+            "quote": "September to April"
+          },
+          {
+            "source": "oyorooms.com",
+            "quote": "between September to April"
+          }
+        ],
+        "decide": null
+      }
+    },
+    {
+      "record": {
+        "place_name": "Yadagirigutta Temple",
+        "lat": 17.5892,
+        "lng": 78.9446,
+        "category": "temple",
+        "good_months": [
+          10,
+          11,
+          12,
+          1,
+          2,
+          3
+        ],
+        "reason": "Pleasant from October to March; April to June is very hot. The Brahmotsavam in Phalguna (February-March), weekends and holidays are very crowded.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://blog.yatradham.org/yadagirigutta-sri-lakshmi-narasimha-swamy-temple/",
+          "https://www.oneindia.com/temples/sri-lakshmi-narasimha-swamy-temple-yadagirigutta-i985/",
+          "https://www.savaari.com/blog/hyderabad/hyderabad-to-yadagirigutta/"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 say Oct-Mar. All are travel or temple blogs; the official Telangana Tourism page gives no months.",
+        "evidence": [
+          {
+            "source": "yatradham.org",
+            "quote": "from October to March"
+          },
+          {
+            "source": "oneindia.com",
+            "quote": "between October and March"
+          },
+          {
+            "source": "savaari.com",
+            "quote": "from October to March"
+          }
+        ],
+        "decide": null
+      }
+    },
+    {
+      "record": {
+        "place_name": "Nagarjuna Sagar Dam",
+        "lat": 16.5756,
+        "lng": 79.3117,
+        "category": "lake",
+        "good_months": [
+          10,
+          11,
+          12,
+          1,
+          2
+        ],
+        "reason": "Winter is best for sightseeing and summer is very hot. The spillway gates open only after a good monsoon (often September-October), a big sight that depends on the year's rain.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://www.holidify.com/places/nagarjunsagar/",
+          "https://traveltriangle.com/blog/nagarjunasagar-dam/",
+          "https://incredibleindia.gov.in/en/telangana/hyderabad/nagarjuna-sagar-dam"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "draft",
+        "why": "Sources DISAGREE: two say Oct-Feb (weather); the official Incredible India page says July or September (open gates).",
+        "evidence": [
+          {
+            "source": "holidify.com (checked by hand)",
+            "quote": "during Winters from October to February (its header says October to March)"
+          },
+          {
+            "source": "traveltriangle.com",
+            "quote": "October to February"
+          },
+          {
+            "source": "incredibleindia.gov.in (official)",
+            "quote": "during July or September ... the dam's gates will be open"
+          }
+        ],
+        "decide": "Keep Oct-Feb as Draft, or describe a separate monsoon 'gates open' window?"
+      }
+    },
+    {
+      "record": {
+        "place_name": "Ananthagiri Hills",
+        "lat": 17.3119,
+        "lng": 77.8631,
+        "category": "hill_station",
+        "good_months": [
+          10,
+          11,
+          12,
+          1,
+          2
+        ],
+        "reason": "Cool and pleasant from October to February. Summer reaches about 40 C and the streams dry up; in the monsoon the trails get slippery and adventure activities may be closed.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://prod.incredibleindia.gov.in/content/incredible-india-v2/en/destinations/states/telangana/itineraries/ananthagiri-road-trip.html",
+          "https://www.holidify.com/places/ananthagiri-hills/best-time-to-visit.html",
+          "https://www.telangana360.com/2016/06/ananthagiri-hills-vikarabad.html"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "3 of 4 include Oct-Feb; Outlook Traveller lists Sep-Dec and Feb-May (skips January, probably a wording slip).",
+        "evidence": [
+          {
+            "source": "incredibleindia.gov.in",
+            "quote": "Between October and February (researcher: may be template text in a pop-up)"
+          },
+          {
+            "source": "holidify.com",
+            "quote": "October to March"
+          },
+          {
+            "source": "telangana360.com",
+            "quote": "July - February"
+          },
+          {
+            "source": "outlooktraveller.com",
+            "quote": "September to December ... February to May"
+          }
+        ],
+        "decide": "OK with Oct-Feb? The Incredible India text may be template text."
+      }
+    },
+    {
+      "record": {
+        "place_name": "Bhongir Fort",
+        "lat": 17.5157,
+        "lng": 78.8927,
+        "category": "fort",
+        "good_months": [
+          11,
+          12,
+          1,
+          2
+        ],
+        "reason": "The climb is in full sun, so the cooler months are best. April to June can top 40 C, and in the monsoon the rock paths get slippery.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://www.incredibleindia.gov.in/en/telangana/bhongir",
+          "https://traveltriangle.com/blog/bhongir-fort/",
+          "https://www.telangana360.com/2016/06/bhuvanagiri-or-bhongir-fort.html"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 include Nov-Feb (2, including the official page, say Oct-Mar).",
+        "evidence": [
+          {
+            "source": "incredibleindia.gov.in (official, checked by hand)",
+            "quote": "plan your visit between October and March"
+          },
+          {
+            "source": "traveltriangle.com",
+            "quote": "the cooler months [October to March]"
+          },
+          {
+            "source": "telangana360.com",
+            "quote": "November to February"
+          }
+        ],
+        "decide": "Use the strict Nov-Feb, or Oct-Mar (2 sources, including the official one)?"
+      }
+    },
+    {
+      "record": {
+        "place_name": "Mallela Theertham Waterfall",
+        "lat": 16.2661,
+        "lng": 78.8564,
+        "category": "waterfall",
+        "good_months": [
+          10,
+          11,
+          12,
+          1
+        ],
+        "reason": "Rain-fed: the best flow is from after the monsoon into winter; March to June is the driest. The steps are slippery after rain, and it is deep in the Nallamala forest with forest checks and no shops.",
+        "region": "Telangana",
+        "confidence": "draft",
+        "source_urls": [
+          "https://www.telangana360.com/2016/06/mallela-theertham-waterfalls.html",
+          "https://www.oyorooms.com/travel-guide/waterfalls-near-hyderabad/amp/",
+          "https://muddietrails.com/experiences/mallelateertham-waterfalls-day-trip-hyderabad/"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 include Oct-Jan (2 extend to Feb). They disagree on the monsoon itself (scenic vs risky).",
+        "evidence": [
+          {
+            "source": "telangana360.com",
+            "quote": "October - February (pleasant weather, good water flow)"
+          },
+          {
+            "source": "oyorooms.com",
+            "quote": "at its peak from October to February"
+          },
+          {
+            "source": "muddietrails.com",
+            "quote": "during and after monsoons (starting from June) ... through out the winter also (end of January)"
+          }
+        ],
+        "decide": "Amrabad Tiger Reserve closes to tourists in the monsoon, but it is not confirmed that this covers the falls. Add a note?"
+      }
+    },
+    {
+      "record": {
+        "place_name": "Srisailam Temple",
+        "lat": 16.0742,
+        "lng": 78.8681,
+        "category": "temple",
+        "good_months": [
+          10,
+          11,
+          12,
+          1,
+          2
+        ],
+        "reason": "October to February has the best weather for the pilgrimage. March to June is very hot and the monsoon makes the ghat road slippery. Maha Shivaratri and Karthika Masam bring very large crowds.",
+        "region": "Andhra Pradesh",
+        "confidence": "draft",
+        "source_urls": [
+          "https://www.holidify.com/places/srisailam/best-time-to-visit.html",
+          "https://hurryupcabs.com/blogdetails/hyderabad-to-srisailam-distance",
+          "https://bhaktibharat.org/temples/famous-shiva-temples-yatra/mallikarjuna-srisailam-best-time-visit"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 include Oct-Feb.",
+        "evidence": [
+          {
+            "source": "holidify.com",
+            "quote": "October to February offers the best climate"
+          },
+          {
+            "source": "hurryupcabs.com",
+            "quote": "Winter (October to February)"
+          },
+          {
+            "source": "bhaktibharat.org",
+            "quote": "October to March, avoid summer"
+          }
+        ],
+        "decide": "A blog says the forest road is closed to vehicles at night (about 5 PM-6 AM). Not confirmed officially, so it is NOT in the reason. Look for an official source?"
+      }
+    },
+    {
+      "record": {
+        "place_name": "Tirumala Temple",
+        "lat": 13.6833,
+        "lng": 79.3472,
+        "category": "temple",
+        "good_months": [
+          11,
+          12,
+          1,
+          2
+        ],
+        "reason": "November to February has the most comfortable weather but is also the busiest; April and May are very hot. Brahmotsavam (September/October) and Vaikunta Ekadasi (December/January) draw huge crowds.",
+        "region": "Andhra Pradesh",
+        "confidence": "draft",
+        "source_urls": [
+          "https://www.holidify.com/places/tirupati/best-time-to-visit.html",
+          "https://www.sotc.in/tourism/tirupati-tourism/best-time-to-visit-tirupati",
+          "https://www.rajpark.com/m/tirupati-hotel/blog/best-time-to-visit-tirupati-balaji.html"
+        ],
+        "last_checked": "2026-10-16"
+      },
+      "review": {
+        "proposed_confidence": "researched",
+        "why": "All 3 include Nov-Feb (Holidify starts in September). They speak of 'Tirupati', not the Tirumala hill itself; none is from TTD.",
+        "evidence": [
+          {
+            "source": "holidify.com",
+            "quote": "from September to February"
+          },
+          {
+            "source": "sotc.in",
+            "quote": "the winter months of November to February"
+          },
+          {
+            "source": "rajpark.com",
+            "quote": "November to February"
+          }
+        ],
+        "decide": "OK to use Tirupati sources for Tirumala? Crowds matter more than weather here."
+      }
+    }
+  ]
+}

@@ -149,7 +149,7 @@ describe("useDrive async races", () => {
     const { useDrive } = await import("@/lib/client/use-drive");
     (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     let onPos: ((p: unknown) => void) | null = null;
-    vi.stubGlobal("window", { setInterval, clearInterval, isSecureContext: true });
+    vi.stubGlobal("window", { setInterval, clearInterval, isSecureContext: true, addEventListener() {}, removeEventListener() {} });
     vi.stubGlobal("document", { addEventListener() {}, removeEventListener() {}, visibilityState: "visible" });
     vi.stubGlobal("navigator", { geolocation: { watchPosition: (cb: (p: unknown) => void) => { onPos = cb; return 1; }, clearWatch() {}, getCurrentPosition() {} } });
     let release!: (r: unknown) => void;

@@ -7,6 +7,7 @@ import { TravelerProfileForm } from "@/components/TravelerProfileForm";
 import { TravelStyleClient } from "@/components/TravelStyleClient";
 import { Button } from "@/components/ui/Button";
 import { signOut } from "@/app/actions/auth";
+import { SignOutForm } from "@/components/SignOutForm";
 import { requireUser } from "@/lib/auth";
 import { getSetupStatus } from "@/lib/config";
 import { loadLearnTrips } from "@/lib/server/learning-data";
@@ -23,7 +24,7 @@ export default async function ProfilePage() {
 
   return (
     <main id="main" className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
-      <PageHeader eyebrow="You" title="Profile" subtitle={user.email ?? undefined} actions={<form action={signOut}><Button type="submit" variant="secondary" size="sm">Sign out</Button></form>} />
+      <PageHeader eyebrow="You" title="Profile" subtitle={user.email ?? undefined} actions={<SignOutForm action={signOut} userId={user.id}><Button type="submit" variant="secondary" size="sm">Sign out</Button></SignOutForm>} />
 
       <TravelerProfileForm initial={profile ?? null} />
 

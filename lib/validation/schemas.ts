@@ -347,6 +347,9 @@ export const placePhotosSchema = z.object({
 });
 
 /** Change a trip's dates or length. Only what is sent changes; start_date null means "no dates". */
+/** Deleting a trip: the owner types the trip name to confirm (checked against the real name on the server). */
+export const deleteTripSchema = z.object({ confirm_name: z.string().min(1, "Type the trip name to confirm.").max(200) });
+
 export const updateTripSchema = z
   .object({
     start_date: z

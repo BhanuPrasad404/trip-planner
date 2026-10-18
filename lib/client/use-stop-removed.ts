@@ -16,7 +16,8 @@ const keyOf = (targets: StopRef[], existingIds: ReadonlySet<string>) => `${targe
  * `remember`: while driving, the current targets are kept on this device (ids and names only), so the message still appears if the
  * page was reloaded or the phone slept through the change.
  */
-export function useStopRemoved({ tripId, targets, existingIds, remember }: { tripId: string; targets: StopRef[]; existingIds: ReadonlySet<string>; remember: boolean }) {
+export function useStopRemoved({ tripId, userId, targets, existingIds, remember }: { tripId: string; userId: string; targets: StopRef[]; existingIds: ReadonlySet<string>; remember: boolean }) {
+  const storeKey = rememberKey(userId, tripId);
   const key = keyOf(targets, existingIds);
   const [seen, setSeen] = useState<Seen>({ key, targets });
   const [change, setChange] = useState<{ change: StopChange; n: number } | null>(null);
@@ -32,7 +33,7 @@ export function useStopRemoved({ tripId, targets, existingIds, remember }: { tri
   // After a reload / long sleep: compare with what this device remembered while driving. Runs once per trip.
   useEffect(() => {
     let raw: string | null = null;
-    try { raw = window.localStorage.getItem(rememberKey(tripId)); } catch { return; }
+    try { raw = window.localStorage.getItem(storeKey); } catch { return; }
     const before = decodeRemembered(raw, Date.now());
     if (!before) return;
     const c = detectStopChange({ before, after: targets, existingIds });
@@ -40,16 +41,16 @@ export function useStopRemoved({ tripId, targets, existingIds, remember }: { tri
     const n = Date.now();
     if (c.kind === "target-removed") queueMicrotask(() => setChange({ change: c, n }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the stops as first loaded are compared with the remembered ones
-  }, [tripId]);
+  }, [storeKey]);
 
   useEffect(() => {
     try {
-      if (remember && targets.length > 0) window.localStorage.setItem(rememberKey(tripId), encodeRemembered(targets, Date.now()));
-      else if (remember) window.localStorage.removeItem(rememberKey(tripId)); // nothing left to drive to: nothing to compare later
+      if (remember && targets.length > 0) window.localStorage.setItem(storeKey, encodeRemembered(targets, Date.now()));
+      else if (remember) window.localStorage.removeItem(storeKey); // nothing left to drive to: nothing to compare later
     } catch {
       // storage blocked: the message still works while the page stays open
     }
-  }, [tripId, remember, targets]);
+  }, [storeKey, remember, targets]);
 
   const message = change ? stopChangeMessage(change.change) : null;
   return { change: change?.change ?? ({ kind: "none" } as StopChange), message, at: change?.n ?? 0, dismiss: () => setChange(null) };

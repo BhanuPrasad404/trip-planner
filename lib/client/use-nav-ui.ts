@@ -5,13 +5,15 @@ import type { NavMapProps } from "@/components/TripMap";
 import type { NavUi } from "@/components/map/NavigationOverlay";
 import type { useTripLive } from "@/lib/client/use-trip-live";
 import { deriveSessionState } from "@/lib/map/session-state";
+import { DESTINATION_ID } from "@/lib/map/drive-targets";
+import { kmText } from "@/lib/trip/remaining";
 
 type Live = ReturnType<typeof useTripLive>;
 
 /** Everything the Map and Live pages share about navigation: the overlay's data and the props the map needs. */
-export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) => void, onArrivedDone?: (id: string, name: string) => void) {
+export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) => void, onArrivedDone?: (id: string, name: string) => void, initialHeadingUp = true) {
   const { drive, navigation, gate } = live;
-  const [headingUp, setHeadingUp] = useState(true);
+  const [headingUp, setHeadingUp] = useState(initialHeadingUp);
   const [view, setView] = useState<{ kind: "overview"; n: number } | null>(null);
   const [recenter, setRecenter] = useState<{ n: number } | null>(null);
 
@@ -28,6 +30,8 @@ export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) =>
 
   const onOverview = useCallback(() => { setFollow(false); setView((v) => ({ kind: "overview", n: (v?.n ?? 0) + 1 })); }, [setFollow]);
   const t = navigation.target;
+  // The shared "from where I am" answer, only when it is about the stop navigation is heading for.
+  const left = live.distanceLeft && t && live.distanceLeft.next.id === t.id ? live.distanceLeft : null;
   const ui: NavUi = {
     nav: navigation, session, follow, headingUp, journey: live.journey, startedFrom: live.startedFrom, manualPlace: drive.manualPlace, speedKmh: drive.me?.speedKmh ?? null, nowMs: drive.me?.at ?? 0,
     signal: drive.quality && drive.me ? { grade: drive.quality.grade, message: drive.quality.message } : null,
@@ -38,6 +42,10 @@ export function useNavUi(live: Live, follow: boolean, setFollow: (v: boolean) =>
     // Only a real stop can be marked done; arriving at the trip destination just ends the drive.
     onArrivedDone: t && t.kind !== "destination" && onArrivedDone ? () => onArrivedDone(t.id, t.name) : undefined,
     noMoreStops: drive.active && !t ? { planHref: `/trips/${gate.tripId}/plan` } : null,
+    approach: live.arrival.approach ? { name: live.arrival.approach.name, distanceM: live.arrival.approach.distanceM, area: live.arrival.approach.area } : null,
+    arrivalCardOpen: !!live.arrival.prompt && live.arrival.prompt.stopId === t?.id,
+    nextLeft: left ? { name: left.next.name, km: left.next.km, minutes: left.next.minutes, kmText: kmText(left.next.km, left), destination: left.next.id === DESTINATION_ID } : null,
+    idleNext: drive.active && live.liveOk && navigation.phase === "idle",
   };
   const nav: NavMapProps = {
     phase: navigation.phase, routes: navigation.routes, selectedId: navigation.selectedId, choices: navigation.choices,

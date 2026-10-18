@@ -5,6 +5,7 @@ import TestRenderer from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useNavigation, type Navigation, type NavTarget } from "@/lib/client/use-navigation";
 import type { Me } from "@/lib/client/use-drive";
+import type { NavRoute } from "@/lib/providers/types";
 import { describeRoutes, parseOsrmDirections } from "@/lib/map/directions";
 import { haversineM } from "@/lib/geo";
 
@@ -378,5 +379,37 @@ describe("a start point the traveller CHOSE (no GPS, no further readings) still 
     await tick();
     await tick();
     expect(calls).toHaveLength(1);                                    // one request, not one per render
+  });
+});
+
+describe("carrying on after a reload", () => {
+  const route = (to: { lat: number; lng: number }) => (osrmBody(HYD, to) as { routes: NavRoute[] }).routes[0];
+  let restored!: Navigation;
+  function R({ target, restore }: { target: NavTarget | null; restore: { armed: boolean; targetId: string | null; route: NavRoute | null } }) {
+    const ref = useRef<((m: Me) => void) | null>(null);
+    // eslint-disable-next-line react-hooks/globals -- test harness
+    fixRef = ref;
+    // eslint-disable-next-line react-hooks/globals -- test harness
+    restored = useNavigation({ target, ready: true, fixRef: ref, restore });
+    return null;
+  }
+  it("the saved route to the same next stop is on the screen at once (no blank map, no new request), then follows the first reading", async () => {
+    const r = route(VIZAG);
+    await act(async () => { renderer = TestRenderer.create(createElement(R, { target: VIZAG, restore: { armed: true, targetId: VIZAG.id, route: r } })); });
+    expect(restored.phase).toBe("navigating"); expect(restored.routes[0].id).toBe(r.id); expect(restored.armed).toBe(true);
+    expect(calls).toHaveLength(0);
+    await send(fix(HYD, { at: ++t0 }));
+    expect(restored.progress).not.toBeNull(); expect(calls).toHaveLength(0);
+  });
+  it("a saved route to a stop that is no longer next is never shown: it routes again from where you are", async () => {
+    const other = { ...VIZAG, id: "other-stop" };
+    await act(async () => { renderer = TestRenderer.create(createElement(R, { target: other, restore: { armed: true, targetId: VIZAG.id, route: route(VIZAG) } })); });
+    expect(restored.phase).not.toBe("navigating"); expect(restored.routes).toEqual([]);
+    await send(fix(HYD, { at: ++t0 })); await flush();
+    expect(calls).toHaveLength(1); // armed: a fresh route to the real next stop
+  });
+  it("a straight line saved by mistake is never restored as a route", async () => {
+    await act(async () => { renderer = TestRenderer.create(createElement(R, { target: VIZAG, restore: { armed: true, targetId: VIZAG.id, route: { ...route(VIZAG), source: "estimate" } } })); });
+    expect(restored.phase).toBe("idle");
   });
 });

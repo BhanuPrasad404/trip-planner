@@ -65,7 +65,8 @@ export function routeMatchesTargets(routeStopIds: readonly string[] | null | und
 // (just ids and names of this trip's own stops, never anyone's position), so the message still appears when it comes back.
 export type RememberedTargets = { v: 1; at: number; targets: StopRef[] };
 export const REMEMBER_MS = 12 * 3_600_000;
-export const rememberKey = (tripId: string) => `tm:nav-targets:${tripId}`;
+/** Per PERSON and trip (a shared phone never shows one person's stops to the next). */
+export const rememberKey = (userId: string, tripId: string) => `tm:nav-targets:${userId}:${tripId}`;
 
 export function encodeRemembered(targets: StopRef[], nowMs: number): string {
   const r: RememberedTargets = { v: 1, at: nowMs, targets: targets.slice(0, 20).map((t) => ({ id: t.id, name: t.name.slice(0, 120) })) };

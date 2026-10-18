@@ -7,6 +7,36 @@ import { stopsSignature, type StopRow } from "@/lib/trip/stop-change";
 
 export const DRIVE_CHECK_MS = 120_000;
 
+// ONE Realtime channel per trip on this page, shared by every screen that listens (the drive runs app-wide, so it and the plan can be
+// open together). Supabase hands back the SAME channel for the same topic, and adding listeners to a channel that is already joined
+// throws, so each screen registers its listener here instead; the channel closes when the last screen leaves.
+type Sb = ReturnType<typeof createClient>;
+type Shared = { channel: ReturnType<Sb["channel"]>; broadcast: Set<() => void>; rows: Set<() => void> };
+const sharedChannels = new Map<string, Shared>();
+export function joinStopsChannel(sb: Sb, tripId: string, onEvent: () => void, rows: boolean): () => void {
+  let s = sharedChannels.get(tripId);
+  if (!s) {
+    const created: Shared = { channel: null as unknown as Shared["channel"], broadcast: new Set(), rows: new Set() };
+    const fanBroadcast = () => { created.broadcast.forEach((f) => f()); created.rows.forEach((f) => f()); };
+    const fanRows = () => created.rows.forEach((f) => f());
+    created.channel = sb.channel(stopsChannel(tripId)).on("broadcast", { event: STOPS_CHANGED }, fanBroadcast)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, fanRows)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, fanRows);
+    created.channel.subscribe();
+    sharedChannels.set(tripId, created);
+    s = created;
+  }
+  const shared = s;
+  (rows ? shared.rows : shared.broadcast).add(onEvent);
+  return () => {
+    shared.rows.delete(onEvent); shared.broadcast.delete(onEvent);
+    if (shared.rows.size === 0 && shared.broadcast.size === 0 && sharedChannels.get(tripId) === shared) {
+      sharedChannels.delete(tripId);
+      void sb.removeChannel(shared.channel);
+    }
+  };
+}
+
 /**
  * Keeps an open trip screen's stops up to date with changes made ELSEWHERE (another member, or me on another device), including
  * deleted stops. `onChange` reloads the page's data (router.refresh).
@@ -62,12 +92,8 @@ export function useTripChanges({ tripId, places, driving, onChange, listenToRows
       }
     };
 
-    let channel = sb.channel(stopsChannel(tripId)).on("broadcast", { event: STOPS_CHANGED }, schedule);
-    if (listenToRows) {
-      channel = channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, schedule)
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, schedule);
-    }
-    channel.subscribe();
+    let leave = () => {};
+    try { leave = joinStopsChannel(sb, tripId, schedule, listenToRows); } catch { /* Realtime unavailable: the checks below still run */ }
 
     const onBack = () => { if (document.visibilityState === "visible") void checkRef.current(); };
     document.addEventListener("visibilitychange", onBack);
@@ -77,7 +103,7 @@ export function useTripChanges({ tripId, places, driving, onChange, listenToRows
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onBack);
       window.removeEventListener("online", onBack);
-      void sb.removeChannel(channel);
+      leave();
     };
   }, [tripId, listenToRows]);
 

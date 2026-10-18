@@ -5,6 +5,12 @@ import type { Advice, RadarItem, TripHealth } from "@/lib/intel/types";
 
 let pathname = "/trips/00000000-0000-0000-0000-000000000001/live";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), usePathname: () => pathname }));
+// The drive is app-wide (components/drive). Here each page is rendered through the SAME engine hook, inline, so the page's real
+// behaviour is tested without the provider around it.
+vi.mock("@/components/drive/DriveProvider", async () => {
+  const { useEngineValue } = await import("@/components/drive/DriveEngine");
+  return { useTripEngine: (data: never, refresh: () => void) => ({ status: "ready", engine: useEngineValue({ data, restore: null, refresh, onDriveStart: () => {}, onDriveEnd: () => {} }) }) };
+});
 vi.mock("@/lib/client/use-trip-realtime", () => ({ useTripRealtime: vi.fn() }));
 
 import { AutopilotCard } from "@/components/intel/AutopilotCard";

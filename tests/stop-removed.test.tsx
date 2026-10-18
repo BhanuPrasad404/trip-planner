@@ -129,7 +129,7 @@ function Live({ places, driving = true }: { places: Stop[]; driving?: boolean })
   const existing = useMemo(() => new Set(places.map((p) => p.id)), [places]);
   const refs = useMemo(() => targets.map((t) => ({ id: t.id, name: t.name })), [targets]);
   // eslint-disable-next-line react-hooks/globals -- test harness
-  removal = useStopRemoved({ tripId: "trip", targets: refs, existingIds: existing, remember: driving });
+  removal = useStopRemoved({ tripId: "trip", userId: "u1", targets: refs, existingIds: existing, remember: driving });
   const target = targets[0] ? { id: targets[0].id, name: targets[0].name, lat: targets[0].lat, lng: targets[0].lng } : null;
   // eslint-disable-next-line react-hooks/globals -- test harness
   nav = useNavigation({ target, ready: true, fixRef: ref });
@@ -205,7 +205,7 @@ describe("deleting stops while driving (real navigation hook)", () => {
 
   it("another member deleted it while this phone was asleep and the page reloaded → the message still shows", async () => {
     await startDriving([A, B, C]);
-    expect(decodeRemembered(store[rememberKey("trip")], Date.now())?.map((t) => t.id)).toEqual(["a", "b", "c"]);
+    expect(decodeRemembered(store[rememberKey("u1", "trip")], Date.now())?.map((t) => t.id)).toEqual(["a", "b", "c"]);
     act(() => r.unmount());
     r = undefined as unknown as TestRenderer.ReactTestRenderer;
     await show([B, C]); // fresh page, fresh data: A is gone
@@ -221,7 +221,7 @@ describe("never 'you've arrived' at a deleted stop", () => {
   const holder: { ref: MutableRefObject<((m: Me) => void) | null> } = { ref: { current: null } };
   const Inner = ({ stops }: { stops: ArrivalStop[] }) => {
     // eslint-disable-next-line react-hooks/globals -- test harness
-    api = useArrival({ tripId: "t1", stops, enabled: true, session: 1, arrivalRef: holder.ref, mark: async () => "saved" });
+    api = useArrival({ tripId: "t1", userId: "u1", stops, enabled: true, session: 1, arrivalRef: holder.ref, mark: async () => "saved" });
     return null;
   };
   it("the prompt disappears when its stop is deleted", async () => {

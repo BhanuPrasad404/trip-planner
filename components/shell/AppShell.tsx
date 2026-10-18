@@ -7,6 +7,7 @@ import { AppNav } from "./AppNav";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { TimezoneCookie } from "./TimezoneCookie";
 import { ServiceWorker } from "./ServiceWorker";
+import { DriveProvider } from "@/components/drive/DriveProvider";
 import type { NavTrip } from "./nav";
 
 /** The persistent frame around every signed-in page: navigation + content area. */
@@ -39,8 +40,11 @@ export async function AppShell({ children }: { children: ReactNode }) {
       <ServiceWorker />
       <AppNav trips={trips} userInitial={initial} signOutAction={signOut} userId={userId} />
       <div className="min-w-0 flex-1 pb-28 md:pb-0">
-        <OfflineBanner />
-        {children}
+        {/* The active drive lives here, around every signed-in page, so moving around the app never ends it. */}
+        <DriveProvider userId={userId}>
+          <OfflineBanner />
+          {children}
+        </DriveProvider>
       </div>
     </div>
   );

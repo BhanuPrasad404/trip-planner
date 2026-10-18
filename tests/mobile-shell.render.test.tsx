@@ -105,9 +105,12 @@ describe("the scene behind the app", () => {
   it("is decoration only: hidden from screen readers, never catches a tap, behind everything, and phones only", () => {
     for (const k of ['aria-hidden="true"', "pointer-events-none", "fixed", "-z-10", "md:hidden"]) expect(html).toContain(k);
   });
-  it("is drawn, not downloaded: an inline vector with no image request and no outside address", () => {
-    expect(HERO_PHOTO).toBeNull(); expect(html).toContain("<svg"); expect(html).not.toContain("<img"); expect(html).not.toMatch(/https?:\/\//); expect(html).not.toContain("url(http");
+  it("is a real photograph, self-hosted and optimised by next/image, with no outside address", () => {
+    expect(HERO_PHOTO).toBe("/brand/mobile-hero.webp");
+    expect(html).toContain("<img"); expect(html).toContain("/_next/image?url="); expect(html).toContain("mobile-hero"); expect(html).toContain('alt=""');
+    expect(html).not.toMatch(/src="https?:\/\//); expect(html).not.toContain("url(http");
   });
+  it("fades into the dark green the cards sit on, so text stays readable over any part of the photo", () => { expect(html).toContain("linear-gradient(180deg"); expect(html).toContain("#06201c 72%"); });
   it("has nothing that moves or filters (cheap to scroll over on a low-end phone)", () => { expect(html).not.toMatch(/<animate|<filter|feGaussianBlur|animation/); });
   it("is mounted once, for the whole app, before the page content", () => {
     const layout = readFileSync("app/layout.tsx", "utf8");

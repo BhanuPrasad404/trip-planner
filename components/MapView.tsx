@@ -1,21 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { LiveArrival } from "./LiveArrival";
 import { VehicleSelector } from "./VehicleSelector";
-import { useVehicle } from "@/lib/client/use-vehicle";
 import { AlertBanners } from "./AlertCenter";
-import { useAlerts } from "@/lib/client/use-alerts";
-import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
-import { useVisits } from "@/lib/client/use-visits";
-import { applyOutboxToPlaces } from "@/lib/client/outbox";
 import { OutboxStatus } from "./OutboxStatus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { enrichPlaces } from "@/lib/client/enrich";
 import { useTripActions } from "@/lib/client/use-trip-actions";
-import { useTripLive } from "@/lib/client/use-trip-live";
-import { useTripChanges } from "@/lib/client/use-trip-changes";
 import type { RadarItem } from "@/lib/intel/types";
 import type { PlaceWithSeason, Trip, TripMember } from "@/lib/types";
 import type { VoteSummary } from "@/lib/votes";
@@ -26,19 +18,19 @@ import { UndoToast } from "./intel/UndoToast";
 import { WeatherSunCard } from "./intel/WeatherSunCard";
 import { TripMapLazy } from "./TripMapLazy";
 import { Glyph } from "@/components/ui/Glyph";
+import { MapSkeleton } from "@/components/ui/Skeleton";
 import { DriveGateCard } from "./DriveGateCard";
 import { MapThemeControl } from "./map/MapThemeControl";
 import { HudNotices } from "./map/HudNotices";
 import { RouteInfoButton, RouteInfoSheet, routeInfoLabel } from "./map/RouteInfo";
-import { useHudNotices } from "@/lib/client/use-hud-notices";
 import { useImmersive } from "@/lib/client/use-immersive";
-import { useTollWatch } from "@/lib/client/use-toll-watch";
-import { visibleAlerts, type HudNotice } from "@/lib/map/notices";
+import { visibleAlerts } from "@/lib/map/notices";
 import { NavigationBanner, NavigationPanel } from "./map/NavigationOverlay";
-import { useNavUi } from "@/lib/client/use-nav-ui";
 import { useMapTheme } from "@/lib/client/use-map-theme";
 import { SATELLITE_TILES_URL } from "@/lib/map/style";
 import { dayWithDate } from "@/lib/time-context";
+import { useTripEngine } from "./drive/DriveProvider";
+import type { Engine } from "./drive/DriveEngine";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
 
@@ -47,51 +39,46 @@ const Toggle = ({ on, set, children }: { on: boolean; set: (v: boolean) => void;
 );
 
 /** The map as a travel instrument: your stops, the road ahead, what the radar recommends, and your friends — with layers you control. */
-export function MapView({ trip, places: serverPlaces, members, votes, conditions, userId, today }: Props) {
+export function MapView({ trip, places, members, votes, conditions, userId, today }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const refresh = () => startTransition(() => router.refresh());
-  // Changes made with no signal (this person's own, on this trip) are shown at once and sent when the connection is back.
-  const visits = useVisits(trip.id, userId, refresh);
-  const places = useMemo(() => applyOutboxToPlaces(serverPlaces, visits.outbox.items), [serverPlaces, visits.outbox.items]);
-  // Also tell the traveller if Trailmate is in the background (the card itself is the alert while the app is open).
-  const alerts = useAlerts(INDIA_UTC_OFFSET_MIN, { origin: `/trips/${trip.id}/live` });
-  const onArrivalPrompt = (stop: { id: string; name: string }) => alerts.notify({ id: `arrival:${stop.id}`, kind: "arrival", level: 2, title: `You've arrived at ${stop.name}`, body: "Open Trailmate to mark this stop as visited.", inApp: false, cooldownMs: 12 * 3_600_000 });
-  const [focusDay, setFocusDay] = useState(places.find((p) => p.day_number !== null)?.day_number ?? 1);
-  const [showRadar, setShowRadar] = useState(true);
-  const [showAll, setShowAll] = useState(false);
+  // The drive lives app-wide (components/drive): this page shows it. Leaving, coming back or reloading restarts nothing.
+  const data = useMemo(() => ({ trip, places, members, votes, conditions, userId, today }), [trip, places, members, votes, conditions, userId, today]);
+  const view = useTripEngine(data, refresh, "map");
+  if (view.status === "loading") return <main id="main" className="relative h-[calc(100dvh-15.5rem)] min-h-[30rem] w-full md:h-[calc(100dvh-10.5rem)]"><MapSkeleton /></main>;
+  return <MapScreen e={view.engine} />;
+}
+
+function MapScreen({ e }: { e: Engine }) {
+  const { trip } = e.data;
+  const { visits, places, alerts, vehicle, setVehicle, ui, setUi, live, tolls, navUi, notices } = e;
+  const { focusDay, showRadar, showAll, satellite, follow } = ui;
+  const setFocusDay = (d: number) => setUi({ focusDay: d });
+  const setShowRadar = (v: boolean) => setUi({ showRadar: v });
+  const setShowAll = (v: boolean) => setUi({ showAll: v });
+  const setSatellite = (v: boolean) => setUi({ satellite: v });
+  const setFollow = (v: boolean) => setUi({ follow: v });
   // The radar sheet starts folded while driving, so it does not take half of the map; the traveller opens it when they want it.
-  const [sheetPref, setSheet] = useState<boolean | null>(null);
+  const sheetPref = ui.sheet;
+  const setSheet = (v: boolean) => setUi({ sheet: v });
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const full = useImmersive();
-  const [follow, setFollow] = useState(true);
   const [theme, setTheme] = useMapTheme();
-  const [satellite, setSatellite] = useState(false);
+  useEffect(() => { if (ui.page !== "map") setUi({ page: "map" }); }, [ui.page, setUi]);
 
-  const enriched = useMemo(() => enrichPlaces(places, trip, today, conditions), [places, trip, today, conditions]);
-  const [vehicle, setVehicle] = useVehicle(trip.id);
-  const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces: showAll, vehicle });
-  const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime, outbox: visits.outbox });
+  const actions = useTripActions({ tripId: trip.id, places, onChanged: e.refresh, localDate: live.localDate, localTime: live.localTime, outbox: visits.outbox });
   const { drive, intel, driveDay, todayDay, navigation } = live;
-  // Changes made elsewhere (another member deleted a stop, or I did on another device) reach this map at once.
-  useTripChanges({ tripId: trip.id, places: serverPlaces, driving: drive.active, onChange: refresh });
   // A finished trip (planned dates over, not a late finish): show its saved journey, not an active drive.
   const ended = (live.closed || (live.timing?.state === "after" && !live.overrun && !live.resumed)) && !drive.active;
   const endedOn = live.timing?.lastDate && live.localDate ? dayWithDate(live.timing.lastDate, live.localDate) : null;
   const savedCounts = useMemo(() => ({ done: places.filter((p) => p.status === "done").length, skipped: places.filter((p) => p.status === "skipped").length, total: places.filter((p) => p.day_number !== null).length }), [places]);
-  const navUi = useNavUi(live, follow, setFollow, (id, name) => void actions.setStatus(id, "done", `Marked ${name} done`));
   const navBusy = navUi.navBusy;
   const sheet = sheetPref ?? !drive.active;
-  const tolls = useTollWatch({ live, vehicle, notify: alerts.notify, dismiss: alerts.dismiss });
-  const mapNotices = useMemo<HudNotice[]>(() => {
-    const out: HudNotice[] = [];
-    if (drive.error && !drive.locating) out.push({ id: "drive-error", severity: "important", text: drive.error, dismissible: false });
-    if (drive.shareFailed) out.push({ id: "share-failed", severity: "info", text: "Your live location isn't reaching the group right now. Your drive and directions are not affected.", dismissible: true });
-    if (tolls.unavailable) out.push({ id: "toll-unavailable", severity: "info", text: "Couldn't check this route for toll plazas, so there may be tolls ahead.", dismissible: true, autoHideMs: 15_000 });
-    return out;
-  }, [drive.error, drive.locating, drive.shareFailed, tolls.unavailable]);
-  const notices = useHudNotices(mapNotices, 1);
+  // "Mark as done" in the navigation panel goes through this page's actions, so it gets the same Undo and notice as everywhere else.
+  const navTarget = navigation.target;
+  const navUiUi = { ...navUi.ui, onArrivedDone: navUi.ui.onArrivedDone && navTarget ? () => void actions.setStatus(navTarget.id, "done", `Marked ${navTarget.name} done`) : undefined };
   const alertView = visibleAlerts(alerts.active, 1);
   const otherCount = notices.hidden.length + alertView.hiddenCount;
   const infoLabel = routeInfoLabel(tolls, alertView.hiddenCount, notices.hidden.length);
@@ -116,6 +103,7 @@ export function MapView({ trip, places: serverPlaces, members, votes, conditions
         places={mapPlaces} start={start} destination={dest} activeDay={driveDay} fit={drive.active ? "day" : "all"} frameStartDest={!drive.active} numDays={trip.num_days} journey={ended}
         live={live.liveMarkers} pois={showRadar || showAll ? live.poiMarkers : []} driveLine={drive.active && !navUi.navBusy ? drive.route?.line ?? null : null}
         follow={drive.active && follow} onUserPan={() => setFollow(false)}
+        initialCamera={e.getCamera()} onCamera={e.setCamera}
         theme={theme} satellite={satellite}
         nav={navUi.nav} headingUp={navUi.headingUp} viewRequest={navUi.viewRequest} recenter={navUi.recenter} onCompass={navUi.onCompass} onSelectRoute={navigation.choose}
       />
@@ -127,10 +115,11 @@ export function MapView({ trip, places: serverPlaces, members, votes, conditions
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="group" aria-label="Drive">
             {!drive.active ? (
-              <button type="button" onClick={drive.start} className={`${pill} font-bold ${ended ? "border border-line bg-white text-pine" : "bg-marigold text-pine"}`}><span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />{ended ? "Drive this route again" : "Start drive"}</span></button>
+              <button type="button" onClick={drive.start} className={`${pill} font-bold ${ended && !e.paused ? "border border-line bg-white text-pine" : "bg-marigold text-pine"}`}><span className="inline-flex items-center gap-1.5"><Glyph name="play" size={16} />{e.paused ? "Resume drive" : ended ? "Drive this route again" : "Start drive"}</span></button>
             ) : (
               <button type="button" onClick={drive.stop} className={`${pill} border border-line bg-white text-pine`}><span className="inline-flex items-center gap-1.5"><Glyph name="stop" size={16} />Stop drive</span></button>
             )}
+            {drive.active && <button type="button" onClick={live.sound.toggle} aria-pressed={live.sound.on} aria-label="Drive sounds (voice and arrival chime)" className={iconBtn}><Glyph name={live.sound.on ? "volumeOn" : "volumeOff"} size={18} /></button>}
             {drive.active && !follow && <button type="button" onClick={navUi.ui.onRecenter} className={`${pill} border border-line bg-white text-pine`}><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Follow me</span></button>}
             {!drive.active && todayDay === null && !ended && !live.overrun && days.map((d) => <button key={d} type="button" aria-pressed={d === focusDay} onClick={() => setFocusDay(d)} className={`min-h-11 rounded-full px-3.5 text-sm font-semibold shadow-sm ${d === focusDay ? "bg-pine text-white" : "bg-white text-ink-muted"}`}>Day {d}</button>)}
           </div>
@@ -187,9 +176,9 @@ export function MapView({ trip, places: serverPlaces, members, votes, conditions
           </div>
         )}
       </div>
-      <NavigationPanel ui={navUi.ui} />
+      <NavigationPanel ui={navUiUi} />
       <OutboxStatus outbox={visits.outbox} floating />
-      <LiveArrival live={live} vehicle={vehicle} tripId={trip.id} mark={visits.mark} failed={visits.failed} onClearFailed={visits.clearFailed} onPrompt={onArrivalPrompt} />
+      <LiveArrival live={live} vehicle={vehicle} failed={visits.failed} onClearFailed={visits.clearFailed} />
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />
     </main>
   );

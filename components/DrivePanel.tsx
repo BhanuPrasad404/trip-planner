@@ -9,6 +9,7 @@ import { Button } from "./ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import { DESTINATION_ID } from "@/lib/map/drive-targets";
 import { kmText, remainingDistance, type Remaining } from "@/lib/trip/remaining";
+import { ApproachStrip } from "./map/NavigationOverlay";
 
 type DrivePanelProps = {
   drive: Drive;
@@ -25,12 +26,16 @@ type DrivePanelProps = {
   dayLabel: string;
   /** Current time in ms; 0 until the browser clock is ready (keeps server and client output identical). */
   nowMs: number;
+  /** "Arriving in 80 m" / "You have arrived at X" from the shared arrival detector. */
+  arrival?: { approach: { name: string; distanceM: number; area: boolean } | null; arrivedName: string | null } | null;
+  /** One switch for the voice and the arrival chime; `blocked` = the browser refused to unlock sound. */
+  sound?: { on: boolean; toggle: () => void; blocked: boolean; canBuzz?: boolean } | null;
 };
 
 const toneClass = { ok: "bg-teal-light text-teal-ink", late: "bg-clay-light text-clay-ink", early: "bg-sky text-ink-muted" } as const;
 const dotClass = { live: "bg-teal", recent: "bg-marigold", stale: "bg-line" } as const;
 
-export function DrivePanel({ drive, members, userId, stops, stayMinutes, comparePlan, dayLabel, nowMs, distanceLeft }: DrivePanelProps) {
+export function DrivePanel({ drive, members, userId, stops, stayMinutes, comparePlan, dayLabel, nowMs, distanceLeft, arrival, sound }: DrivePanelProps) {
   const { active, share, me, quality, error, route, members: live } = drive;
 
   const now = new Date(nowMs);
@@ -73,6 +78,10 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
         </div>
       ) : (
         <div className="mt-3 space-y-4">
+          {arrival?.approach && <ApproachStrip approach={arrival.approach} compact />}
+          {arrival?.arrivedName && (
+            <p role="status" className="flex items-center gap-2 rounded-2xl bg-teal-light px-4 py-3 text-base font-semibold text-teal-ink"><Glyph name="flag" size={18} />You have arrived at {arrival.arrivedName}</p>
+          )}
           <div className="rounded-2xl bg-pine p-4 text-white">
             {!me ? (
               <p className="text-sm text-white/85" role="status">Finding your location… allow location access if your browser asks.</p>
@@ -136,9 +145,15 @@ export function DrivePanel({ drive, members, userId, stops, stayMinutes, compare
               <input type="checkbox" checked={share} onChange={(e) => drive.setShare(e.target.checked)} />
               Sharing my location with the group
             </label>
+            {sound && (
+              <button type="button" onClick={sound.toggle} aria-pressed={sound.on} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold text-pine">
+                <Glyph name={sound.on ? "volumeOn" : "volumeOff"} size={18} />{sound.on ? "Drive sounds on" : "Drive sounds off"}
+              </button>
+            )}
             <Button variant="secondary" onClick={drive.stop} className="w-full sm:w-auto"><span className="inline-flex items-center gap-1.5"><Glyph name="stop" size={16} />Stop drive</span></Button>
           </div>
-          <p className="text-xs text-ink-muted">Keep this screen open. Browsers pause location when the phone is locked, so we ask your phone to keep the screen on while you drive.</p>
+          {sound?.blocked && <p role="status" className="rounded-xl bg-marigold-light px-3 py-2 text-xs font-semibold text-[#7a4a00]">This browser blocked sound, so arrivals will still show on screen{sound.canBuzz ? " and buzz" : ""} but not chime. Tap Stop and Start drive again to retry.</p>}
+          <p className="text-xs text-ink-muted">Keep this screen open. Browsers pause location when the phone is locked, so arrival alerts can&apos;t sound while the screen is locked or you are in another app; we ask your phone to keep the screen on while you drive. On iPhone the silent switch also mutes the chime.</p>
         </div>
       )}
 

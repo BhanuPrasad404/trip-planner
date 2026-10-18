@@ -1,26 +1,42 @@
-// "Have I really arrived at this planned stop?" decided from GPS readings, conservatively. A stop is NEVER completed from a GPS
-// reading alone: this engine only decides when it is worth ASKING ("Mark this stop as visited?"); the traveller confirms.
+// "Am I nearly there? Have I arrived?" decided from GPS readings, conservatively. A stop is NEVER completed from a GPS reading
+// alone: this engine decides when to TELL the traveller ("Arriving in 100 m") and when to ASK ("You have arrived at X — mark as
+// done?"); the traveller confirms.
 //
-// A reading counts only when it is
-//   • from a real GPS reading (not a start point the traveller picked, not an old reading), and
-//   • precise (≤ 75 m), and
-//   • inside that place's geofence (bigger for a fort or a lake than for a temple), and
-//   • not at driving speed (a highway passing near a fort is not an arrival).
-// And the traveller must STAY inside: at least two such readings spanning 20 seconds. Then we ask, once.
-// A dismissed prompt is not repeated unless the traveller really leaves (twice the radius away) and comes back. A reading that is too
-// vague to be sure never prompts; if it could be inside the geofence we only say "you may be near X" so they can mark it by hand.
+// Two stages per stop, each announced at most ONCE per drive:
+//   • approaching: two precise readings in a row within 100 m of the next stop (only the stop you are heading for, so passing
+//     near a later stop says nothing),
+//   • arrived: precise readings within 50 m, not at driving speed, spanning at least 8 seconds (a real stop, not a drive-by).
+// A reading counts only when it is a real GPS reading (not a start point the traveller picked, not an old reading) and precise
+// (±30 m or better). A vaguer reading never confirms anything and never cancels a stage either; near a stop it may only say
+// "you may be near X" so the traveller can mark it by hand.
+// Hysteresis: once shown, "approaching" stays until you are 150 m away, and an arrival in progress is only cancelled beyond 120 m,
+// so GPS wobble on the edge cannot make the screen flicker.
+// Large places (a fort, a lake, a sanctuary) are entered far from their pin, so they use a wider zone sized to the place and
+// are worded "You've reached the X area".
 // Pure and deterministic: same readings in, same decisions out.
 import { haversineM } from "@/lib/geo";
 
 export type ArrivalStatus = "planned" | "done" | "skipped";
-export type ArrivalStop = { id: string; name: string; lat: number; lng: number; category: string | null; status: ArrivalStatus; /** Position in the day, 1 = first. */ order: number };
+export type ArrivalStop = {
+  id: string; name: string; lat: number; lng: number; category: string | null; status: ArrivalStatus; /** Position in the day, 1 = first. */ order: number;
+  /** "destination" = the end of the trip: it can be arrived at, but it is not a stop that is marked done. */
+  kind?: "stop" | "destination";
+};
 export type ArrivalFix = { lat: number; lng: number; accuracyM: number | null; speedKmh: number | null; /** When the device measured it (ms). */ fixAt: number; /** The traveller chose this place; it is not GPS. */ manual?: boolean };
 
 export const ARRIVAL = {
-  /** A reading vaguer than this can never confirm an arrival. */
-  maxAccuracyM: 75,
-  /** Readings (≥ minFixes) spread over at least this long, all inside the geofence, before we ask. */
-  minDwellMs: 20_000,
+  /** A reading vaguer than this can never announce or confirm anything. */
+  maxAccuracyM: 30,
+  /** Point-like stops (a temple, a cafe, a viewpoint). */
+  approachM: 100,
+  arriveM: 50,
+  /** Hysteresis: "approaching" disappears only beyond this; an arrival in progress is cancelled only beyond `arriveClearM`. */
+  approachClearM: 150,
+  arriveClearM: 120,
+  /** Consecutive precise readings inside the approach zone before "Arriving in 100 m". */
+  approachFixes: 2,
+  /** Readings (≥ minFixes) spread over at least this long, all inside the arrival zone, before we say "you have arrived". */
+  minDwellMs: 8_000,
   minFixes: 2,
   /** Faster than this is passing by, not arriving. Unknown speed is allowed (the dwell rule still applies). */
   maxSpeedKmh: 25,
@@ -28,24 +44,24 @@ export const ARRIVAL = {
   staleMs: 30_000,
   /** Silence this long between qualifying readings starts the dwell again. */
   gapResetMs: 90_000,
-  /** After a dismissal, the traveller must get this many radii away before we may ask again. */
-  rearmFactor: 2,
-  /** Leaving the geofence by this much cancels a dwell in progress (so GPS jitter on the edge does not flip-flop). */
-  leaveFactor: 1.5,
   /** Remembered decisions expire (a stop dismissed yesterday may be asked about again today). */
   memoryMs: 12 * 3_600_000,
 } as const;
 
-/** Geofence radius in metres. Large places (a fort, a lake, a trek start) are entered far from the pin; a temple or a cafe is not. */
-const RADIUS_M: Record<string, number> = {
-  food: 100, stay: 100, viewpoint: 150, temple: 150, museum: 150, other: 150,
-  fort: 300, waterfall: 300, activity: 300, lake: 400, beach: 400, trek: 500, wildlife: 800, hill_station: 800,
-};
-export const DEFAULT_RADIUS_M = 150;
-export const radiusFor = (category: string | null | undefined): number => (category && RADIUS_M[category]) || DEFAULT_RADIUS_M;
+/** Places that are entered far from their pin: the arrival zone is the size of the place. */
+const AREA_M: Record<string, number> = { fort: 300, waterfall: 300, activity: 300, lake: 400, beach: 400, trek: 500, wildlife: 800, hill_station: 800 };
+
+export type Zone = { approachM: number; arriveM: number; approachClearM: number; arriveClearM: number; /** After a "not yet", how far away the traveller must get before we may ask again. */ rearmM: number; /** A large place: "You've reached the X area". */ area: boolean };
+
+export function zoneFor(category: string | null | undefined): Zone {
+  const r = category ? AREA_M[category] : undefined;
+  if (!r) return { approachM: ARRIVAL.approachM, arriveM: ARRIVAL.arriveM, approachClearM: ARRIVAL.approachClearM, arriveClearM: ARRIVAL.arriveClearM, rearmM: 2 * ARRIVAL.approachM, area: false };
+  return { approachM: r + 100, arriveM: r, approachClearM: r + 150, arriveClearM: Math.round(r * 1.5), rearmM: 2 * r + 100, area: true };
+}
 
 type Candidate = { firstAt: number; lastAt: number; fixes: number };
 export type Handled = { at: number; outcome: "confirmed" | "dismissed"; /** Gone far enough away since, so a dismissed stop may ask again. */ left: boolean };
+export type Near = { stopId: string; distanceM: number };
 export type ArrivalState = {
   candidates: Record<string, Candidate>;
   handled: Record<string, Handled>;
@@ -53,16 +69,26 @@ export type ArrivalState = {
   prompted: string | null;
   /** Last reading time used, so a repeated reading is not counted twice. */
   lastFixAt: number;
+  /** Stops already announced as "approaching" during this drive (each is announced once). */
+  approached: Record<string, true>;
+  /** Consecutive precise readings inside a stop's approach zone. */
+  approachHits: Record<string, number>;
+  /** The stop shown as "Arriving in … m" right now, with the latest distance. */
+  near: Near | null;
 };
 
-export const initialArrival = (handled: Record<string, Handled> = {}): ArrivalState => ({ candidates: {}, handled, prompted: null, lastFixAt: 0 });
+export const initialArrival = (handled: Record<string, Handled> = {}): ArrivalState => ({ candidates: {}, handled, prompted: null, lastFixAt: 0, approached: {}, approachHits: {}, near: null });
 
 export type ArrivalResult = {
   state: ArrivalState;
-  /** Ask the traveller. Never "mark complete". */
-  prompt: { stopId: string; distanceM: number; accuracyM: number } | null;
+  /** Arrived: ask the traveller. Never "mark complete". Fires once. */
+  prompt: { stopId: string; distanceM: number; accuracyM: number; area: boolean } | null;
+  /** Approaching: fires once per stop per drive, the moment it starts showing. */
+  approach: Near | null;
   /** Possibly near a stop, but the reading is too vague to be sure: say so, never ask to confirm. */
   unsure: { stopId: string; distanceM: number; accuracyM: number | null } | null;
+  /** A question nobody answered, about a stop the traveller has clearly driven away from: take the card down. */
+  withdrawn: string | null;
 };
 
 const usableFix = (f: ArrivalFix, now: number): boolean =>
@@ -71,77 +97,121 @@ const usableFix = (f: ArrivalFix, now: number): boolean =>
   f.accuracyM !== null && Number.isFinite(f.accuracyM) && f.accuracyM > 0 && f.accuracyM <= ARRIVAL.maxAccuracyM &&
   now - f.fixAt <= ARRIVAL.staleMs && f.fixAt <= now + 5_000;
 
-export function stepArrival(prev: ArrivalState, fix: ArrivalFix, stops: ArrivalStop[], now: number): ArrivalResult {
-  const state: ArrivalState = { candidates: { ...prev.candidates }, handled: { ...prev.handled }, prompted: prev.prompted, lastFixAt: prev.lastFixAt };
+const blockedBy = (h: Handled | undefined) => !!h && (h.outcome === "confirmed" || !h.left);
+
+/**
+ * One GPS reading in. `targetId` is the stop the traveller is heading for: only it is announced as "approaching". Arrival is
+ * detected at ANY open stop (people do visit stops out of order), the closest one first.
+ */
+export function stepArrival(prev: ArrivalState, fix: ArrivalFix, stops: ArrivalStop[], now: number, opts: { targetId?: string | null } = {}): ArrivalResult {
+  const state: ArrivalState = {
+    candidates: { ...prev.candidates }, handled: { ...prev.handled }, prompted: prev.prompted, lastFixAt: prev.lastFixAt,
+    approached: { ...prev.approached }, approachHits: { ...prev.approachHits }, near: prev.near,
+  };
   const open = stops.filter((s) => s.status === "planned");
-  // Forget decisions about stops that no longer exist or are no longer planned (done / skipped / removed): nothing left to ask about.
-  for (const id of Object.keys(state.candidates)) if (!open.some((s) => s.id === id)) delete state.candidates[id];
-  if (state.prompted && !open.some((s) => s.id === state.prompted)) state.prompted = null;
+  const isOpen = (id: string) => open.some((s) => s.id === id);
+  // Forget everything about stops that no longer exist or are no longer planned (done / skipped / removed).
+  for (const id of Object.keys(state.candidates)) if (!isOpen(id)) delete state.candidates[id];
+  for (const id of Object.keys(state.approachHits)) if (!isOpen(id)) delete state.approachHits[id];
+  if (state.prompted && !isOpen(state.prompted)) state.prompted = null;
+  if (state.near && (!isOpen(state.near.stopId) || (opts.targetId !== undefined && state.near.stopId !== opts.targetId))) state.near = null;
   for (const [id, h] of Object.entries(state.handled)) if (now - h.at > ARRIVAL.memoryMs) delete state.handled[id];
 
-  if (fix.manual || !Number.isFinite(fix.lat) || !Number.isFinite(fix.lng)) return { state, prompt: null, unsure: null };
-  if (fix.fixAt <= state.lastFixAt) return { state, prompt: null, unsure: null }; // the same or an older reading again
+  const none = { prompt: null, approach: null, unsure: null, withdrawn: null };
+  if (fix.manual || !Number.isFinite(fix.lat) || !Number.isFinite(fix.lng)) return { state, ...none };
+  if (fix.fixAt <= state.lastFixAt) return { state, ...none }; // the same or an older reading again
 
-  // A vague reading cannot confirm anything and must not cancel a dwell either. It may only say "you might be near".
+  // A vague reading cannot announce or confirm anything and must not cancel a stage either. It may only say "you might be near".
   if (!usableFix(fix, now)) {
     let unsure: ArrivalResult["unsure"] = null;
     const acc = fix.accuracyM !== null && Number.isFinite(fix.accuracyM) && fix.accuracyM > 0 ? fix.accuracyM : null;
     if (acc !== null && now - fix.fixAt <= ARRIVAL.staleMs) {
       let best = Infinity;
       for (const s of open) {
-        const h = state.handled[s.id];
-        if (h && (h.outcome === "confirmed" || !h.left)) continue;
+        if (blockedBy(state.handled[s.id]) || s.id === state.prompted) continue;
         const d = haversineM(fix, s);
-        // Only if the true position could be inside the geofence: the uncertainty circle reaches it.
-        if (d - acc <= radiusFor(s.category) && d < best) { best = d; unsure = { stopId: s.id, distanceM: Math.round(d), accuracyM: Math.round(acc) }; }
+        // Only if the true position could be inside the arrival zone: the uncertainty circle reaches it.
+        if (d - acc <= zoneFor(s.category).arriveM && d < best) { best = d; unsure = { stopId: s.id, distanceM: Math.round(d), accuracyM: Math.round(acc) }; }
       }
     }
-    return { state, prompt: null, unsure };
+    return { state, prompt: null, approach: null, unsure, withdrawn: null };
   }
 
   state.lastFixAt = fix.fixAt;
   const speedKnown = fix.speedKmh !== null && Number.isFinite(fix.speedKmh);
   const tooFast = speedKnown && (fix.speedKmh as number) > ARRIVAL.maxSpeedKmh;
-  const ready: { id: string; ratio: number; d: number }[] = [];
+  const ready: { id: string; ratio: number; d: number; area: boolean }[] = [];
+  let approach: Near | null = null;
+  let withdrawn: string | null = null;
 
   for (const s of open) {
-    const r = radiusFor(s.category);
+    const z = zoneFor(s.category);
     const d = haversineM(fix, s);
     const h = state.handled[s.id];
 
     // A dismissed stop may ask again only after the traveller has really gone away.
-    if (h && h.outcome === "dismissed" && !h.left && d > r * ARRIVAL.rearmFactor) state.handled[s.id] = { ...h, left: true };
+    if (h && h.outcome === "dismissed" && !h.left && d > z.rearmM) state.handled[s.id] = { ...h, left: true };
 
-    if (d > r * ARRIVAL.leaveFactor) { delete state.candidates[s.id]; continue; } // clearly outside: any dwell is over
-    if (d > r) continue; // in the grey zone between the geofence and the leave line: keep what we have, add nothing
+    // Asked, never answered, and now clearly gone (a stop passed slowly in traffic): withdraw the question so it cannot block the
+    // stop you are really heading for. It is treated like "not yet": asked again only if you go away and come back.
+    if (state.prompted === s.id && d > z.arriveClearM) {
+      state.prompted = null;
+      state.handled[s.id] = { at: now, outcome: "dismissed", left: false };
+      withdrawn = s.id;
+    }
+
+    // ── Approaching (the stop you are heading for only) ──
+    const isTarget = opts.targetId === undefined ? true : s.id === opts.targetId;
+    if (isTarget) {
+      if (state.near?.stopId === s.id) {
+        state.near = d > z.approachClearM ? null : { stopId: s.id, distanceM: Math.round(d) };
+      }
+      if (d <= z.approachM) state.approachHits[s.id] = (state.approachHits[s.id] ?? 0) + 1;
+      else delete state.approachHits[s.id];
+      const arrivedAlready = blockedBy(h) || state.prompted === s.id;
+      // Already inside the arrival zone: the arrival itself is seconds away, so "arriving in 100 m" would be late noise.
+      if (!state.approached[s.id] && !arrivedAlready && d > z.arriveM && (state.approachHits[s.id] ?? 0) >= ARRIVAL.approachFixes) {
+        state.approached[s.id] = true;
+        state.near = { stopId: s.id, distanceM: Math.round(d) };
+        approach = { stopId: s.id, distanceM: Math.round(d) };
+      }
+    }
+
+    // ── Arrived ──
+    if (d > z.arriveClearM) { delete state.candidates[s.id]; continue; } // clearly outside: any dwell is over
+    if (d > z.arriveM) continue; // between the zone and the clear line: keep what we have, add nothing
     if (tooFast) { delete state.candidates[s.id]; continue; } // inside but passing at speed
     const prevC = state.candidates[s.id];
     const c: Candidate = prevC && fix.fixAt - prevC.lastAt <= ARRIVAL.gapResetMs ? { firstAt: prevC.firstAt, lastAt: fix.fixAt, fixes: prevC.fixes + 1 } : { firstAt: fix.fixAt, lastAt: fix.fixAt, fixes: 1 };
     state.candidates[s.id] = c;
     const dwellOk = c.fixes >= ARRIVAL.minFixes && c.lastAt - c.firstAt >= ARRIVAL.minDwellMs;
-    const hh = state.handled[s.id];
-    const blocked = !!hh && (hh.outcome === "confirmed" || !hh.left);
-    if (dwellOk && !blocked) ready.push({ id: s.id, ratio: d / r, d });
+    if (dwellOk && !blockedBy(state.handled[s.id])) ready.push({ id: s.id, ratio: d / z.arriveM, d, area: z.area });
   }
 
-  if (state.prompted !== null || ready.length === 0) return { state, prompt: null, unsure: null };
-  const pick = ready.sort((a, b) => a.ratio - b.ratio)[0]; // two geofences overlap: ask about the closer one first
+  if (state.prompted !== null || ready.length === 0) return { state, prompt: null, approach, unsure: null, withdrawn };
+  const pick = ready.sort((a, b) => a.ratio - b.ratio)[0]; // two zones overlap: ask about the closer one first
   state.prompted = pick.id;
-  return { state, prompt: { stopId: pick.id, distanceM: Math.round(pick.d), accuracyM: Math.round(fix.accuracyM as number) }, unsure: null };
+  if (state.near?.stopId === pick.id) state.near = null; // arrived replaces "approaching"
+  return { state, prompt: { stopId: pick.id, distanceM: Math.round(pick.d), accuracyM: Math.round(fix.accuracyM as number), area: pick.area }, approach: approach?.stopId === pick.id ? null : approach, unsure: null, withdrawn };
 }
 
 /** The traveller answered. A confirmed stop is never asked about again; a dismissed one only after they leave and return. */
 export function resolveArrival(prev: ArrivalState, stopId: string, outcome: "confirmed" | "dismissed", now: number): ArrivalState {
   const candidates = { ...prev.candidates };
   delete candidates[stopId];
-  return { ...prev, candidates, prompted: prev.prompted === stopId ? null : prev.prompted, handled: { ...prev.handled, [stopId]: { at: now, outcome, left: outcome === "confirmed" } } };
+  return {
+    ...prev, candidates,
+    prompted: prev.prompted === stopId ? null : prev.prompted,
+    near: prev.near?.stopId === stopId ? null : prev.near,
+    handled: { ...prev.handled, [stopId]: { at: now, outcome, left: outcome === "confirmed" } },
+  };
 }
 
 /** Stops earlier in the day that are still "planned" when the traveller has arrived at a later one: offered as skipped, never marked silently. */
 export function earlierUnvisited(stops: ArrivalStop[], arrivedId: string): ArrivalStop[] {
   const at = stops.find((s) => s.id === arrivedId);
   if (!at) return [];
-  return stops.filter((s) => s.id !== arrivedId && s.status === "planned" && s.order < at.order).sort((a, b) => a.order - b.order);
+  return stops.filter((s) => s.id !== arrivedId && s.kind !== "destination" && s.status === "planned" && s.order < at.order).sort((a, b) => a.order - b.order);
 }
 
 /** What to remember between page loads: decisions only (a dwell in progress is not worth restoring). */

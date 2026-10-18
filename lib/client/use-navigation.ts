@@ -72,6 +72,14 @@ export function speak(text: string) {
   window.speechSynthesis.speak(u);
 }
 
+export type NavRestore = { armed: boolean; targetId: string | null; route: NavRoute | null };
+
+function restoredState(r: NavRestore | null, targetId: string | null): { state: State; armed: boolean; nav: NavIndex | null } {
+  if (!r) return { state: EMPTY, armed: false, nav: null };
+  if (!r.route || r.route.source === "estimate" || !targetId || r.targetId !== targetId) return { state: EMPTY, armed: r.armed, nav: null };
+  return { state: { ...EMPTY, phase: "navigating", forTargetId: targetId, routes: [r.route], selectedId: r.route.id }, armed: r.armed, nav: indexRoute(r.route) };
+}
+
 class RoutingUnavailable extends Error {}
 /** The daily/rate quota answered 429: asking again soon only burns the rest of it. */
 class RoutingQuota extends Error {}
@@ -91,22 +99,36 @@ async function fetchDirections(from: { lat: number; lng: number }, to: { lat: nu
 
 const RETRY_AFTER_MS = 15_000;
 
-export function useNavigation(args: { target: NavTarget | null; ready: boolean; fixRef: MutableRefObject<((m: Me) => void) | null>; onArrive?: (t: NavTarget) => void; vehicle?: Vehicle }): Navigation {
+export function useNavigation(args: {
+  target: NavTarget | null; ready: boolean; fixRef: MutableRefObject<((m: Me) => void) | null>;
+  /** Called when the route says you are at the end of the line. When given, the caller announces the arrival (by name, once). */
+  onArrive?: (t: NavTarget) => void;
+  vehicle?: Vehicle;
+  /** Controlled voice: one "drive sounds" switch shared with the arrival chime. Without it, voice is this hook's own state (on). */
+  voice?: boolean;
+  onToggleVoice?: () => void;
+  /** Carry on after a reload: the route that was being followed is shown at once, and progress resumes with the first GPS reading. */
+  restore?: NavRestore | null;
+}): Navigation {
   const { target, ready, fixRef } = args;
   const vehicleRef = useRef<Vehicle>(args.vehicle ?? "car");
   useEffect(() => { vehicleRef.current = args.vehicle ?? "car"; });
-  const [s, setS] = useState<State>(EMPTY);
-  const [voice, setVoice] = useState(true);
-  const [armed, setArmed] = useState(false);
+  // Read once: a saved route is used only if it still leads to the same next stop (never a route to a stop that is gone).
+  const [init] = useState(() => restoredState(args.restore ?? null, target?.id ?? null));
+  const [s, setS] = useState<State>(init.state);
+  const [ownVoice, setOwnVoice] = useState(true);
+  const voice = args.voice ?? ownVoice;
+  const onToggleVoiceRef = useRef(args.onToggleVoice);
+  const [armed, setArmed] = useState(init.armed);
 
   const targetRef = useRef(target);
   const onArriveRef = useRef(args.onArrive);
   const voiceRef = useRef(voice);
   const readyRef = useRef(ready);
-  const armedRef = useRef(false);
-  const phaseRef = useRef<NavPhase>("idle");
-  const forTargetRef = useRef<string | null>(null);
-  const navRef = useRef<NavIndex | null>(null);
+  const armedRef = useRef(init.armed);
+  const phaseRef = useRef<NavPhase>(init.state.phase);
+  const forTargetRef = useRef<string | null>(init.state.forTargetId);
+  const navRef = useRef<NavIndex | null>(init.nav);
   const offRef = useRef<OffRouteState>(initialOffRoute());
   const lastFix = useRef<Me | null>(null);
   const acceptedFix = useRef<{ lat: number; lng: number; at: number } | null>(null);
@@ -126,6 +148,7 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
   useEffect(() => {
     targetRef.current = target;
     onArriveRef.current = args.onArrive;
+    onToggleVoiceRef.current = args.onToggleVoice;
     voiceRef.current = voice;
     readyRef.current = ready;
   });
@@ -259,8 +282,10 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
 
     if (p.arrived) {
       setPhase("arrived", { progress: p, banner, rerouting: false });
-      if (voiceRef.current) speak("You have arrived at your destination");
-      if (targetRef.current) onArriveRef.current?.(targetRef.current);
+      const t = targetRef.current;
+      // The caller names the place and makes sure it is said once (the arrival detector may announce it too).
+      if (t && onArriveRef.current) onArriveRef.current(t);
+      else if (voiceRef.current) speak(t ? `You have arrived at ${t.name}` : "You have arrived");
       return;
     }
     if (voiceRef.current && banner.announceKey && banner.announceKey !== lastSpoken.current) {
@@ -367,10 +392,9 @@ export function useNavigation(args: { target: NavTarget | null; ready: boolean; 
 
   const retry = useCallback(() => { busyRef.current = false; load(armedRef.current); }, [load]);
   const toggleVoice = useCallback(() => {
-    setVoice((v) => {
-      if (v && typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-      return !v;
-    });
+    if (voiceRef.current && typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (onToggleVoiceRef.current) onToggleVoiceRef.current();
+    else setOwnVoice((v) => !v);
   }, []);
 
   // A different target (you finished a stop) means the old directions no longer apply.

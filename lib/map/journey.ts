@@ -2,7 +2,7 @@
 // next-stop numbers: what remains of the leg you are on (measured along the real route from your position) plus the
 // road legs after it. Never a straight-line distance.
 export type LaterLeg = { km: number; minutes: number };
-export type Journey = { name: string; remainingKm: number; remainingMin: number; etaMs: number; stops: number; /** How to print remainingKm ("about 40 km", "(estimated)") — set by the live screen. */ kmLabel?: string };
+export type Journey = { name: string; remainingKm: number; remainingMin: number; etaMs: number; stops: number; /** How to print remainingKm ("about 40 km", "(estimated)") — set by the live screen. */ kmLabel?: string; /** False when the road route stops short of the end of the day (it reaches at most 8 stops). */ coversAll?: boolean };
 
 export function journeySummary(args: {
   nowMs: number;

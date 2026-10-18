@@ -20,7 +20,7 @@ const members: TripMember[] = [
 ];
 const base: Drive = {
   active: false, share: true, me: null, manualPlace: null, setManual: () => {}, quality: null, locating: false, session: 1, error: null, shareFailed: false, route: null, drivingMin: null, members: {},
-  start: () => {}, stop: () => {}, setShare: () => {},
+  start: () => {}, resume: () => {}, stop: () => {}, setShare: () => {},
 };
 const render = (drive: Partial<Drive>, extra: Partial<React.ComponentProps<typeof DrivePanel>> = {}) =>
   renderToStaticMarkup(

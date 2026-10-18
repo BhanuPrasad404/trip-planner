@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARRIVAL, earlierUnvisited, initialArrival, radiusFor, resolveArrival, restoreHandled, serializeHandled, stepArrival, type ArrivalFix, type ArrivalState, type ArrivalStop } from "@/lib/trip/arrival";
+import { ARRIVAL, earlierUnvisited, initialArrival, zoneFor, resolveArrival, restoreHandled, serializeHandled, stepArrival, type ArrivalFix, type ArrivalState, type ArrivalStop } from "@/lib/trip/arrival";
 
 const M_PER_DEG_LAT = 111_195;
 const T0 = 1_800_000_000_000;
@@ -7,17 +7,22 @@ const stop = (o: Partial<ArrivalStop> = {}): ArrivalStop => ({ id: "s1", name: "
 /** A reading `northM` metres north of the stop, taken at `t` seconds after T0. */
 const fixAt = (s: ArrivalStop, northM: number, t: number, o: Partial<ArrivalFix> = {}): ArrivalFix => ({ lat: s.lat + northM / M_PER_DEG_LAT, lng: s.lng, accuracyM: 20, speedKmh: 2, fixAt: T0 + t * 1000, ...o });
 /** Feed readings in order; the clock is the reading's own time (a live phone receives it at once). */
-function feed(stops: ArrivalStop[], fixes: ArrivalFix[], start: ArrivalState = initialArrival()) {
-  let state = start; const prompts: string[] = []; const unsure: string[] = [];
-  for (const f of fixes) { const r = stepArrival(state, f, stops, f.fixAt); state = r.state; if (r.prompt) prompts.push(r.prompt.stopId); if (r.unsure) unsure.push(r.unsure.stopId); }
-  return { state, prompts, unsure };
+function feed(stops: ArrivalStop[], fixes: ArrivalFix[], start: ArrivalState = initialArrival(), opts: { targetId?: string | null } = {}) {
+  let state = start; const prompts: string[] = []; const unsure: string[] = []; const approaches: string[] = []; const near: (number | null)[] = [];
+  for (const f of fixes) {
+    const r = stepArrival(state, f, stops, f.fixAt, opts); state = r.state;
+    if (r.prompt) prompts.push(r.prompt.stopId); if (r.unsure) unsure.push(r.unsure.stopId); if (r.approach) approaches.push(r.approach.stopId);
+    near.push(r.state.near?.distanceM ?? null);
+  }
+  return { state, prompts, unsure, approaches, near };
 }
 
 describe("a stop is only ASKED about after a real stay, never from one reading", () => {
   const s = stop();
   it("one precise reading inside the geofence does not prompt", () => { expect(feed([s], [fixAt(s, 30, 0)]).prompts).toEqual([]); });
-  it("two readings less than 20 seconds apart do not prompt", () => { expect(feed([s], [fixAt(s, 30, 0), fixAt(s, 30, 10), fixAt(s, 30, 19)]).prompts).toEqual([]); });
-  it("two precise readings 20+ seconds apart inside the geofence prompt, once", () => {
+  it("readings less than 8 seconds apart do not prompt", () => { expect(feed([s], [fixAt(s, 30, 0), fixAt(s, 30, 4), fixAt(s, 30, 7.9)]).prompts).toEqual([]); });
+  it("the stay is exactly 8 seconds: 8 s prompts", () => { expect(feed([s], [fixAt(s, 30, 0), fixAt(s, 30, 8)]).prompts).toEqual(["s1"]); });
+  it("two precise readings 8+ seconds apart inside 50 m prompt, once", () => {
     const r = feed([s], [fixAt(s, 40, 0), fixAt(s, 35, 12), fixAt(s, 30, 25), fixAt(s, 30, 40)]);
     expect(r.prompts).toEqual(["s1"]);
   });
@@ -31,10 +36,10 @@ describe("a stop is only ASKED about after a real stay, never from one reading",
 
 describe("GPS inaccuracy never confirms an arrival", () => {
   const s = stop();
-  it("a vague reading (more than 75 m) inside the geofence never prompts", () => { expect(feed([s], [0, 30, 60].map((t) => fixAt(s, 20, t, { accuracyM: 120 }))).prompts).toEqual([]); });
-  it("the limit is 75 m: 75 counts, 76 does not", () => {
-    expect(feed([s], [0, 25].map((t) => fixAt(s, 20, t, { accuracyM: 75 }))).prompts).toEqual(["s1"]);
-    expect(feed([s], [0, 25].map((t) => fixAt(s, 20, t, { accuracyM: 76 }))).prompts).toEqual([]);
+  it("a vague reading (worse than ±30 m) inside the zone never prompts", () => { expect(feed([s], [0, 30, 60].map((t) => fixAt(s, 20, t, { accuracyM: 120 }))).prompts).toEqual([]); });
+  it("the limit is ±30 m: 30 counts, 31 does not", () => {
+    expect(feed([s], [0, 25].map((t) => fixAt(s, 20, t, { accuracyM: 30 }))).prompts).toEqual(["s1"]);
+    expect(feed([s], [0, 25].map((t) => fixAt(s, 20, t, { accuracyM: 31 }))).prompts).toEqual([]);
   });
   it("a reading with no accuracy, zero accuracy or NaN is not trusted", () => {
     for (const accuracyM of [null, 0, Number.NaN, -5]) expect(feed([s], [0, 30].map((t) => fixAt(s, 20, t, { accuracyM }))).prompts).toEqual([]);
@@ -62,9 +67,9 @@ describe("GPS inaccuracy never confirms an arrival", () => {
 });
 
 describe("driving past is not arriving", () => {
-  const s = stop({ category: "fort" }); // a 300 m geofence
+  const s = stop({ category: "fort" }); // a 300 m area
   it("passing through the geofence at highway speed never prompts", () => { expect(feed([s], [0, 8, 16, 24, 32, 40].map((t) => fixAt(s, 100, t, { speedKmh: 60 }))).prompts).toEqual([]); });
-  it("a fast reading resets the stay: slowing down afterwards starts the 20 seconds again", () => {
+  it("a fast reading resets the stay: slowing down afterwards starts the 8 seconds again", () => {
     const r = feed([s], [fixAt(s, 50, 0, { speedKmh: 5 }), fixAt(s, 50, 15, { speedKmh: 70 }), fixAt(s, 50, 28, { speedKmh: 5 })]);
     expect(r.prompts).toEqual([]);
     expect(feed([s], [fixAt(s, 50, 0, { speedKmh: 5 }), fixAt(s, 50, 15, { speedKmh: 70 }), fixAt(s, 50, 28, { speedKmh: 5 }), fixAt(s, 50, 50, { speedKmh: 3 })]).prompts).toEqual(["s1"]);
@@ -75,20 +80,80 @@ describe("driving past is not arriving", () => {
   });
 });
 
-describe("geofences fit the kind of place", () => {
-  it("a fort, lake or trek has a bigger geofence than a temple or a cafe", () => {
-    expect(radiusFor("fort")).toBeGreaterThan(radiusFor("temple")); expect(radiusFor("lake")).toBeGreaterThan(radiusFor("fort")); expect(radiusFor("trek")).toBeGreaterThan(radiusFor("lake"));
-    expect(radiusFor("food")).toBeLessThan(radiusFor("temple"));
+describe("zones fit the kind of place", () => {
+  it("a point-like stop (temple, cafe, viewpoint, unknown) arrives at 50 m and approaches at 100 m", () => {
+    for (const c of ["temple", "food", "viewpoint", "stay", null, "martian-base"]) expect(zoneFor(c)).toMatchObject({ arriveM: 50, approachM: 100, approachClearM: 150, arriveClearM: 120, area: false });
   });
-  it("an unknown or missing category falls back to a middle radius", () => { expect(radiusFor(null)).toBe(150); expect(radiusFor("martian-base")).toBe(150); });
-  it("250 m from a temple is outside (150 m), but inside a fort (300 m)", () => {
+  it("a large place is an AREA sized to it: fort < lake < trek, and approaching starts 100 m before its edge", () => {
+    expect(zoneFor("fort")).toMatchObject({ arriveM: 300, approachM: 400, area: true });
+    expect(zoneFor("lake").arriveM).toBeGreaterThan(zoneFor("fort").arriveM); expect(zoneFor("trek").arriveM).toBeGreaterThan(zoneFor("lake").arriveM);
+    for (const c of ["fort", "lake", "wildlife"]) { const z = zoneFor(c); expect(z.arriveClearM).toBeGreaterThan(z.arriveM); expect(z.approachClearM).toBeGreaterThan(z.approachM); }
+  });
+  it("exactly 50 m arrives; 51 m does not (point-like stop)", () => {
+    expect(feed([stop()], [0, 10].map((t) => fixAt(stop(), 50, t, { accuracyM: 10 }))).prompts).toEqual(["s1"]);
+    expect(feed([stop()], [0, 10].map((t) => fixAt(stop(), 51, t, { accuracyM: 10 }))).prompts).toEqual([]);
+  });
+  it("250 m from a temple is not an arrival, but it is inside a fort, and that prompt says 'area'", () => {
     expect(feed([stop({ category: "temple" })], [0, 25].map((t) => fixAt(stop(), 250, t))).prompts).toEqual([]);
-    expect(feed([stop({ category: "fort" })], [0, 25].map((t) => fixAt(stop(), 250, t))).prompts).toEqual(["s1"]);
+    let p; let st = initialArrival();
+    for (const f of [0, 25].map((t) => fixAt(stop(), 250, t))) { const r = stepArrival(st, f, [stop({ category: "fort" })], f.fixAt); st = r.state; p = r.prompt ?? p; }
+    expect(p).toMatchObject({ stopId: "s1", area: true });
   });
-  it("jitter on the edge does not flip-flop: a reading just outside the line keeps the stay, one well outside ends it", () => {
-    const s = stop({ category: "temple" }); // 150 m, leave line 225 m
-    expect(feed([s], [fixAt(s, 100, 0), fixAt(s, 190, 10), fixAt(s, 100, 25)]).prompts).toEqual(["s1"]);
-    expect(feed([s], [fixAt(s, 100, 0), fixAt(s, 260, 10), fixAt(s, 100, 25)]).prompts).toEqual([]);
+  it("jitter on the edge does not flip-flop: a reading just outside keeps the stay, one beyond 120 m ends it", () => {
+    const s = stop({ category: "temple" });
+    expect(feed([s], [fixAt(s, 40, 0), fixAt(s, 100, 4), fixAt(s, 40, 10)]).prompts).toEqual(["s1"]);
+    expect(feed([s], [fixAt(s, 40, 0), fixAt(s, 130, 4), fixAt(s, 40, 10)]).prompts).toEqual([]);
+  });
+});
+
+describe("approaching: 'Arriving in 100 m', once, for the stop you are heading for", () => {
+  const s = stop();
+  const drive = (ms: number[], t0 = 0, o: Partial<ArrivalFix> = {}) => ms.map((m, i) => fixAt(s, m, t0 + i * 3, { speedKmh: 30, ...o }));
+  it("two precise readings in a row within 100 m announce it, once, with the distance", () => {
+    const r = feed([s], drive([300, 180, 98, 92, 85, 70]), initialArrival(), { targetId: "s1" });
+    expect(r.approaches).toEqual(["s1"]);
+    expect(r.near).toEqual([null, null, null, 92, 85, 70]);
+  });
+  it("a single reading within 100 m is not enough (one GPS jump must not announce)", () => {
+    expect(feed([s], drive([300, 95, 300]), initialArrival(), { targetId: "s1" }).approaches).toEqual([]);
+  });
+  it("weak readings (worse than ±30 m) never announce and do not break a run of good ones", () => {
+    expect(feed([s], drive([95, 90, 85], 0, { accuracyM: 45 }), initialArrival(), { targetId: "s1" }).approaches).toEqual([]);
+    const mixed = [fixAt(s, 95, 0, { speedKmh: 30 }), fixAt(s, 90, 2, { accuracyM: 80 }), fixAt(s, 85, 4, { speedKmh: 30 })];
+    expect(feed([s], mixed, initialArrival(), { targetId: "s1" }).approaches).toEqual(["s1"]);
+  });
+  it("only the stop you are heading for is announced: driving past a later stop says nothing", () => {
+    const later = stop({ id: "s2", name: "Later", order: 2 });
+    expect(feed([s, later], drive([95, 90, 85]), initialArrival(), { targetId: "elsewhere" }).approaches).toEqual([]);
+  });
+  it("hysteresis: it stays until you are 150 m away, then goes, and is NOT announced again in this drive", () => {
+    const r = feed([s], drive([95, 90, 140, 149, 151, 95, 90]), initialArrival(), { targetId: "s1" });
+    expect(r.approaches).toEqual(["s1"]);
+    expect(r.near).toEqual([null, 90, 140, 149, null, null, null]);
+  });
+  it("a new drive (fresh state) may announce it again", () => {
+    const first = feed([s], drive([95, 90]), initialArrival(), { targetId: "s1" });
+    expect(feed([s], drive([95, 90], 100), initialArrival(first.state.handled), { targetId: "s1" }).approaches).toEqual(["s1"]);
+  });
+  it("already inside 50 m (the drive started at the stop): no 'arriving in' noise, the arrival comes instead", () => {
+    const r = feed([s], [0, 10].map((t) => fixAt(s, 30, t)), initialArrival(), { targetId: "s1" });
+    expect(r.approaches).toEqual([]); expect(r.prompts).toEqual(["s1"]);
+  });
+  it("arriving replaces 'approaching'", () => {
+    const r = feed([s], [...drive([95, 90, 60]), fixAt(s, 30, 9, { speedKmh: 3 }), fixAt(s, 30, 18, { speedKmh: 3 })], initialArrival(), { targetId: "s1" });
+    expect(r.approaches).toEqual(["s1"]); expect(r.prompts).toEqual(["s1"]); expect(r.state.near).toBeNull();
+  });
+  it("a stop already confirmed is never announced", () => {
+    const done = resolveArrival(initialArrival(), "s1", "confirmed", T0);
+    expect(feed([s], drive([95, 90]), done, { targetId: "s1" }).approaches).toEqual([]);
+  });
+  it("the next stop changing (you marked one done) clears the old 'approaching'", () => {
+    const r = feed([s], drive([95, 90]), initialArrival(), { targetId: "s1" });
+    expect(stepArrival(r.state, fixAt(s, 90, 20), [s], T0 + 20_000, { targetId: "s2" }).state.near).toBeNull();
+  });
+  it("a large place is announced 100 m before its edge", () => {
+    const fort = stop({ category: "fort" });
+    expect(feed([fort], [0, 3].map((t) => fixAt(fort, 390, t, { speedKmh: 30 })), initialArrival(), { targetId: "s1" }).approaches).toEqual(["s1"]);
   });
 });
 
@@ -110,14 +175,15 @@ describe("no duplicate prompts", () => {
     const dismissed = resolveArrival(feed([s], stay(0)).state, "s1", "dismissed", T0 + 60_000);
     expect(feed([s], stay(100), dismissed).prompts).toEqual([]);
   });
-  it("a dismissed stop asks again only after you really leave (twice the radius) and come back", () => {
+  it("a dismissed stop asks again only after you really leave (200 m) and come back", () => {
     const dismissed = resolveArrival(feed([s], stay(0)).state, "s1", "dismissed", T0 + 60_000);
-    const wentAway = feed([s], [fixAt(s, 400, 100), fixAt(s, 400, 110)], dismissed); // 150 m radius: 300 m is 'left'
+    expect(feed([s], [fixAt(s, 150, 100), ...stay(200)], dismissed).prompts).toEqual([]); // 150 m is not "left"
+    const wentAway = feed([s], [fixAt(s, 400, 100), fixAt(s, 400, 110)], dismissed);
     expect(feed([s], stay(200), wentAway.state).prompts).toEqual(["s1"]);
   });
   it("only one prompt is open at a time; the next waits for the answer", () => {
     const a = stop({ id: "a", name: "A", lat: 17.5126, lng: 78.8886 });
-    const b = stop({ id: "b", name: "B", lat: 17.5126 + 60 / M_PER_DEG_LAT, lng: 78.8886, order: 2 }); // 60 m apart: both geofences overlap
+    const b = stop({ id: "b", name: "B", lat: 17.5126 + 40 / M_PER_DEG_LAT, lng: 78.8886, order: 2 }); // 40 m apart: both zones overlap
     const both = feed([a, b], [0, 10, 25, 40, 55].map((t) => fixAt(a, 5, t)));
     expect(both.prompts).toEqual(["a"]); // the closer one, once
     const next = feed([a, b], [fixAt(a, 5, 70), fixAt(a, 5, 90)], resolveArrival(both.state, "a", "dismissed", T0 + 60_000));
@@ -168,5 +234,32 @@ describe("what is remembered between page loads", () => {
   it("damaged saved data never breaks the page", () => {
     for (const raw of [null, "", "{", "[]", "null", '{"s1":5}', '{"s1":{"at":"x","outcome":"dismissed"}}', '{"s1":{"at":1,"outcome":"weird"}}']) expect(() => restoreHandled(raw, T0)).not.toThrow();
     expect(restoreHandled("{", T0)).toEqual({}); expect(restoreHandled('{"s1":{"at":"x","outcome":"dismissed"}}', T0)).toEqual({});
+  });
+});
+
+describe("an unanswered question never blocks the stop you are heading for", () => {
+  // B is passed slowly in traffic (asked about, never answered); A, 2 km further, is where the traveller is going.
+  const b = stop({ id: "b", name: "Roadside Temple", order: 2 });
+  const a = stop({ id: "a", name: "Bhongir Fort", order: 1, lat: 17.5126 + 2000 / M_PER_DEG_LAT });
+  const crawlPastB = [fixAt(b, 20, 0, { speedKmh: 8 }), fixAt(b, 25, 9, { speedKmh: 8 })];
+  it("driving clearly away (beyond 120 m) takes the question down", () => {
+    let st = feed([a, b], crawlPastB, initialArrival(), { targetId: "a" }).state;
+    expect(st.prompted).toBe("b");
+    const still = stepArrival(st, fixAt(b, 110, 20, { speedKmh: 20 }), [a, b], T0 + 20_000, { targetId: "a" });
+    expect(still.withdrawn).toBeNull(); expect(still.state.prompted).toBe("b"); // 110 m: hysteresis, still there
+    st = still.state;
+    const gone = stepArrival(st, fixAt(b, 130, 25, { speedKmh: 20 }), [a, b], T0 + 25_000, { targetId: "a" });
+    expect(gone.withdrawn).toBe("b"); expect(gone.state.prompted).toBeNull();
+  });
+  it("…so arriving at A is announced and asked as usual", () => {
+    const toA = [100, 103, 106].map((t) => fixAt(b, 400, t, { speedKmh: 30 })).concat(
+      fixAt(a, 95, 110, { speedKmh: 30 }), fixAt(a, 90, 113, { speedKmh: 30 }), fixAt(a, 20, 120, { speedKmh: 3 }), fixAt(a, 20, 130, { speedKmh: 2 }));
+    const r = feed([a, b], [...crawlPastB, ...toA], initialArrival(), { targetId: "a" });
+    expect(r.approaches).toEqual(["a"]); expect(r.prompts).toEqual(["b", "a"]);
+  });
+  it("B is not asked again on the way back past it unless the traveller really left (200 m) and returned", () => {
+    const st = feed([a, b], [...crawlPastB, fixAt(b, 130, 20)], initialArrival(), { targetId: "a" }).state;
+    expect(feed([a, b], [fixAt(b, 20, 40, { speedKmh: 3 }), fixAt(b, 20, 50, { speedKmh: 3 })], st, { targetId: "a" }).prompts).toEqual([]);
+    expect(feed([a, b], [fixAt(b, 300, 40), fixAt(b, 20, 60, { speedKmh: 3 }), fixAt(b, 20, 70, { speedKmh: 3 })], st, { targetId: "a" }).prompts).toEqual(["b"]);
   });
 });

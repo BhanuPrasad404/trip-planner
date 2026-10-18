@@ -1,11 +1,14 @@
 import { createElement, act } from "react";
 import TestRenderer from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LiveTolls } from "@/components/LiveTolls";
+import { LiveTolls as LiveTollsCard } from "@/components/LiveTolls";
+import { useTollWatch } from "@/lib/client/use-toll-watch";
 import type { AppAlert } from "@/lib/alerts/delivery";
 import type { Vehicle } from "@/lib/vehicle";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// The watch now runs with the drive (app-wide) and the card only shows it: this joins the two exactly as the drive does.
+const LiveTolls = (p: Parameters<typeof useTollWatch>[0]) => createElement(LiveTollsCard, { tolls: useTollWatch(p) });
 const M = 111_195;
 let salt = 0;
 /** A road of 60 km running north. Each test gets its own so the per-visit cache cannot hide a request. */

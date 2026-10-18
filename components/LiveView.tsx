@@ -1,24 +1,16 @@
 "use client";
 
 import { dbTime12 } from "@/lib/travel/clock";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { LiveArrival } from "./LiveArrival";
 import { LiveTolls } from "./LiveTolls";
 import { TripProgress } from "./TripProgress";
 import { VehicleSelector } from "./VehicleSelector";
-import { useVehicle } from "@/lib/client/use-vehicle";
 import { AlertBanners, AlertSettings } from "./AlertCenter";
-import { useAlerts } from "@/lib/client/use-alerts";
-import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
-import { useVisits } from "@/lib/client/use-visits";
-import { applyOutboxToPlaces } from "@/lib/client/outbox";
 import { OutboxStatus } from "./OutboxStatus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { enrichPlaces } from "@/lib/client/enrich";
 import { useTripActions } from "@/lib/client/use-trip-actions";
-import { useTripLive } from "@/lib/client/use-trip-live";
-import { useTripChanges } from "@/lib/client/use-trip-changes";
 import { kmText } from "@/lib/trip/remaining";
 import { delayText } from "@/lib/live";
 import { googleMapsDirections } from "@/lib/maps-links";
@@ -29,7 +21,6 @@ import type { Conditions } from "@/lib/weather";
 import { DrivePanel } from "./DrivePanel";
 import { DriveGateCard } from "./DriveGateCard";
 import { NavigationBanner, NavigationPanel } from "./map/NavigationOverlay";
-import { useNavUi } from "@/lib/client/use-nav-ui";
 import { NearbyPanel } from "./NearbyPanel";
 import { AheadBrowser } from "./intel/AheadBrowser";
 import { AutopilotCard } from "./intel/AutopilotCard";
@@ -45,35 +36,42 @@ import { Glyph } from "@/components/ui/Glyph";
 import { dayWithDate } from "@/lib/time-context";
 import { withoutSuggested } from "@/lib/intel/radar";
 import { useMapTheme } from "@/lib/client/use-map-theme";
+import { useTripEngine } from "./drive/DriveProvider";
+import type { Engine } from "./drive/DriveEngine";
+import { Skeleton } from "./ui/Skeleton";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
 
-export function LiveView({ trip, places: serverPlaces, members, votes, conditions, userId, today }: Props) {
+export function LiveView({ trip, places, members, votes, conditions, userId, today }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const refresh = () => startTransition(() => router.refresh());
-  // Answers the traveller gave that the server has not heard yet (no signal) are shown at once, so "next stop" moves on.
-  // Changes made with no signal (this person's own, on this trip) are shown at once and sent when the connection is back.
-  const visits = useVisits(trip.id, userId, refresh);
-  const places = useMemo(() => applyOutboxToPlaces(serverPlaces, visits.outbox.items), [serverPlaces, visits.outbox.items]);
-  // Also tell the traveller if Trailmate is in the background (the card itself is the alert while the app is open).
-  const alerts = useAlerts(INDIA_UTC_OFFSET_MIN, { origin: `/trips/${trip.id}/live` });
-  const onArrivalPrompt = (stop: { id: string; name: string }) => alerts.notify({ id: `arrival:${stop.id}`, kind: "arrival", level: 2, title: `You've arrived at ${stop.name}`, body: "Open Trailmate to mark this stop as visited.", inApp: false, cooldownMs: 12 * 3_600_000 });
-  const firstDay = places.find((p) => p.day_number !== null)?.day_number ?? 1;
-  const [focusDay, setFocusDay] = useState(firstDay);
+  // The drive lives app-wide (components/drive): this page shows it. Leaving, coming back or reloading restarts nothing.
+  const data = useMemo(() => ({ trip, places, members, votes, conditions, userId, today }), [trip, places, members, votes, conditions, userId, today]);
+  const view = useTripEngine(data, refresh, "live");
+  if (view.status === "loading") return <main id="main" className="mx-auto w-full max-w-7xl space-y-5 px-4 py-5 sm:px-6"><Skeleton className="h-24 w-full rounded-2xl" /><Skeleton className="h-[52vh] w-full rounded-3xl" /></main>;
+  return <LiveScreen e={view.engine} />;
+}
+
+function LiveScreen({ e }: { e: Engine }) {
+  const { trip, members, userId } = e.data;
+  // Answers the traveller gave that the server has not heard yet (no signal) are already applied to e.places.
+  const { visits, places, alerts, vehicle, setVehicle, live, navUi, tolls } = e;
+  const focusDay = e.ui.focusDay;
+  const setFocusDay = (d: number) => e.setUi({ focusDay: d });
+  const setFollow = (v: boolean) => e.setUi({ follow: v });
+  const follow = e.ui.follow;
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [follow, setFollow] = useState(true);
   const [mapTheme] = useMapTheme();
   const [replanNote, setReplanNote] = useState<{ text: string; warnings: string[] } | null>(null);
+  const { setUi } = e;
+  useEffect(() => { if (e.ui.page !== "live") setUi({ page: "live" }); }, [e.ui.page, setUi]);
 
-  const enriched = useMemo(() => enrichPlaces(places, trip, today, conditions), [places, trip, today, conditions]);
-  const [vehicle, setVehicle] = useVehicle(trip.id);
-  const live = useTripLive({ trip, places, members, userId, enriched, votes, focusDay, vehicle });
-  const actions = useTripActions({ tripId: trip.id, places, onChanged: refresh, localDate: live.localDate, localTime: live.localTime, earlyDay: live.drive.active && live.timing?.state === "before" ? live.driveDay : null, outbox: visits.outbox });
+  const actions = useTripActions({ tripId: trip.id, places, onChanged: e.refresh, localDate: live.localDate, localTime: live.localTime, earlyDay: live.drive.active && live.timing?.state === "before" ? live.driveDay : null, outbox: visits.outbox });
   const { drive, intel, nextStop, driveDay, todayDay } = live;
-  // Changes made elsewhere (another member deleted a stop, or I did on another device) reach this screen at once.
-  useTripChanges({ tripId: trip.id, places: serverPlaces, driving: drive.active, onChange: refresh });
-  const navUi = useNavUi(live, follow, setFollow, (id, name) => void actions.setStatus(id, "done", `Marked ${name} done`));
+  // "Mark as done" in the navigation panel goes through this page's actions, so it gets the same Undo and notice as everywhere else.
+  const navTarget = live.navigation.target;
+  const navUiUi = { ...navUi.ui, onArrivedDone: navUi.ui.onArrivedDone && navTarget ? () => void actions.setStatus(navTarget.id, "done", `Marked ${navTarget.name} done`) : undefined };
 
   const result = intel.result;
   const advice = (result?.advice ?? []).filter((a) => !dismissed.has(a.id));
@@ -151,7 +149,7 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
       <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
       <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={left?.next.km ?? null} nextKmText={left ? kmText(left.next.km, left) : null} />
-      <LiveTolls live={live} vehicle={vehicle} notify={alerts.notify} dismiss={alerts.dismiss} />
+      <LiveTolls tolls={tolls} />
       <TripHealthStrip health={result?.health ?? null} />
       {intel.mode === "preview" && result && live.localDate && live.localTime && (
         <p role="note" className="flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">
@@ -181,8 +179,8 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
             <Link href={`/trips/${trip.id}/map`} className="absolute left-3 top-3 min-h-10 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-pine shadow">Full-screen map</Link>
             {drive.active && !follow && <button type="button" onClick={navUi.ui.onRecenter} className="absolute bottom-3 left-3 min-h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-pine shadow"><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Follow me</span></button>}
           </div>
-          <NavigationPanel ui={navUi.ui} floating={false} />
-          <DrivePanel drive={drive} distanceLeft={live.distanceLeft} members={members} userId={userId} stops={live.driveStops} stayMinutes={live.stayMinutes} comparePlan={todayDay !== null && driveDay === todayDay} dayLabel={`Day ${driveDay}`} nowMs={live.nowMs} />
+          <NavigationPanel ui={navUiUi} floating={false} />
+          <DrivePanel drive={drive} distanceLeft={live.distanceLeft} members={members} userId={userId} stops={live.driveStops} stayMinutes={live.stayMinutes} comparePlan={todayDay !== null && driveDay === todayDay} dayLabel={`Day ${driveDay}`} nowMs={live.nowMs} sound={live.sound} arrival={{ approach: live.arrival.approach, arrivedName: live.arrival.prompt?.name ?? null }} />
         </div>
 
         <div className="space-y-5">
@@ -237,7 +235,7 @@ export function LiveView({ trip, places: serverPlaces, members, votes, condition
 
       <AlertBanners alerts={alerts.active} onDismiss={alerts.dismiss} onAction={alerts.act} />
       <OutboxStatus outbox={visits.outbox} />
-      <LiveArrival live={live} vehicle={vehicle} tripId={trip.id} mark={visits.mark} failed={visits.failed} onClearFailed={visits.clearFailed} onPrompt={onArrivalPrompt} />
+      <LiveArrival live={live} vehicle={vehicle} failed={visits.failed} onClearFailed={visits.clearFailed} />
 
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />
     </main>

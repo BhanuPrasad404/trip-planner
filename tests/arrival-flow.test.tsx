@@ -30,7 +30,7 @@ describe("useArrival: asks, never decides", () => {
   };
   const holder: { ref: MutableRefObject<((m: Me) => void) | null> } = { ref: { current: null } };
   const Inner = (c: Cfg) => {
-    api = useArrival({ tripId: "t1", stops: c.stops ?? [stop()], enabled: c.enabled ?? true, session: c.session ?? 1, arrivalRef: holder.ref, mark: async (id, st, name) => { marks.push([id, st, name]); return markResult; }, onPrompt: (s) => { prompted.push(s.name); } });
+    api = useArrival({ tripId: "t1", userId: "u1", stops: c.stops ?? [stop()], enabled: c.enabled ?? true, session: c.session ?? 1, arrivalRef: holder.ref, mark: async (id, st, name) => { marks.push([id, st, name]); return markResult; }, onPrompt: (s) => { prompted.push(s.name); } });
     return null;
   };
   const mount = async (c: Cfg = {}) => { marks = []; prompted = []; markResult = "saved"; holder.ref.current = null; await act(async () => { r = TestRenderer.create(createElement(Inner, c)); }); };
@@ -66,7 +66,7 @@ describe("useArrival: asks, never decides", () => {
   });
   it("a dismissal is remembered across a page reload (the phone, this trip)", async () => {
     await mount(); await arrive(); act(() => api.dismiss());
-    expect(JSON.parse(store["tm:arrival:t1"]).s1.outcome).toBe("dismissed");
+    expect(JSON.parse(store["tm:arrival:u1:t1"]).s1.outcome).toBe("dismissed");
     act(() => r.unmount()); await mount(); await feed({ n: 30, after: 30 }, { n: 30, after: 30 }); expect(api.prompt).toBeNull();
   });
   it("arriving at a later stop OFFERS the earlier ones as skipped; they are marked only if the traveller says so", async () => {
@@ -114,20 +114,20 @@ describe("ArrivalCard: what the traveller reads", () => {
   it("shows nothing when there is nothing to say", () => { expect(html({})).toBe(""); });
   it("asks the exact question, with the evidence and a way to say no", () => {
     const h = html({ prompt: { name: "Bhongir Fort", distanceM: 42, accuracyM: 18 } });
-    expect(h).toContain("You&#x27;ve arrived at Bhongir Fort."); expect(h).toContain("Mark this stop as visited?");
+    expect(h).toContain("You have arrived at Bhongir Fort"); expect(h).toContain("Mark it as done when you");
     expect(h).toContain("About 42 m from its pin"); expect(h).toContain("±18 m");
-    expect(h).toContain("Yes, mark visited"); expect(h).toContain("Not yet"); expect(h).toContain('aria-label="Dismiss: not at Bhongir Fort yet"');
+    expect(h).toContain("Mark as done"); expect(h).toContain("Not yet"); expect(h).toContain('aria-label="Dismiss: not at Bhongir Fort yet"');
     expect(h).toContain('role="alertdialog"'); expect(h).toContain("pointer-events-none"); // never blocks the map behind it
   });
   it("the touch targets are large (44 px+)", () => { expect(html({ prompt: { name: "X", distanceM: 1, accuracyM: 1 } })).toContain("h-11 w-11"); });
   it("a weak GPS says so, and never offers to confirm for you", () => {
     const h = html({ unsure: { name: "Bhongir Fort", distanceM: 120, accuracyM: 140 } });
     expect(h).toContain("You may be near Bhongir Fort."); expect(h).toContain("isn&#x27;t precise enough to be sure"); expect(h).toContain("±140 m"); expect(h).toContain("we won&#x27;t mark it for you");
-    expect(h).not.toContain("You&#x27;ve arrived");
+    expect(h).not.toContain("You have arrived");
   });
   it("after yes: confirmation, progress, next stop with distance, and the ways to go", () => {
     const h = html({ done: { name: "Bhongir Fort", queued: false, earlier: [] }, progress: { done: 2, total: 4 }, next: { name: "Kolanupaka", km: 22.4, minutes: 31, mapsHref: "https://www.google.com/maps/dir/?api=1&destination=1,2" }, onNavigate: noop });
-    expect(h).toContain("Bhongir Fort marked as visited."); expect(h).toContain("2 of 4 stops done today."); expect(h).toContain("Next: Kolanupaka"); expect(h).toContain("22 km"); expect(h).toContain("about 31 min");
+    expect(h).toContain("Bhongir Fort marked as done."); expect(h).toContain("2 of 4 stops done today."); expect(h).toContain("Next: Kolanupaka"); expect(h).toContain("22 km"); expect(h).toContain("about 31 min");
     expect(h).toContain("Navigate from here"); expect(h).toContain("Open in Google Maps"); expect(h).toContain("Undo");
   });
   it("saved offline: it says it is kept on the phone", () => { expect(html({ done: { name: "Fort", queued: true, earlier: [] } })).toContain("Saved on this phone. It will be sent when you&#x27;re back online."); });

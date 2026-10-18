@@ -8,6 +8,7 @@ import { diagnoseLocation } from "@/lib/location/permission";
 import { readLocationEnv } from "./location-env";
 import { shouldPublish, type Fix } from "@/lib/live";
 import { createClient } from "@/lib/supabase/client";
+import { fire } from "./fire";
 import type { RouteLeg } from "@/lib/eta";
 import { useLiveMembers, type LiveMember } from "./use-live-members";
 import { TRIP_GONE_EVENT } from "@/lib/trip/deletion";
@@ -41,9 +42,15 @@ export type Drive = {
   drivingMin: number | null;
   members: Record<string, LiveMember>;
   start: () => void;
+  /** Carry on with the SAME drive (after a reload, or when location had to be allowed again): same session, same decisions. */
+  resume: () => void;
   stop: () => void;
-  setShare: (share: boolean) => void;
+  /** `keepRow`: stop sharing from THIS tab without removing the row (another tab of mine owns the drive and keeps publishing). */
+  setShare: (share: boolean, o?: { keepRow?: boolean }) => void;
 };
+
+/** A drive saved on this phone (lib/drive/persist.ts) to carry on with: its number, the sharing choice, and whether to follow GPS at once. */
+export type DriveRestore = { session: number; share: boolean; active: boolean; /** The road line through the next stops, shown at once (it is only used while it matches the stops). */ route?: DriveRoute | null };
 
 const ETA_MOVE_KM = 1; // refresh the route after moving this far…
 const ETA_MAX_AGE_MS = 90_000; // …or after this long, whichever comes first
@@ -55,15 +62,15 @@ const MAX_ETA_STOPS = ROUTE_STOP_LIMIT;
  * NOTE: browsers pause location when the screen is locked or the tab is in the background;
  * we ask the browser to keep the screen on while driving (Wake Lock) where supported.
  */
-export function useDrive(tripId: string, userId: string, stops: DriveTarget[], allowLive: MutableRefObject<boolean>, fixRef?: MutableRefObject<((m: Me) => void) | null>, endRef?: MutableRefObject<(() => void) | null>, /** Also told about every accepted reading (arrival detection listens here). */ extraFixRef?: MutableRefObject<((m: Me) => void) | null>): Drive {
-  const [active, setActive] = useState(false);
-  const [share, setShareState] = useState(true);
+export function useDrive(tripId: string, userId: string, stops: DriveTarget[], allowLive: MutableRefObject<boolean>, fixRef?: MutableRefObject<((m: Me) => void) | null>, endRef?: MutableRefObject<(() => void) | null>, /** Also told about every accepted reading (arrival detection listens here). */ extraFixRef?: MutableRefObject<((m: Me) => void) | null>, restore?: DriveRestore | null): Drive {
+  const [active, setActive] = useState(restore?.active ?? false);
+  const [share, setShareState] = useState(restore?.share ?? true);
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareFailed, setShareFailed] = useState(false);
-  const [route, setRoute] = useState<DriveRoute | null>(null);
+  const [route, setRoute] = useState<DriveRoute | null>(restore?.active ? restore.route ?? null : null);
   const [drivingMin, setDrivingMin] = useState<number | null>(null);
-  const [session, setSession] = useState(0);
+  const [session, setSession] = useState(restore?.session ?? 0);
   const [manualPlace, setManualPlace] = useState<string | null>(null);
   const manualRef = useRef(false);
   const filterState = useRef<FilterState>(initialFilter()); // which readings may move the marker (lib/location/fix-filter.ts)
@@ -258,7 +265,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
       document.removeEventListener("visibilitychange", onVisible);
       void lock?.release().catch(() => {});
       // Stopping the drive also stops sharing: remove our row so friends no longer see us.
-      if (shareRef.current) void createClient().from("live_locations").delete().eq("trip_id", tripId).eq("user_id", userId);
+      if (shareRef.current) fire(createClient().from("live_locations").delete().eq("trip_id", tripId).eq("user_id", userId));
       lastPublished.current = null;
       lastEta.current = null;
       etaGen.current += 1;
@@ -275,7 +282,7 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
     return () => clearInterval(t);
   }, [active]);
 
-  const start = useCallback(() => {
+  const begin = useCallback((resume: boolean) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setError("This browser can't share your location with web pages, so Drive mode isn't available here. Try Chrome, Safari or Edge.");
       return;
@@ -288,9 +295,11 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
     filterState.current = initialFilter();
     setError(null);
     setMe(null); // never show an old position as if it were now
-    setSession((n) => n + 1);
+    if (!resume) setSession((n) => n + 1);
     setActive(true);
   }, []);
+  const start = useCallback(() => begin(false), [begin]);
+  const resume = useCallback(() => begin(true), [begin]);
 
   const setManual = useCallback((p: { lat: number; lng: number; label: string } | null) => {
     if (!p) { manualRef.current = false; setManualPlace(null); setMe(null); return; } // back to GPS: wait for the next real reading
@@ -345,10 +354,10 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   }, [tripId, stop]);
 
   const setShare = useCallback(
-    (next: boolean) => {
+    (next: boolean, o?: { keepRow?: boolean }) => {
       setShareState(next);
       shareRef.current = next;
-      if (!next) void createClient().from("live_locations").delete().eq("trip_id", tripId).eq("user_id", userId);
+      if (!next && !o?.keepRow) fire(createClient().from("live_locations").delete().eq("trip_id", tripId).eq("user_id", userId));
       else lastPublished.current = null; // publish again on the next fix
     },
     [tripId, userId]
@@ -357,5 +366,5 @@ export function useDrive(tripId: string, userId: string, stops: DriveTarget[], a
   const quality = assessFix(me, clock || me?.at || 0);
   // Only a route measured for exactly today's current stops is ever handed out (never one through a deleted stop).
   const currentRoute = route && routeMatchesTargets(route.stopIds, stopsKey ? stopsKey.split(",") : [], MAX_ETA_STOPS) ? route : null;
-  return { active, share, me, manualPlace, setManual, quality, locating: active && !me, session, error, shareFailed: shareFailed && active && share, route: currentRoute, drivingMin, members, start, stop, setShare };
+  return { active, share, me, manualPlace, setManual, quality, locating: active && !me, session, error, shareFailed: shareFailed && active && share, route: currentRoute, drivingMin, members, start, resume, stop, setShare };
 }

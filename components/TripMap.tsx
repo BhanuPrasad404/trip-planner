@@ -18,6 +18,7 @@ import { NavCamera } from "./map/nav-camera";
 import { createPuck } from "./map/puck";
 import { indexRoute } from "@/lib/map/navigation";
 import { pointAt } from "@/lib/intel/route-geometry";
+import type { Camera } from "@/lib/drive/persist";
 import { contentKey as makeContentKey, fitKey as makeFitKey } from "@/lib/map/fit-key";
 import { planLine } from "@/lib/map/plan-line";
 
@@ -46,6 +47,10 @@ type Props = {
   follow?: boolean;
   /** Called when the person drags the map by hand (so the caller can stop following). */
   onUserPan?: () => void;
+  /** Open where the map was left (returning to a drive): no jump back to an overview. Read once, when the map is created. */
+  initialCamera?: Camera | null;
+  /** Told where the camera settles after every move (to reopen there later). */
+  onCamera?: (c: Camera) => void;
   /** Colour theme for the basemap. Switching never reloads the map. */
   theme?: ThemeId;
   /** "trip" hides generic shops/restaurants so OUR stops stand out; "all" shows everything; "none" hides POIs. */
@@ -156,7 +161,7 @@ function applyDeclutter(map: maplibregl.Map, markers: Map<string, maplibregl.Mar
   }
 }
 
-export default function TripMap({ layoutKey, places, start, destination, activeDay, fit, live = [], driveLine = null, pois = [], frameStartDest = true, follow = false, onUserPan, theme = DEFAULT_THEME, poiMode = "trip", satellite = false, nav = null, onSelectRoute, headingUp = true, viewRequest = null, recenter = null, onCompass, numDays = 1, journey = false, selectedId = null, onSelectPlace, planRoad = null }: Props) {
+export default function TripMap({ layoutKey, places, start, destination, activeDay, fit, live = [], driveLine = null, pois = [], frameStartDest = true, follow = false, onUserPan, initialCamera = null, onCamera, theme = DEFAULT_THEME, poiMode = "trip", satellite = false, nav = null, onSelectRoute, headingUp = true, viewRequest = null, recenter = null, onCompass, numDays = 1, journey = false, selectedId = null, onSelectPlace, planRoad = null }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   // The box around the map changed size (full-screen on/off, rotation, a sheet opening): tell the canvas, now and once the layout has settled.
@@ -208,8 +213,12 @@ export default function TripMap({ layoutKey, places, start, destination, activeD
     compassCb.current = onCompass;
   });
   const panRef = useRef(onUserPan);
+  const cameraCb = useRef(onCamera);
+  const startCamera = useRef(initialCamera); // only the first value matters
+  const skipFirstFrame = useRef(!!initialCamera);
   useEffect(() => {
     panRef.current = onUserPan;
+    cameraCb.current = onCamera;
   });
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -225,8 +234,10 @@ export default function TripMap({ layoutKey, places, start, destination, activeD
       map = new maplibregl.Map({
         container: container.current,
         style: MAP_STYLE_URL,
-        center: [78.5, 18.5],
-        zoom: 5,
+        center: startCamera.current?.center ?? [78.5, 18.5],
+        zoom: startCamera.current?.zoom ?? 5,
+        bearing: startCamera.current?.bearing ?? 0,
+        pitch: startCamera.current?.pitch ?? 0,
         attributionControl: { compact: true },
         ...MAP_PERFORMANCE,
       });
@@ -236,6 +247,10 @@ export default function TripMap({ layoutKey, places, start, destination, activeD
       return;
     }
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.on("moveend", () => {
+      const c = map.getCenter();
+      cameraCb.current?.({ center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
+    });
     // ANY hand movement of the map (drag, pinch, wheel, +/- buttons, rotate, tilt) switches off auto-follow, so the camera
     // never fights the traveller. Our own camera moves carry no originalEvent and are ignored here.
     for (const ev of ["dragstart", "zoomstart", "rotatestart", "pitchstart"] as const) {
@@ -378,6 +393,7 @@ export default function TripMap({ layoutKey, places, start, destination, activeD
     const map = mapRef.current;
     const b = fitBoundsRef.current;
     if (!map || !ready || !b || b.isEmpty() || navigating) return;
+    if (skipFirstFrame.current) { skipFirstFrame.current = false; return; } // reopened where it was left: keep that view
     map.fitBounds(b, { padding: 56, maxZoom: 12, duration: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fitKey is the value that says "the thing to frame changed"
   }, [fitKey, ready]);

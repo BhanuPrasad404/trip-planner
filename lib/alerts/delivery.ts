@@ -17,6 +17,8 @@ export type AppAlert = {
   actions?: AlertAction[];
   /** Show the in-app banner. False when something else on screen already is the in-app alert (the arrival card). */
   inApp?: boolean;
+  /** Part of a drive the traveller started (arriving at a stop): quiet hours do not apply. Their own switches still do. */
+  duringDrive?: boolean;
   /** Do not announce again until this long has passed. */
   cooldownMs?: number;
   /** Remove the in-app card by itself after this long, if it was not dismissed first (a warning that has stopped being true must not linger). */
@@ -32,7 +34,7 @@ export function planDelivery(alert: AppAlert, prefs: AlertPrefs, ctx: DeliveryCo
   if (!prefs.enabled && alert.kind !== "test") return none("Alerts are off");
   const why: string[] = [];
   const important = alert.level <= 2;
-  const quiet = inQuietHours(ctx.nowMs, ctx.utcOffsetMin, prefs.quiet) && alert.level > 1;
+  const quiet = inQuietHours(ctx.nowMs, ctx.utcOffsetMin, prefs.quiet) && alert.level > 1 && !alert.duringDrive;
   if (quiet && important) why.push("Quiet hours: no sound, buzz or phone notification");
 
   const loud = important && !quiet; // the only alerts allowed to use sound, buzz or the phone's notifications

@@ -2,37 +2,27 @@
 
 import { useMemo } from "react";
 import { ArrivalCard, type ArrivalNext } from "@/components/ArrivalCard";
-import { useArrival } from "@/lib/client/use-arrival";
 import type { useTripLive } from "@/lib/client/use-trip-live";
-import type { VisitStatus } from "@/lib/client/visit-queue";
 import { googleMapsDirections } from "@/lib/maps-links";
 import { kmText } from "@/lib/trip/remaining";
 import type { Vehicle } from "@/lib/vehicle";
-import type { ArrivalStatus, ArrivalStop } from "@/lib/trip/arrival";
 
 type Live = ReturnType<typeof useTripLive>;
 
 /**
- * Connects a live drive to the arrival prompt: which stops are open today, how many are done, and what comes next from where the
- * traveller is now. Used by the Live page and the Map page. The stop is marked only when the traveller says yes.
+ * The arrival card for a live drive (the detector itself runs in useTripLive, so the map, the banner and the Drive panel agree):
+ * how many stops are done today, and what comes next from where the traveller is now. Used by the Live page and the Map page.
+ * The stop is marked only when the traveller says so.
  */
-export function LiveArrival({ live, vehicle = "car", tripId, mark, failed, onClearFailed, onPrompt }: {
+export function LiveArrival({ live, vehicle = "car", failed, onClearFailed }: {
   live: Live;
   vehicle?: Vehicle;
-  tripId: string;
-  mark: (placeId: string, status: VisitStatus, name?: string) => Promise<"saved" | "queued">;
   /** An answer the server refused for good (for example the stop was removed). */
   failed: string | null;
   onClearFailed: () => void;
-  onPrompt?: (stop: { id: string; name: string }, info: { distanceM: number }) => void;
 }) {
-  const stops = useMemo<ArrivalStop[]>(
-    () => live.dayPlaces.map((p, i) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: p.category ?? null, status: ((p.status ?? "planned") as ArrivalStatus), order: i + 1 })),
-    [live.dayPlaces]
-  );
-  const arrival = useArrival({ tripId, stops, enabled: live.liveOk, session: live.drive.session, arrivalRef: live.arrivalRef, mark, onPrompt: onPrompt ? (s, i) => onPrompt({ id: s.id, name: s.name }, i) : undefined });
-
-  const progress = useMemo(() => ({ done: stops.filter((s) => s.status === "done").length, total: stops.filter((s) => s.status !== "skipped").length }), [stops]);
+  const arrival = live.arrival;
+  const progress = useMemo(() => ({ done: live.dayPlaces.filter((p) => p.status === "done").length, total: live.dayPlaces.filter((p) => p.status !== "skipped").length }), [live.dayPlaces]);
   const next = live.nextTarget;
   // From where the traveller is now — the same numbers as the Drive panel and the map.
   const left = live.distanceLeft && next && live.distanceLeft.next.id === next.id ? live.distanceLeft : null;

@@ -214,3 +214,30 @@ describe("useDrive — the trip is deleted while driving", () => {
     expect(drive.active).toBe(true);
   });
 });
+
+describe("useDrive — carrying on with a saved drive (after a reload)", () => {
+  function Restored({ restore }: { restore: { session: number; share: boolean; active: boolean } }) {
+    // eslint-disable-next-line react-hooks/globals -- test harness: expose the hook's latest values
+    drive = useDrive("trip-1", "user-1", [], allowLive, fixRef, endRef, undefined, restore);
+    return null;
+  }
+  const mountRestored = async (restore: { session: number; share: boolean; active: boolean }) => {
+    fixes = []; ended = 0; fixRef.current = (m) => fixes.push(m); endRef.current = () => { ended++; };
+    await act(async () => { renderer = TestRenderer.create(createElement(Restored, { restore })); await Promise.resolve(); });
+  };
+  it("location already allowed: GPS is followed again at once, with no tap, as the SAME drive (same number, same sharing choice)", async () => {
+    await mountRestored({ session: 4, share: false, active: true });
+    expect(watchCalls).toBe(1); expect(drive.active).toBe(true); expect(drive.session).toBe(4); expect(drive.share).toBe(false);
+    await emit(reading()); expect(drive.me).toMatchObject({ accuracyM: 8 });
+    expect(upserts).toHaveLength(0); // the traveller had switched sharing off: it stays off
+  });
+  it("location not allowed yet: nothing runs until the tap; Resume carries on the same drive, Start would begin a new one", async () => {
+    await mountRestored({ session: 4, share: true, active: false });
+    expect(watchCalls).toBe(0); expect(drive.active).toBe(false);
+    await act(async () => { drive.resume(); await Promise.resolve(); });
+    expect(watchCalls).toBe(1); expect(drive.session).toBe(4);
+    await act(async () => { drive.stop(); await Promise.resolve(); });
+    await act(async () => { drive.start(); await Promise.resolve(); });
+    expect(drive.session).toBe(5);
+  });
+});

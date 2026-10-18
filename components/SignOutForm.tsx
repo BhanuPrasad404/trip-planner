@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { OUTBOX_PREFIX, countWaiting } from "@/lib/client/outbox";
+import { DRIVE_SIGN_OUT_EVENT, DRIVE_SIGN_OUT_KEY, clearUserDrives } from "@/lib/drive/persist";
 
 /** The message shown before signing out with changes still waiting on this phone (exported for tests). */
 export const signOutWarning = (n: number) =>
@@ -21,6 +22,10 @@ export function SignOutForm({ action, userId, className, children }: { action: (
       const mine: string[] = [];
       for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k?.startsWith(`${OUTBOX_PREFIX}${userId}:`)) mine.push(k); }
       for (const k of mine) store.removeItem(k);
+      // An active drive ends now: GPS and location sharing stop while still signed in, and nothing of it is left for the next person.
+      window.dispatchEvent(new CustomEvent(DRIVE_SIGN_OUT_EVENT, { detail: { userId } }));
+      store.setItem(DRIVE_SIGN_OUT_KEY, `${userId}:${Date.now()}`); // …and in this browser's other tabs
+      clearUserDrives(store, userId);
     } catch {
       // storage blocked: nothing can be waiting there
     }

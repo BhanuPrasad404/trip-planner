@@ -2,13 +2,8 @@
 
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
-import type { AppAlert } from "@/lib/alerts/delivery";
-import { useTollWatch, type TollView } from "@/lib/client/use-toll-watch";
-import type { useTripLive } from "@/lib/client/use-trip-live";
+import type { TollView } from "@/lib/client/use-toll-watch";
 import { formatAhead } from "@/lib/trip/toll";
-import type { Vehicle } from "@/lib/vehicle";
-
-type Live = ReturnType<typeof useTripLive>;
 
 /** What a plaza line says. Distance only when we know it; a fee only if the map has one. Never a made-up amount. */
 export const tollLine = (t: TollView["ahead"][number]) => [t.name ?? "Toll plaza", t.ref && t.ref !== t.name ? t.ref : null].filter(Boolean).join(" · ");
@@ -25,11 +20,10 @@ export function TollNote({ complete, unavailable }: { complete: boolean; unavail
 }
 
 /**
- * Toll plazas for the Live page. It is a card ONLY when there is a plaza ahead to show: nothing while loading, nothing when the check
+ * Toll plazas for the Live page (the watch itself runs with the drive, app-wide: components/drive/DriveEngine.tsx). It is a card ONLY when there is a plaza ahead to show: nothing while loading, nothing when the check
  * found none or failed (those are reported quietly, in the route info on the map). The warning itself goes through the alert system.
  */
-export function LiveTolls({ live, vehicle, notify, dismiss }: { live: Live; vehicle: Vehicle; notify: (a: AppAlert) => boolean; dismiss: (id: string) => void }) {
-  const tolls = useTollWatch({ live, vehicle, notify, dismiss });
+export function LiveTolls({ tolls }: { tolls: TollView }) {
   const ahead = tolls.ahead.slice(0, 4);
   if (!tolls.navigating || ahead.length === 0) return null;
   return (

@@ -1,12 +1,15 @@
+import Image from "next/image";
+import heroPhoto from "@/public/brand/mobile-hero.webp";
+
 /**
- * The scene behind the whole app on phones: golden-hour sky, layered mountains and pines, fading into deep forest green so every card and
- * every line of text sits on a dark, calm surface. Drawn as a small inline vector (no image to download, no licence, scales to any phone,
- * nothing moves, nothing to repaint while scrolling). Hidden from screen readers and never catches a tap. Not shown from 768 px up.
- *
- * Want a real photograph instead? Put the file in /public/brand/ and set HERO_PHOTO to its path (e.g. "/brand/mobile-hero.webp"). A tall
- * photo of about 1170×1400 works well; the dark fade below keeps the text readable whatever the picture. Nothing else needs to change.
+ * The scene behind the whole app on phones: a real photograph (self-hosted in /public/brand, optimised by next/image: sized for the
+ * phone, modern formats, a blurred placeholder while it loads), fading into deep forest green so every card and every line of text sits
+ * on a dark, calm surface. Nothing moves. Hidden from screen readers and never catches a tap. Not shown from 768 px up.
+ * Set HERO_PHOTO to null to go back to the drawn scene below (no image download at all).
  */
-export const HERO_PHOTO: string | null = null;
+export const HERO_PHOTO: string | null = "/brand/mobile-hero.webp";
+/** Who took the photo and under which licence, shown in the app (lib/legal-content / profile). Null until the owner confirms it. */
+export const HERO_CREDIT: string | null = null;
 
 /** The scene's colours, kept together so they can be checked for readability (tests/mobile-theme.test.ts) and changed in one place. */
 export const BACKDROP_COLORS = {
@@ -21,8 +24,11 @@ export function MobileBackdrop() {
   return (
     <div aria-hidden="true" data-mobile-backdrop className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#06201c] md:hidden">
       {HERO_PHOTO ? (
-        // eslint-disable-next-line @next/next/no-img-element -- a decorative, optional brand image; sized by the container
-        <img src={HERO_PHOTO} alt="" className="absolute inset-x-0 top-0 h-[58%] w-full object-cover object-top" />
+        <>
+          <Image src={heroPhoto} alt="" fill priority sizes="768px" placeholder={typeof heroPhoto === "object" && heroPhoto.blurDataURL ? "blur" : "empty"} quality={70} className="object-cover object-top" />
+          {/* Dark at the top (under the header), clear through the view, then into the forest green the cards sit on. */}
+          <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(6,32,28,0.55) 0%, rgba(6,32,28,0.05) 18%, rgba(6,32,28,0.15) 38%, ${BACKDROP_COLORS.ground} 72%)` }} />
+        </>
       ) : (
         <svg viewBox="0 0 390 800" preserveAspectRatio="xMidYMin slice" className="absolute inset-0 h-full w-full">
           <defs>

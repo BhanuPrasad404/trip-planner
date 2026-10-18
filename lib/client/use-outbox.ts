@@ -30,6 +30,9 @@ function purgeForeign(userId: string) {
  * "failed" = the server refused it for good (the reason is in `failed`). Everything waiting is retried when the connection returns,
  * every 20 s while anything waits, and when the page opens.
  */
+/** One sender per person and trip on this page, even when two screens hold an outbox (the drive and the plan): never sent twice. */
+const sending = new Set<string>();
+
 export function useOutbox(tripId: string, userId: string, onSynced: () => void, now: () => number = Date.now) {
   const [store, setStore] = useLocalJson<{ items: OutboxItem[] }>(outboxKey(userId, tripId), EMPTY);
   const [failed, setFailed] = useState<string | null>(null);
@@ -63,9 +66,10 @@ export function useOutbox(tripId: string, userId: string, onSynced: () => void, 
   }, []);
 
   const flush = useCallback(async () => {
-    if (busy.current || itemsRef.current.length === 0) return;
+    const key = `${userId}:${tripId}`;
+    if (busy.current || sending.has(key) || itemsRef.current.length === 0) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    busy.current = true; setSyncing(true);
+    busy.current = true; sending.add(key); setSyncing(true);
     try {
       let sent = 0;
       for (const i of [...itemsRef.current].sort((a, b) => a.at - b.at)) {
@@ -78,8 +82,8 @@ export function useOutbox(tripId: string, userId: string, onSynced: () => void, 
         void announceStopsChanged(tripId);
         syncedRef.current();
       }
-    } finally { busy.current = false; setSyncing(false); }
-  }, [attempt, finish, tripId]);
+    } finally { busy.current = false; sending.delete(key); setSyncing(false); }
+  }, [attempt, finish, tripId, userId]);
 
   const send = useCallback(async (action: OutboxAction, label?: string): Promise<SendOutcome> => {
     setFailed(null);

@@ -20,6 +20,12 @@ vi.mock("@/lib/client/use-map-theme", () => ({ useMapTheme: () => ["light", () =
 vi.mock("@/lib/client/use-nav-ui", () => ({ useNavUi: () => ({ nav: {}, ui: { onRecenter: () => {} }, navBusy: false, headingUp: true, viewRequest: null, recenter: null, onCompass: () => {} }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => createElement("a", { href, ...rest }, children) }));
+// The drive is app-wide (components/drive). Here each page is rendered through the SAME engine hook, inline, so the page's real
+// behaviour is tested without the provider around it.
+vi.mock("@/components/drive/DriveProvider", async () => {
+  const { useEngineValue } = await import("@/components/drive/DriveEngine");
+  return { useTripEngine: (data: never, refresh: () => void) => ({ status: "ready", engine: useEngineValue({ data, restore: null, refresh, onDriveStart: () => {}, onDriveEnd: () => {} }) }) };
+});
 vi.mock("@/components/map/NavigationOverlay", () => ({ NavigationBanner: () => createElement("div", { "data-testid": "banner" }), NavigationPanel: () => createElement("div", { "data-testid": "panel" }) }));
 vi.mock("@/components/LiveArrival", () => ({ LiveArrival: () => null }));
 vi.mock("@/components/intel/UndoToast", () => ({ UndoToast: () => null }));
@@ -38,6 +44,8 @@ const freshLive = () => ({
   drive: { active: false, start: vi.fn(), stop: vi.fn(), error: null, locating: false, shareFailed: false, route: null, me: null },
   intel: { result: null, coverage: null, photos: {}, refresh: vi.fn() },
   navigation: { phase: "idle", choose: vi.fn(), retry: vi.fn(), routes: [], selectedId: null },
+  sound: { on: true, toggle: vi.fn(), blocked: false },
+  persistable: { confirmedSession: null, cued: () => [] },
 });
 const freshTolls = (o: Record<string, unknown> = {}) => ({ navigating: false, status: "idle", complete: true, unavailable: false, ahead: [], next: null, retry: vi.fn(), ...o });
 const toll = (aheadM: number) => ({ id: "node/1", lat: 0, lng: 0, name: "Kothur Toll Plaza", ref: null, operator: null, fee: null, routeM: 1, offsetM: 1, aheadM });

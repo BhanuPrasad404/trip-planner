@@ -148,6 +148,19 @@ describe("useOutbox", () => {
     expect(synced).toBe(1);
   });
 
+  it("two screens holding the same person's outbox for a trip (the drive and the plan) send each waiting change ONCE", async () => {
+    online = false;
+    let other!: ReturnType<typeof useOutbox>;
+    const Two = () => { api = useOutbox("trip1", "me", () => {}, () => T0); other = useOutbox("trip1", "me", () => {}, () => T0); return null; };
+    await act(async () => { r = TestRenderer.create(createElement(Two)); });
+    await act(async () => { await api.send({ kind: "vote", placeId: "p1", vote: 1 }, "Golconda Fort"); });
+    await act(async () => { await Promise.resolve(); });
+    expect(other.items.map(itemKey)).toEqual(["vote:p1"]); // both screens see it
+    await goOnline();
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(sent).toEqual([{ url: "/api/places/p1/vote", body: { vote: 1 } }]);
+  });
+
   it("a community update offline (text + tags): sent later, without a photo", async () => {
     online = false;
     await mount();

@@ -55,7 +55,39 @@ export type NavUi = {
   nowMs: number;
   /** Driving, but today's route has nothing left (every stop done, skipped or removed): say so plainly instead of an empty panel. */
   noMoreStops?: { planHref: string } | null;
+  /** About to reach the next stop: "Arriving in 80 m". */
+  approach?: { name: string; distanceM: number; area: boolean } | null;
+  /** The arrival card is asking about this stop already, so the panel does not say "arrived" a second time. */
+  arrivalCardOpen?: boolean;
+  /** The next stop from the shared distance answer (lib/trip/remaining.ts), for the moments live progress is not available yet:
+   *  while the road route to a NEW next stop is loading, and while driving without turn-by-turn. */
+  nextLeft?: { name: string; km: number; minutes: number; kmText: string; destination: boolean } | null;
+  /** Driving with no turn-by-turn running (it was ended, or is waiting for a precise position): show the next stop in the top stack. */
+  idleNext?: boolean;
 };
+
+/** "Rest of day: 84 km to Vizag · 3 stops · done about 06:40 pm (with stops)". Small, secondary: the big numbers are for the next stop. */
+export function restOfDayText(j: Journey, nowMs: number): string {
+  const stops = `${j.stops} ${j.stops === 1 ? "stop" : "stops"}`;
+  const km = j.kmLabel ?? kmN(j.remainingKm);
+  // The road route reaches at most 8 stops: then it is not the whole day, and it must not be called that.
+  if (j.coversAll === false) return `Next ${stops}: ${km} to ${j.name} · there about ${clock(j.etaMs, nowMs)} (with stops) · more after`;
+  return `Rest of day: ${km} to ${j.name} · ${stops} · done about ${clock(j.etaMs, nowMs)} (with stops)`;
+}
+
+/** "Arriving in 80 m · Golconda Fort": big enough to read at a glance. The live region announces the place once, not every 10 m. */
+export function ApproachStrip({ approach, compact = false }: { approach: { name: string; distanceM: number; area: boolean }; compact?: boolean }) {
+  return (
+    <div data-testid="approach-strip" className={`pointer-events-auto flex items-center gap-3 rounded-2xl bg-marigold px-3 text-pine shadow-xl ${compact ? "py-2" : "py-2.5 sm:px-4"}`}>
+      <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/40"><Glyph name="flag" size={22} strokeWidth={2.4} /></span>
+      {/* Read out by the always-present live region in NavigationBanner (once, not every 10 m), so hidden from screen readers here. */}
+      <div className="min-w-0" aria-hidden="true">
+        <p className="font-display text-xl font-semibold leading-none sm:text-2xl">Arriving in {approach.distanceM} m</p>
+        <p className="mt-0.5 truncate text-sm font-semibold">{approach.area ? `${approach.name} area` : approach.name}</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * The turn banner and ONE status message. Everything navigation wants to say (session status, a weak position, "guidance paused", a note)
@@ -88,6 +120,19 @@ export function NavigationBanner({ ui, inFlow = false }: { ui: NavUi; inFlow?: b
           </div>
         );
       })()}
+      {/* Always mounted, so screen readers reliably announce the text when it appears (a live region added WITH its text often is not read). */}
+      <p role="status" aria-live="polite" className="sr-only">{ui.approach ? (ui.approach.area ? `Arriving at the ${ui.approach.name} area` : `Arriving at ${ui.approach.name}`) : ""}</p>
+      {/* Under the turn banner, never instead of it: the last turn into a stop can be inside these 100 m. */}
+      {ui.approach && <ApproachStrip approach={ui.approach} />}
+      {ui.idleNext && ui.nextLeft && !ui.approach && (
+        <div data-testid="idle-next" className="pointer-events-auto flex items-center justify-between gap-3 rounded-2xl bg-white/95 px-3 py-2 shadow-lg">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-muted">{ui.nextLeft.destination ? "Destination" : "Next stop"}</p>
+            <p className="truncate text-sm font-semibold text-pine">{ui.nextLeft.name}</p>
+          </div>
+          <p className="shrink-0 text-right text-sm font-semibold text-teal-ink">{ui.nextLeft.kmText} · {formatDuration(Math.max(1, ui.nextLeft.minutes))}</p>
+        </div>
+      )}
       <div className="pointer-events-auto empty:hidden"><HudNotices shown={notices.shown} hiddenCount={0} onDismiss={dismiss} /></div>
     </div>
   );
@@ -107,7 +152,7 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
           <Spinner size={32} className="text-teal" />
           <div className="min-w-0 flex-1">
             <p className="font-display text-base font-semibold text-pine">Finding the road route…</p>
-            <p className="truncate text-xs text-ink-muted">to {target.name}</p>
+            <p className="truncate text-xs text-ink-muted">to {target.name}{ui.nextLeft && ui.nextLeft.name === target.name ? ` · last known ${ui.nextLeft.kmText}, updating` : ""}</p>
           </div>
           <Button size="sm" variant="secondary" className="min-h-11" onClick={nav.stop}>Cancel</Button>
         </div>
@@ -169,11 +214,12 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
   }
 
   if (nav.phase === "arrived") {
+    if (ui.arrivalCardOpen) return null; // the arrival card already says it, with the same "Mark as done"
     return (
       <Shell floating={floating}>
         <p role="status" className="font-display text-lg font-semibold text-pine"><Glyph name="flag" size={18} className="mr-2 inline align-text-bottom text-[#d93025]" />You have arrived at {target.name}</p>
         <div className="mt-3 flex gap-2">
-          {ui.onArrivedDone && <Button onClick={() => { ui.onArrivedDone?.(); }}>Mark done and continue</Button>}
+          {ui.onArrivedDone && <Button onClick={() => { ui.onArrivedDone?.(); }}>Mark as done</Button>}
           <Button variant={ui.onArrivedDone ? "secondary" : "primary"} onClick={nav.stop}>{target.kind === "destination" ? "Finish" : "End navigation"}</Button>
         </div>
       </Shell>
@@ -182,21 +228,24 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
 
   const p = nav.progress;
   const expanded = more || nav.alternatives.length > 0 || nav.altLoading;
-  const etaText = journey ? formatDuration(Math.max(1, journey.remainingMin)) : p ? formatDuration(Math.max(1, Math.round(p.remainingS / 60))) : "—";
-  const subText = journey ? `${journey.kmLabel ?? kmN(journey.remainingKm)} · arrive about ${clock(journey.etaMs, ui.nowMs)}` : p ? `${km(p.remainingM)} · arrive about ${clock(p.etaMs, ui.nowMs)}` : "Working out your position…";
+  // The big numbers are the NEXT stop only, measured along the blue line from where you are (like Google Maps). The rest of the
+  // day is one small line under them.
+  const etaText = p ? formatDuration(Math.max(1, Math.round(p.remainingS / 60))) : "—";
+  const subText = p ? `${km(p.remainingM)} · arrive about ${clock(p.etaMs, ui.nowMs)}` : "Working out your position…";
   return (
     <Shell floating={floating}>
       {/* Always visible: where, how long, how far — and the two controls you may need in a hurry. */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-muted">{journey || target.kind === "destination" ? "Destination" : "Heading to"}</p>
-          <p className="truncate font-display text-lg font-semibold leading-tight text-pine sm:text-xl">{journey ? journey.name : target.name}</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-muted">{target.kind === "destination" ? "Destination" : "Next stop"}</p>
+          <p className="truncate font-display text-lg font-semibold leading-tight text-pine sm:text-xl">{target.name}</p>
         </div>
         <div className="shrink-0 text-right">
           <p className="font-display text-2xl font-semibold leading-none text-teal-ink">{etaText}</p>
           <p className="mt-1 text-xs text-ink-muted">{subText}</p>
         </div>
       </div>
+      {journey && <p data-testid="rest-of-day" className="mt-1.5 truncate text-[11px] text-ink-muted">{restOfDayText(journey, ui.nowMs)}</p>}
       <div className="mt-2.5 flex items-center gap-2">
         {(!follow || session === "exploring") && <Button size="sm" className="min-h-11 flex-1" onClick={ui.onRecenter}><span className="inline-flex items-center gap-1.5"><Glyph name="locate" size={16} />Re-centre</span></Button>}
         <Button size="sm" variant="secondary" className="min-h-11 flex-1" onClick={nav.stop}>End</Button>
@@ -205,7 +254,6 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
 
       {expanded && (
         <div className="mt-3 border-t border-line pt-3">
-          {journey && p && <p className="text-xs text-ink-muted">Next stop: <strong className="text-pine">{target.name}</strong> · {km(p.remainingM)} · {formatDuration(Math.max(1, Math.round(p.remainingS / 60)))}</p>}
           {startedFrom && <p className="mt-1 text-xs text-ink-muted">Driving from <strong className="text-pine">{startedFrom.label ?? "where you are"}</strong>. Your planned start ({startedFrom.plannedLabel}) is unchanged.</p>}
           {ui.manualPlace && <p className="mt-1 text-xs text-[#7a4a00]">Start point you chose: <strong>{ui.manualPlace}</strong>. Distance and time are from there; the dot will not move until real GPS is available.</p>}
           <p className="mt-1 text-[11px] text-ink-muted">Road distance and typical-speed times — no live traffic.</p>
@@ -213,7 +261,7 @@ export function NavigationPanel({ ui, floating = true }: { ui: NavUi; floating?:
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" className="min-h-11" onClick={ui.onOverview}>Overview</Button>
             <button type="button" onClick={ui.onToggleHeading} aria-pressed={headingUp} className="min-h-11 rounded-full border border-line px-4 text-sm font-semibold text-pine">{headingUp ? "Heading up" : "North up"}</button>
-            <button type="button" onClick={nav.toggleVoice} aria-pressed={nav.voice} aria-label={nav.voice ? "Mute voice guidance" : "Turn on voice guidance"} className="grid h-11 w-11 place-items-center rounded-full border border-line text-pine"><Glyph name={nav.voice ? "volumeOn" : "volumeOff"} size={20} /></button>
+            <button type="button" onClick={nav.toggleVoice} aria-pressed={nav.voice} aria-label="Drive sounds (voice and arrival chime)" className="grid h-11 w-11 place-items-center rounded-full border border-line text-pine"><Glyph name={nav.voice ? "volumeOn" : "volumeOff"} size={20} /></button>
             <Button size="sm" variant="secondary" className="min-h-11" loading={nav.altLoading} loadingLabel="Finding routes…" onClick={nav.alternatives.length > 0 ? nav.closeOptions : nav.routeOptions}>{nav.alternatives.length > 0 ? "Hide routes" : "Other routes"}</Button>
           </div>
         </div>

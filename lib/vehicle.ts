@@ -7,7 +7,10 @@ export type Vehicle = "car" | "motorcycle" | "bus";
 export const VEHICLES: Vehicle[] = ["car", "motorcycle", "bus"];
 export const VEHICLE_LABEL: Record<Vehicle, string> = { car: "Car", motorcycle: "Motorcycle", bus: "Bus" };
 export const DEFAULT_VEHICLE: Vehicle = "car";
-export const vehicleKey = (tripId: string) => `tm:vehicle:${tripId}`;
+/** Per PERSON and trip: on a shared phone each person keeps their own choice. */
+export const vehicleKey = (userId: string, tripId: string) => `tm:vehicle:${userId}:${tripId}`;
+/** Where the choice was kept before it was per person (read once, then moved). */
+export const legacyVehicleKey = (tripId: string) => `tm:vehicle:${tripId}`;
 
 export const isVehicle = (v: unknown): v is Vehicle => v === "car" || v === "motorcycle" || v === "bus";
 export function parseVehicle(raw: unknown): Vehicle {

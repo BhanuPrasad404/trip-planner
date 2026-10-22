@@ -43,7 +43,7 @@ export default async function DashboardPage() {
 
   return (
     <main id="main" className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
-      <PageHeader eyebrow={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} title={active ? "You're on the road" : focus ? "Where are we going next?" : "Let's plan a trip"} actions={<LinkButton href="/trips" variant="secondary" size="sm">All trips</LinkButton>} />
+      <PageHeader eyebrow={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Kolkata" })} title={active ? "You're on the road" : focus ? "Where are we going next?" : "Let's plan a trip"} actions={<LinkButton href="/trips" variant="secondary" size="sm">All trips</LinkButton>} />
 
       {focus ? (
         <section aria-labelledby="focus-heading" className="rounded-3xl bg-pine p-6 text-white sm:p-8">

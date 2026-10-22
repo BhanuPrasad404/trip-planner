@@ -1,4 +1,4 @@
-import type { RouteLeg, HourlyWeather } from "@/lib/providers/types";
+import type { ForecastStep, RouteLeg } from "@/lib/providers/types";
 import type { LngLat, PoiKind, PoiRecord } from "@/lib/poi/types";
 import type { OpenStatus } from "./hours";
 
@@ -25,7 +25,11 @@ export type StopInput = {
   outdoor: boolean;
 };
 
-export type WeatherSample = { lat: number; lng: number; hours: HourlyWeather[] };
+/**
+ * The forecast for one forecast area (its centre), exactly as the weather panel gets it (lib/providers weather areaForecasts): real
+ * forecast steps with their true timing, and when they were fetched. Read only through lib/forecast/moment.ts (the same rules).
+ */
+export type WeatherSample = { lat: number; lng: number; steps: ForecastStep[]; fetchedAt: number };
 
 export type IntelInput = {
   /** Detours measured with the routing service (key → extra km / minutes). Optional: without it detours are estimated. */
@@ -144,16 +148,6 @@ export type TripHealth = {
   timeLeftMin: number | null;
 };
 
-/** The forecast right now at the nearest forecast point, plus the next few hours. Real forecast data only. */
-export type WeatherNow = {
-  tempC: number;
-  precipProb: number | null;
-  precipMm: number;
-  next: { clock: string; tempC: number; precipProb: number | null }[];
-  /** How far the forecast point is from where you are (km). Shown when it is not essentially "here". */
-  pointKm: number;
-};
-
 /** The next sun event that matters to a traveller. */
 export type SunNext = { label: "Sunrise" | "Sunset"; clock: string; inMin: number; tomorrow: boolean };
 
@@ -171,6 +165,5 @@ export type IntelResult = {
   notes: string[];
   radar: RadarItem[];
   health: TripHealth;
-  weatherNow: WeatherNow | null;
   sunNext: SunNext | null;
 };

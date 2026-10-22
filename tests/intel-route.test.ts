@@ -13,6 +13,7 @@ const state = {
   updated: [{ id: TRIP }] as unknown[],
   updatePayload: null as unknown,
   routingCalls: 0,
+  wxCalls: [] as { areas: string[]; from: number; to: number }[],
 };
 
 function builder(table: string) {
@@ -50,7 +51,7 @@ vi.mock("@/lib/poi", () => ({ getPoiService: () => svc }));
 const fakeRoute = { legs: [{ minutes: 130, km: 106 }], line: [[80, 17], [80.5, 17], [81, 17]] as [number, number][], source: "osrm" };
 vi.mock("@/lib/providers/registry", () => ({
   routingProvider: () => ({ id: "t", route: async () => (state.routingCalls++, fakeRoute), matrix: async () => { throw new Error("n/a"); } }),
-  weatherProvider: () => ({ id: "t", hourly: async () => [], conditionsFor: async () => ({}) }),
+  weatherProvider: () => ({ id: "t", conditionsFor: async () => ({}), areaForecasts: async (areas: { key: string }[], from: number, to: number) => (state.wxCalls.push({ areas: areas.map((a) => a.key), from, to }), Object.fromEntries(areas.map((a) => [a.key, null]))) }),
   placesProvider: () => provider,
   trafficProvider: () => ({ id: "none", available: false, incidents: async () => [] }),
   eventsProvider: () => ({ id: "none", available: false, events: async () => [] }),
@@ -80,6 +81,7 @@ beforeEach(() => {
   state.pumpOwnPhoto = false;
   state.updated = [{ id: TRIP }];
   state.routingCalls = 0;
+  state.wxCalls = [];
   buildIntelSpy.mockClear();
 });
 
@@ -149,6 +151,29 @@ describe("POST /api/intel", () => {
     const shown = Object.values(json.photos) as { url: string; source: string }[];
     expect(shown.length).toBeGreaterThan(0);
     expect(shown.every((p) => p.source === "osm" && p.url.startsWith("https://commons.wikimedia.org/"))).toBe(true);
+  });
+});
+
+describe("POST /api/intel: weather where it matters, in India time", () => {
+  it("asks for the forecast where you are, at EVERY stop and every 50 km of the road ahead, two days out, each ~10 km area once (the panel's areas)", async () => {
+    const stops = [
+      { id: "a", name: "A", lat: 17, lng: 80.3, visit_min: 30 }, { id: "a2", name: "A twin", lat: 17.01, lng: 80.31, visit_min: 30 }, // same cell as A
+      { id: "b", name: "B", lat: 17, lng: 80.7, visit_min: 30 }, { id: "end", name: "End", lat: 17, lng: 81, visit_min: 30 },
+    ];
+    await post(body({ stops, route: { ...fakeRoute, legs: [{ minutes: 30, km: 32 }, { minutes: 2, km: 1 }, { minutes: 45, km: 42 }, { minutes: 30, km: 32 }] } }));
+    const { areaOf } = await import("@/lib/forecast/areas");
+    const asked = state.wxCalls.flatMap((c) => c.areas);
+    expect(new Set(asked).size).toBe(asked.length); // never twice for one area
+    for (const p of [{ lat: 17, lng: 80 }, ...stops.filter((s) => s.id !== "a2")]) expect(asked).toContain(areaOf(p).key);
+    expect(asked).toContain(areaOf({ lat: 17, lng: 80.47 }).key); // ~50 km along: a road point that is not a stop
+    expect(state.wxCalls.every((c) => c.to - c.from === 49 * 3_600_000)).toBe(true); // from an hour ago to two days ahead
+  });
+  it("uses India time whatever the phone's time zone is (and accepts apps that no longer send one)", async () => {
+    await post(body({ route: fakeRoute, utc_offset_min: -300 })); // a phone still set to New York time
+    expect(buildIntelSpy.mock.calls[0][0].utcOffsetMin).toBe(330);
+    const { utc_offset_min: _drop, ...noOffset } = body({ route: fakeRoute }); void _drop;
+    expect((await post(noOffset)).status).toBe(200);
+    expect(buildIntelSpy.mock.calls[1][0].utcOffsetMin).toBe(330);
   });
 });
 

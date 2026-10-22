@@ -317,21 +317,46 @@ describe("failures never draw a fake route", () => {
 
 describe("next stop and 'not ready'", () => {
   it("waits for a precise position, then follows the traveller to the NEXT stop automatically", async () => {
-    await mount(VIZAG, false);
-    await act(async () => { nav.arm(); });
-    await send(fix(WARANGAL));
-    expect(calls).toHaveLength(0);                       // position not precise yet: no request
-    await update(VIZAG, true);
-    await send(fix(WARANGAL, { at: ++t0 }));
-    await flush();
-    expect(nav.phase).toBe("navigating");
+    // The hook starts routing after "ready" / a new stop through a 0 ms timer. A REAL one raced the checks below (it could fire before
+    // `expect(...).toBe("idle")` when the machine was busy), so this test uses the fake clock and runs that timer at a chosen point.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await mount(VIZAG, false);
+      await act(async () => { nav.arm(); });
+      await send(fix(WARANGAL));
+      expect(calls).toHaveLength(0);                       // position not precise yet: no request
+      await update(VIZAG, true);
+      await send(fix(WARANGAL, { at: ++t0 }));
+      await flush();
+      expect(nav.phase).toBe("navigating");
 
-    await update(NEXT, true);                            // the stop was finished: the old route no longer applies
-    expect(nav.phase).toBe("idle");
-    await send(fix(WARANGAL, { at: ++t0 }));
-    await flush();
-    expect(calls.at(-1)!.to).toMatchObject({ lat: NEXT.lat, lng: NEXT.lng });
-    expect(nav.phase).toBe("navigating");
+      await update(NEXT, true);                            // the stop was finished: the old route no longer applies
+      expect(nav.phase).toBe("idle");
+      await send(fix(WARANGAL, { at: ++t0 }));
+      await flush();
+      expect(calls.at(-1)!.to).toMatchObject({ lat: NEXT.lat, lng: NEXT.lng });
+      expect(nav.phase).toBe("navigating");
+      await act(async () => { vi.runOnlyPendingTimers(); }); await flush();
+      expect(calls.filter((c) => c.to.lat === NEXT.lat)).toHaveLength(1); // the deferred start adds no second request
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("the next stop's route starts by itself through a 0 ms timer, even with no new GPS reading (the old race, made explicit)", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await mount(VIZAG, true);
+      await act(async () => { nav.arm(); });
+      await send(fix(WARANGAL));
+      await flush();
+      expect(nav.phase).toBe("navigating");
+      await update(NEXT, true);
+      expect(nav.phase).toBe("idle");                    // before the timer runs
+      await act(async () => { vi.runOnlyPendingTimers(); }); await flush();
+      // When the timer runs (at once, in the app), routing to the next stop has started. With a REAL timer, a busy machine let it run
+      // before the test's "idle" check: that was the flaky failure ("expected 'navigating' to be 'idle'").
+      expect(calls.at(-1)!.to).toMatchObject({ lat: NEXT.lat, lng: NEXT.lng });
+      expect(nav.phase).toBe("navigating");
+    } finally { vi.useRealTimers(); }
   });
 
   it("End stops everything and does not restart by itself", async () => {

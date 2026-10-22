@@ -1,8 +1,9 @@
 // What an active drive keeps on the phone: per person and per trip, with expiry, cleaned up on finish, sign-out and trip deletion.
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_UI, MAX_AGE_MS, MAX_SNAPSHOT_CHARS, NO_GPS_EXPIRY_MS, activeDriveKey, clearDrive, clearUserDrives, driveKey, droppedReason, expiryReason,
-  needsSwitch, parseSnapshot, readActiveDrive, serializeSnapshot, writeDrive, type DriveSnapshot,
+  DEFAULT_UI, HANDOFF_GRACE_MS, MAX_AGE_MS, MAX_SNAPSHOT_CHARS, NO_GPS_EXPIRY_MS, activeDriveKey, clearDrive, clearHandoff, clearUserDrives, driveKey,
+  droppedReason, expiryReason, handoffKey, handoffPending, markHandoff, needsSwitch, parseSnapshot, readActiveDrive, serializeSnapshot, writeDrive,
+  type DriveSnapshot,
 } from "@/lib/drive/persist";
 import { acquireDriveLock, driveLockName } from "@/lib/drive/lock";
 import { forgetTripLocally } from "@/lib/trip/deletion";
@@ -167,5 +168,36 @@ describe("review fixes", () => {
     const st = memStore(); st.setItem("tm:arrival:t1", "{}"); st.setItem("tm:nav-targets:t1", "{}"); st.setItem("tm:arrival:u2:t1", "{}");
     clearUserDrives(st, "u1");
     expect([...st.m.keys()]).toEqual(["tm:arrival:u2:t1"]);
+  });
+});
+
+describe("hand-off note: a reloading tab gets its drive back before another tab takes over", () => {
+  it("fresh for the grace period only, per person, and cleared on demand", () => {
+    const s = memStore();
+    expect(handoffPending(s, "u1", T0)).toBe(false);
+    markHandoff(s, "u1", T0);
+    expect(handoffPending(s, "u1", T0 + HANDOFF_GRACE_MS - 1)).toBe(true);
+    expect(handoffPending(s, "u1", T0 + HANDOFF_GRACE_MS)).toBe(false); // that tab was closed, not reloaded
+    expect(handoffPending(s, "u2", T0)).toBe(false);
+    clearHandoff(s, "u1");
+    expect(handoffPending(s, "u1", T0)).toBe(false);
+  });
+  it("damaged notes and a clock that jumped never make another tab wait longer", () => {
+    const s = memStore();
+    for (const v of ["", "abc", "-5", "Infinity"]) { s.setItem(handoffKey("u1"), v); expect(handoffPending(s, "u1", T0)).toBe(false); }
+    markHandoff(s, "u1", T0 + 60 * 60_000); // written with a clock an hour ahead
+    expect(handoffPending(s, "u1", T0)).toBe(false);
+  });
+  it("is wiped on sign-out with the rest of the person's drive data", () => {
+    const s = memStore();
+    markHandoff(s, "u1", T0); markHandoff(s, "u2", T0);
+    clearUserDrives(s, "u1");
+    expect(s.m.has(handoffKey("u1"))).toBe(false); expect(s.m.has(handoffKey("u2"))).toBe(true);
+  });
+  it("storage that throws never breaks the drive", () => {
+    const bad = { length: 0, key: () => null, getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }, removeItem: () => { throw new Error("blocked"); } };
+    expect(() => markHandoff(bad, "u1", T0)).not.toThrow();
+    expect(handoffPending(bad, "u1", T0)).toBe(false);
+    expect(() => clearHandoff(bad, "u1")).not.toThrow();
   });
 });

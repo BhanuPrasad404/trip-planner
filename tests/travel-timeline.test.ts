@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { buildTimeline, kmAlongLine } from "@/lib/travel/timeline";
 import { checkDeparture, type FeasStop } from "@/lib/travel/feasibility";
 import { localToUtcMs } from "@/lib/travel/clock";
-import { weatherVisual } from "@/lib/travel/weather-visual";
 import type { TerrainSegment } from "@/lib/travel/terrain";
 
 // A 100 km east-west road at 17°N: one degree of longitude is about 106.45 km here.
@@ -63,13 +62,14 @@ describe("buildTimeline: what lies ahead, in order", () => {
     expect(t.atClock).not.toBeNull(); // still timed by the stop that IS on the road, between depart and Lake B
     expect(t.atClock).not.toBe("11:30");
   });
-  it("weather appears only for a real FORECAST that calls for advice, at that stop's arrival", () => {
-    const rain = weatherVisual({ kind: "forecast", tempMaxC: 28, precipMmPerDay: 20, rainyDayShare: 1, sampleDays: 1 }, "waterfall");
-    const typical = weatherVisual({ kind: "typical", tempMaxC: 28, precipMmPerDay: 20, rainyDayShare: 0.8, sampleDays: 5 }, "waterfall");
-    const t = buildTimeline({ ...base, weather: { a: rain, b: typical } });
+  it("weather appears only when the forecast AT that stop's arrival time calls for it, at that time", () => {
+    const asked: number[] = [];
+    const rainAtArrival = (t: number) => { asked.push(t); return { title: "Heavy rain", detail: "About 9 mm in the hour. Carry rain gear. Open-Meteo forecast for 9:30 AM.", tone: "warn" as const }; };
+    const t = buildTimeline({ ...base, weather: { a: rainAtArrival, b: () => null } });
     const w = t.filter((i) => i.kind === "weather");
     expect(w).toHaveLength(1);
-    expect(w[0]).toMatchObject({ id: "weather:a", basis: "forecast", tone: "warn", atClock: "09:00" }); expect(w[0].detail).toContain("official information");
+    expect(w[0]).toMatchObject({ id: "weather:a", title: "Heavy rain at Fort A", basis: "forecast", tone: "warn", atClock: "09:00" });
+    expect(asked).toEqual([t.find((i) => i.id === "stop:a")!.atMs]); // asked for exactly the arrival moment
   });
   it("hours we don't know show as information (never as a closure)", () => {
     expect(buildTimeline(base).find((i) => i.id === "stop:a")!).toMatchObject({ tone: "info", basis: "estimate" });

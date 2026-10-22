@@ -152,7 +152,7 @@ describe("TripCheck — checking a departure", () => {
     expect(p).toContain("1 stop has no hours we can check.");
     expect(p).toContain("We can't tell yet whether your stops will be open."); expect(p).not.toContain("Nothing in the stops we could check looks impractical"); // not an all-clear
     expect(p).toContain("Add its opening hours");
-    expect(calls).toHaveLength(0); // no hours on the day: nothing to ask the server
+    expect(calls.filter((c) => !c.url.startsWith("/api/weather"))).toHaveLength(0); // no hours on the day: nothing to ask the server about hours (the weather at the arrival times is fetched separately)
   });
   it("hours that are fine produce a calm 'nothing looks impractical' and no alert", async () => {
     saved({ time: "10:00" }); await mount(trip(), [withHours("24/7")]);

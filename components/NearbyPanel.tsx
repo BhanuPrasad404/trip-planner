@@ -29,7 +29,7 @@ const getPosition = () =>
     );
   });
 
-const clockTime = (ms: number) => new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+const clockTime = (ms: number) => new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }); // India time
 
 function Thumb({ place }: { place: NearbyPlace }) {
   if (!place.photo) {

@@ -1,7 +1,6 @@
 // Server-side data loading for the trip pages. Each page asks only for what it shows (weather and community updates are optional),
 // and the trip itself is fetched once per request even when both the layout and the page need it.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { requireUserAnd } from "@/lib/auth";
@@ -10,15 +9,18 @@ import { weatherProvider } from "@/lib/providers/registry";
 import { REPORT_MAX_AGE_DAYS, REPORT_PHOTO_BUCKET, assignReports, type PlaceReportRow, type ReportView } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import type { PlaceWithSeason, Trip, TripMember } from "@/lib/types";
-import { TZ_COOKIE, localDateFor, parseTzOffset } from "@/lib/tz";
+import { localDateFor } from "@/lib/tz";
+import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
 import { uuid } from "@/lib/validation/schemas";
 import { summarizeVotes, type VoteSummary } from "@/lib/votes";
 import type { Conditions } from "@/lib/weather";
 
-/** Today's date for THIS traveller (their timezone, from the tm_tz cookie); UTC until the browser has told us. */
+/**
+ * Today's date in INDIA (+5:30), whatever time zone the traveller's phone is set to: trips run on India's calendar (an India-only
+ * product). The server itself runs in UTC, where "today" is still yesterday between midnight and 5:30 AM India time.
+ */
 export async function todayISO(): Promise<string> {
-  const store = await cookies();
-  return localDateFor(Date.now(), parseTzOffset(store.get(TZ_COOKIE)?.value));
+  return localDateFor(Date.now(), INDIA_UTC_OFFSET_MIN);
 }
 
 /** The trip (RLS makes this empty for non-members — same as "not found", so we never reveal whether an id exists). */

@@ -46,6 +46,16 @@ Dashboard → Authentication → URL Configuration:
 - **Site URL:** your production URL
 - **Redirect URLs:** add `http://localhost:3000/auth/callback` and `https://YOUR-DOMAIN/auth/callback`
 
+### Weather licence (Open-Meteo)
+
+Weather comes from Open-Meteo. With `OPEN_METEO_API_KEY` empty the app uses the **free** API, which Open-Meteo allows for
+**non-commercial use only**: fine while Trailmate is being built (no users, no ads, no subscriptions).
+
+> **Before public launch, buy the Open-Meteo commercial plan and set the key** (`OPEN_METEO_API_KEY` in `.env.local` and in Vercel →
+> Settings → Environment Variables). No code changes: the app switches to Open-Meteo's customer servers by itself.
+
+This is item 1 of [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md).
+
 ### Run
 
 ```bash

@@ -204,6 +204,42 @@ describe("one drive at a time", () => {
       expect(text(bar())).toContain("Driving to Stop of A");
     } finally { vi.useRealTimers(); }
   });
+  it("the tab running the drive leaves a short note as it unloads; getting the lock back clears it", async () => {
+    await mount("A"); await start();
+    await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+    expect(store.get("tm:drive-handoff:u1")).toBe(String(T0));
+    writeDrive(window.localStorage, { v: 1, userId: "u1", tripId: "A", tripName: "Trip A", savedAt: T0, startedAt: T0, lastFixAt: T0, session: 2, confirmedSession: 2, share: true, nav: null, driveRoute: null, cued: [], next: null, ui: DEFAULT_UI });
+    act(() => r.unmount()); lockTaken = false; // the reload released the lock…
+    await mount("A"); // …and the reloaded tab took it back
+    expect(store.has("tm:drive-handoff:u1")).toBe(false);
+    expect(h.engines.at(-1)?.props.canSave).toBe(true);
+  });
+  it("a tab that is not driving leaves no note", async () => {
+    await mount("A");
+    await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+    expect(store.has("tm:drive-handoff:u1")).toBe(false);
+  });
+  it("while the driving tab RELOADS, a hidden second tab does not grab the drive; it takes over only if that tab never comes back", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
+    try {
+      lockTaken = true;
+      writeDrive(window.localStorage, { v: 1, userId: "u1", tripId: "A", tripName: "Trip A", savedAt: T0, startedAt: T0, lastFixAt: T0, session: 2, confirmedSession: 2, share: true, nav: null, driveRoute: null, cued: [], next: null, ui: DEFAULT_UI });
+      h.pathname = "/discover";
+      await mount(null);
+      // The driving tab reloads: it leaves its note and its lock is released for a moment.
+      store.set("tm:drive-handoff:u1", String(T0)); lockTaken = false;
+      await act(async () => { vi.advanceTimersByTime(4_000); }); await settle();
+      expect(h.engines).toHaveLength(0); expect(lockTaken).toBe(false); // the lock is left free for the reloading tab
+      await act(async () => { vi.advanceTimersByTime(4_000); }); await settle();
+      expect(h.engines).toHaveLength(0);
+      // It never came back (it was closed, not reloaded): once the note is stale, this tab carries on the drive.
+      vi.mocked(Date.now).mockReturnValue(T0 + 12_000);
+      await act(async () => { vi.advanceTimersByTime(4_000); }); await settle();
+      expect(h.engines.at(-1)?.tripId).toBe("A");
+      expect(h.engines.at(-1)?.props.restore).toMatchObject({ snapshot: { session: 2 } });
+      expect(store.has("tm:drive-handoff:u1")).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
 });
 
 describe("after a reload", () => {

@@ -221,25 +221,33 @@ describe("Round 7 — stops removed or reordered while navigating", () => {
 
 describe("Round 7 — exit and restart", () => {
   it("End stops navigation; pressing Drive again starts a NEW route from the current position", async () => {
-    await mount(DEST);
-    await act(async () => { nav.arm(); });
-    await send(fix(HYD));
-    await flush();
-    expect(nav.phase).toBe("navigating");
-    await act(async () => { nav.stop(); });
-    expect(nav.phase).toBe("idle");
-    expect(nav.armed).toBe(false);
-    await send(fix(HYD, { at: ++t0 }));
-    await flush();
-    expect(calls).toHaveLength(1);                    // stopped means stopped: no request by itself
+    // Pressing Drive starts routing through a 0 ms timer. A REAL one raced this test (it could fire before or after the readings below,
+    // depending on how busy the machine was), so the fake clock runs it at a chosen point. The readings come in the real order: the
+    // traveller is already in Warangal when they press Drive again.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await mount(DEST);
+      await act(async () => { nav.arm(); });
+      await send(fix(HYD));
+      await flush();
+      expect(nav.phase).toBe("navigating");
+      await act(async () => { nav.stop(); });
+      expect(nav.phase).toBe("idle");
+      expect(nav.armed).toBe(false);
+      await send(fix(HYD, { at: ++t0 }));
+      await flush();
+      expect(calls).toHaveLength(1);                    // stopped means stopped: no request by itself
 
-    const WARANGAL = { lat: 17.9689, lng: 79.5941 };
-    await act(async () => { nav.arm(); });            // restart, now from somewhere else
-    await send(fix(WARANGAL, { at: ++t0 + 60_000 }));
-    await send(fix(WARANGAL, { at: ++t0 + 61_000 }));
-    await flush();
-    expect(calls).toHaveLength(2);
-    expect(haversineM(calls[1].from, WARANGAL)).toBeLessThan(5);
-    expect(nav.phase).toBe("navigating");
+      const WARANGAL = { lat: 17.9689, lng: 79.5941 };
+      await send(fix(WARANGAL, { at: ++t0 + 60_000 })); // they drove on (navigation off: still no request)
+      await send(fix(WARANGAL, { at: ++t0 + 61_000 }));
+      await flush();
+      expect(calls).toHaveLength(1);
+      await act(async () => { nav.arm(); });            // Drive again, from here
+      await act(async () => { vi.runOnlyPendingTimers(); }); await flush();
+      expect(calls).toHaveLength(2);
+      expect(haversineM(calls[1].from, WARANGAL)).toBeLessThan(5);
+      expect(nav.phase).toBe("navigating");
+    } finally { vi.useRealTimers(); }
   });
 });

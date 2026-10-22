@@ -6,7 +6,8 @@
 //   • the drive survives tab changes, page changes, back/forward and reloads (saved per person and per trip, with expiry).
 //   • it ends on Finish / Stop, on sign-out (in any tab), when the trip is deleted or the person is removed, and after hours without GPS.
 //   • on any other page a small "Driving to <stop>" bar takes the traveller back in one tap.
-//   • only one browser tab runs it (lib/drive/lock.ts); another tab says where it runs, and takes over if that tab is closed.
+//   • only one browser tab runs it (lib/drive/lock.ts); another tab says where it runs, and takes over if that tab is closed (but not
+//     while that tab is reloading: it gets its drive back).
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { DriveEngine, type Engine } from "./DriveEngine";
@@ -14,7 +15,10 @@ import { DriveBar } from "./DriveBar";
 import { TripGoneWatcher } from "@/components/TripGoneWatcher";
 import { loadTripData, type TripData } from "@/lib/client/trip-bundle";
 import { acquireDriveLock } from "@/lib/drive/lock";
-import { DRIVE_SIGN_OUT_EVENT, DRIVE_SIGN_OUT_KEY, clearDrive, clearUserDrives, droppedReason, readActiveDrive, type DriveSnapshot } from "@/lib/drive/persist";
+import {
+  DRIVE_SIGN_OUT_EVENT, DRIVE_SIGN_OUT_KEY, clearDrive, clearHandoff, clearUserDrives, droppedReason, handoffPending, markHandoff, readActiveDrive,
+  type DriveSnapshot,
+} from "@/lib/drive/persist";
 import { TRIP_GONE_EVENT } from "@/lib/trip/deletion";
 import { createClient } from "@/lib/supabase/client";
 import { fire } from "@/lib/client/fire";
@@ -96,9 +100,21 @@ export function DriveProvider({ userId, children }: { userId: string | null; chi
       if (!r) return false;
       release.current = r;
       setOwner(true);
+      try { clearHandoff(window.localStorage, userId); } catch { /* storage blocked */ } // this tab is back (or took over): no one is owed a wait
       return true;
     });
     return pendingLock.current;
+  }, [userId]);
+  // Leaving the page (a reload, or the tab closed) while running the drive: other tabs wait a moment before taking over, so a reload
+  // gets its own drive back (persist.ts, markHandoff).
+  useEffect(() => {
+    if (!userId) return;
+    const onHide = () => {
+      if (!release.current || !activeRef.current || yielding.current) return;
+      try { markHandoff(window.localStorage, userId, Date.now()); } catch { /* storage blocked */ }
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
   }, [userId]);
   // Released a little later, not at once: the browser frees a lock asynchronously, so a drive started right after another ended in
   // this tab would otherwise find the lock "taken" by itself. Another tab can take it as soon as it is really free.
@@ -149,6 +165,8 @@ export function DriveProvider({ userId, children }: { userId: string | null; chi
       if (!snap) setElsewhere(false); // that tab's drive ended: nothing to take over, and this tab is free to drive
     };
     const t = setInterval(() => {
+      const store = readStore();
+      if (store && handoffPending(store, userId, Date.now())) return; // that tab is reloading: let it take its drive back first
       void takeLock().then((ok) => {
         if (!ok || cancelled) return;
         // That tab is gone: this one may drive now, carrying on the saved drive. As after a reload, no engine starts before the saved

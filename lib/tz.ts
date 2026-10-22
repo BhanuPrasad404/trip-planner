@@ -1,5 +1,6 @@
-// The traveller's own calendar date. The server runs in UTC, so between local midnight and 05:30 (India) "today" on the
-// server is still YESTERDAY for the traveller. The browser tells us its UTC offset in a small cookie (no location, no PII).
+// Calendar dates at a given UTC offset. The server runs in UTC, so between midnight and 05:30 India time "today" on the server is
+// still YESTERDAY in India: lib/server/trip-data.ts asks for India's date explicitly. (The phone's own offset used to arrive in this
+// cookie; it is no longer read, because a phone set to another time zone must not change the trip's day.)
 export const TZ_COOKIE = "tm_tz";
 
 /** Minutes east of UTC (IST = 330). Null when missing or not plausible. */

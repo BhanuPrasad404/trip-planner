@@ -22,8 +22,10 @@ export const MAX_SNAPSHOT_CHARS = 450_000;
 
 export const driveKey = (userId: string, tripId: string) => `tm:drive:${userId}:${tripId}`;
 export const activeDriveKey = (userId: string) => `tm:drive-active:${userId}`;
+/** Written by the tab that runs the drive as it unloads (a reload, or closed): see markHandoff. */
+export const handoffKey = (userId: string) => `tm:drive-handoff:${userId}`;
 /** Every per-person key a drive leaves behind (arrival memory, remembered targets, the drive itself). */
-export const perUserDriveKeyPrefixes = (userId: string) => [`tm:drive:${userId}:`, `tm:drive-active:${userId}`, `tm:arrival:${userId}:`, `tm:nav-targets:${userId}:`];
+export const perUserDriveKeyPrefixes = (userId: string) => [`tm:drive:${userId}:`, `tm:drive-active:${userId}`, `tm:arrival:${userId}:`, `tm:nav-targets:${userId}:`, handoffKey(userId)];
 
 export type Camera = { center: [number, number]; zoom: number; bearing: number; pitch: number };
 export type DriveUi = { focusDay: number; follow: boolean; headingUp: boolean; showRadar: boolean; showAll: boolean; satellite: boolean; sheet: boolean | null; camera: Camera | null; page: "map" | "live" };
@@ -229,6 +231,31 @@ export function clearUserDrives(store: Store, userId: string): number {
     return 0;
   }
   return doomed.length;
+}
+
+// ── Hand-off between tabs ──
+// The tab running the drive releases its lock as it unloads. On a RELOAD it wants the drive back a moment later, but another open tab
+// polling for the free lock could win that race and quietly take the drive from the tab the traveller is looking at. So the unloading
+// tab leaves a short-lived note, and other tabs do not take over while it is fresh. A tab that was really CLOSED never comes back:
+// the note goes stale and another tab takes over then.
+export const HANDOFF_GRACE_MS = 12_000;
+
+export function markHandoff(store: Store, userId: string, now: number) {
+  try { store.setItem(handoffKey(userId), String(now)); } catch { /* blocked: other tabs simply take over sooner */ }
+}
+
+/** The tab that ran the drive unloaded within the grace period: let it come back first. A clock that jumped never extends the wait. */
+export function handoffPending(store: Store, userId: string, now: number): boolean {
+  try {
+    const at = Number(store.getItem(handoffKey(userId)));
+    return Number.isFinite(at) && at > 0 && Math.abs(now - at) < HANDOFF_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
+
+export function clearHandoff(store: Store, userId: string) {
+  try { store.removeItem(handoffKey(userId)); } catch { /* blocked */ }
 }
 
 /** One drive at a time: may this trip start a drive now, or must the person first end the one on `activeTripId`? */

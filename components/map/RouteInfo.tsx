@@ -28,7 +28,7 @@ export function RouteInfoButton({ label, open, warn, onClick }: { label: string;
   );
 }
 
-const time = (at: number) => new Date(at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+const time = (at: number) => new Date(at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }); // India time
 
 /**
  * Everything the map keeps OFF the road until asked: tolls ahead and what we do and do not know about them, recent alerts (also the ones

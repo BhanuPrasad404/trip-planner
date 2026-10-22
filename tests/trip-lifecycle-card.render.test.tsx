@@ -52,7 +52,7 @@ describe("TripLifecycleCard: what to do with a trip whose real life and planned 
       expect(all()).toContain("or from the place you choose if GPS isn't available"); expect(all()).toContain("you decide");
     });
     it("leaving now with 4 hours: the day is planned to end 4 hours from the current time; resuming records ONLY that, then goes to Live (it does not start navigation)", async () => {
-      vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 9, 15, 10, 30)); // local 10:30
+      vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-15T10:30:00+05:30")); // 10:30 India time, on any computer
       await mount(never); await press("Resume now");
       expect(all()).toContain("wrap up by"); expect(all()).toContain("2:30 pm");
       await press("Resume trip");

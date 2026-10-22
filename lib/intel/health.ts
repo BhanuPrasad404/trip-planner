@@ -38,7 +38,7 @@ export function computeHealth(a: Args): TripHealth {
   if (!a.hasWeather) weather = { label: "Unknown", detail: "No forecast available for this route right now.", tone: "unknown" };
   else if (wx.some((x) => x.priority >= 80)) weather = { label: "Poor", detail: wx.find((x) => x.priority >= 80)!.title, tone: "bad" };
   else if (wx.length > 0) weather = { label: "Watch", detail: wx[0].title, tone: "warn" };
-  else weather = { label: "Good", detail: "No rain, heat or daylight problems expected at your stops.", tone: "good" };
+  else weather = { label: "Good", detail: "No storm, fog, rain, heat or darkness problems expected at your stops.", tone: "good" };
 
   return { schedule, driving, weather, timeLeftMin: Math.max(0, a.dayEndMin - a.nowLocalMin) };
 }

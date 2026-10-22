@@ -20,6 +20,14 @@ import type { HudNotice } from "@/lib/map/notices";
 import type { TripData } from "@/lib/client/trip-bundle";
 import type { Vehicle } from "@/lib/vehicle";
 import type { PlaceWithSeason } from "@/lib/types";
+import { useWeatherBoard, type WeatherBoard } from "@/lib/client/use-weather-board";
+import { useWeatherDriveAlerts } from "@/lib/client/use-weather-drive-alerts";
+import { useDeviceHere, type DeviceHere } from "@/lib/client/use-device-here";
+import { liveStopEtas, roadPointsAhead } from "@/lib/forecast/route-times";
+import { DEFAULT_VIEW, plannedInstant, typicalView, type ViewMode } from "@/lib/forecast/view-time";
+import { tripDayISO } from "@/lib/forecast/ist";
+import type { BoardStop } from "@/lib/forecast/board";
+import { buildRoute, project } from "@/lib/intel/route-geometry";
 
 /** How often a drive in progress is saved at most (and always at once when something that matters changes). */
 export const SAVE_EVERY_MS = 20_000;
@@ -49,6 +57,17 @@ export type Engine = {
   paused: boolean;
   /** Reload this trip's data (the page's own refresh while it is open, otherwise a browser fetch). */
   refresh: () => void;
+  /** Weather for where you are and the coming stops (each at its arrival), kept fresh by itself; and the "Now / At arrival / Pick a time" choice. */
+  weather: {
+    board: WeatherBoard; mode: ViewMode; setMode: (m: ViewMode) => void;
+    /** The minute the board is computed for (the screens use the same clock). */
+    nowMs: number;
+    /** Live ETA per stop id while driving (the trip's Weather page uses them for today's stops). */
+    etas: Map<string, number>;
+    /** Where "here" comes from: the drive's GPS, the phone's position (after "Show weather where I am"), or the planned start. */
+    hereSource: "drive" | "device" | "planned" | "none";
+    device: DeviceHere; requestDevice: () => void;
+  };
 };
 
 export type EngineProps = {
@@ -134,6 +153,34 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
   }, [drive.error, drive.locating, drive.shareFailed, tolls.unavailable, live.sound.needsTap, live.sound.blocked, live.sound.canBuzz, drive.active, drive.session]);
   const notices = useHudNotices(mapNotices, 1);
 
+  // ── Weather: where you are (while driving) and the day's coming stops, each at the time you will be there (lib/forecast). ──
+  const [weatherMode, setWeatherMode] = useState<ViewMode>(DEFAULT_VIEW);
+  const weatherNow = live.nowMs || now();
+  const visitOf = useCallback((id: string) => live.intelStops.find((x) => x.id === id)?.visitMin ?? 0, [live.intelStops]);
+  const routeStops = useMemo(() => (drive.route?.stopIds ?? []).map((id) => ({ id, visitMin: visitOf(id) })), [drive.route, visitOf]);
+  const etas = useMemo(() => (drive.active ? liveStopEtas(drive.route, routeStops, weatherNow) : new Map<string, number>()), [drive.active, drive.route, routeStops, weatherNow]);
+  const alongKm = useMemo(() => (drive.route && drive.me ? project(buildRoute(drive.route.line), drive.me).alongM / 1000 : 0), [drive.route, drive.me]);
+  const road = useMemo(() => (drive.active ? roadPointsAhead(drive.route, routeStops, etas, weatherNow, alongKm) : []), [drive.active, drive.route, routeStops, etas, weatherNow, alongKm]);
+  const boardStops = useMemo<BoardStop[]>(() => live.remaining.map((p, i) => {
+    const dayISO = tripDayISO(trip.start_date, p.day_number);
+    return {
+      id: p.id, name: p.name, lat: p.lat, lng: p.lng, isNext: i === 0, liveEta: etas.get(p.id) ?? null,
+      planned: plannedInstant(dayISO, p.arrival_time ?? null), dayISO, typical: typicalView(data.conditions[p.id]),
+    };
+  }), [live.remaining, trip.start_date, etas, data.conditions]);
+  // Where "here" is: the drive's GPS while driving; otherwise the phone's position once the traveller asked for it; otherwise the
+  // planned start, said plainly so it is never mistaken for a live position.
+  const { here: device, request: requestDevice } = useDeviceHere();
+  const planned = live.previewFrom;
+  const hereSource: Engine["weather"]["hereSource"] = drive.active && drive.me ? "drive" : device.status === "on" ? "device" : planned ? "planned" : "none";
+  const here =
+    hereSource === "drive" && drive.me ? { lat: drive.me.lat, lng: drive.me.lng, label: drive.me.manual ? "Your chosen start" : "Where you are" }
+    : hereSource === "device" && device.status === "on" ? { lat: device.lat, lng: device.lng, label: "Where you are" }
+    : hereSource === "planned" && planned ? { lat: planned.lat, lng: planned.lng, label: planned.label, note: "Planned start, not your live location" }
+    : null;
+  const board = useWeatherBoard({ enabled: here !== null || boardStops.length > 0, nowMs: weatherNow, mode: weatherMode, here, stops: boardStops, road });
+  useWeatherDriveAlerts(board.alerts, drive.active, weatherNow, { notify: alerts.notify, update: alerts.update, escalate: alerts.escalate, withdraw: alerts.withdraw });
+
   // ── Ends by itself: hours without a GPS reading (a forgotten drive must not keep sharing or chiming). ──
   const fixAt = drive.me && !drive.me.manual ? drive.me.at : null;
   useEffect(() => { if (fixAt !== null) lastFixAt.current = fixAt; }, [fixAt]);
@@ -178,5 +225,6 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
 
   return {
     tripId: trip.id, userId, data, places, enriched, visits, alerts, vehicle, setVehicle, live: view, tolls, navUi, notices, ui, setUi, getCamera, setCamera, paused, refresh,
+    weather: { board, mode: weatherMode, setMode: setWeatherMode, nowMs: weatherNow, etas, hereSource, device, requestDevice },
   };
 }

@@ -6,7 +6,8 @@
 import { clockOf, dayShiftLabel, localizeClocks } from "./clock";
 import type { StopVerdict, Verdict } from "./feasibility";
 import type { TerrainSegment } from "./terrain";
-import type { WeatherVisual } from "./weather-visual";
+/** The forecast at a stop for an arrival time: a timeline line, or null when there is nothing worth saying (lib/forecast). */
+export type TimelineWeather = (arriveMs: number) => { title: string; detail: string; tone: "warn" | "info" } | null;
 
 export type TimelineKind = "depart" | "stop" | "terrain" | "weather" | "end";
 export type TimelineItem = {
@@ -51,7 +52,7 @@ export function buildTimeline(a: {
   verdicts: StopVerdict[];
   line?: [number, number][] | null;
   terrain?: TerrainSegment[] | null;
-  weather?: Record<string, WeatherVisual | null | undefined>;
+  weather?: Record<string, TimelineWeather | null | undefined>;
 }): TimelineItem[] {
   const off = a.utcOffsetMin;
   const mk = (id: string, kind: TimelineKind, atMs: number | null, title: string, detail: string, tone: Verdict, basis: TimelineItem["basis"], approximate = false): TimelineItem => ({
@@ -63,10 +64,9 @@ export function buildTimeline(a: {
   // Stops, with the weather forecast at each (only a real forecast that calls for advice).
   a.verdicts.forEach((v, i) => {
     items.push(mk(`stop:${v.stopId}`, "stop", v.arriveMs, v.name, v.arriveMs === null ? v.detail : `${v.headline}. ${v.windowClock ? `Arrival window ${localizeClocks(v.windowClock)}.` : ""}`.trim(), v.severity, v.hoursSource ? "published" : "estimate", v.arriveMs !== null));
-    const w = a.weather?.[v.stopId] ?? a.weather?.[a.stops[i]?.id ?? ""];
-    if (w && w.basis === "forecast" && w.advice && v.arriveMs !== null) {
-      items.push(mk(`weather:${v.stopId}`, "weather", v.arriveMs, `${w.headline} at ${v.name}`, w.advice, w.intensity >= 2 ? "warn" : "info", "forecast"));
-    }
+    const at = a.weather?.[v.stopId] ?? a.weather?.[a.stops[i]?.id ?? ""];
+    const w = at && v.arriveMs !== null ? at(v.arriveMs) : null;
+    if (w && v.arriveMs !== null) items.push(mk(`weather:${v.stopId}`, "weather", v.arriveMs, `${w.title} at ${v.name}`, w.detail, w.tone, "forecast"));
   });
 
   // Terrain: where each segment starts on the clock, interpolated between the stops' arrival times along the road.

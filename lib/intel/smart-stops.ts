@@ -146,7 +146,7 @@ export function buildSmartStops(a: Args): SmartStop[] {
   if (a.sun && a.sun.sunsetMin > nowLocal && a.sun.sunsetMin - nowLocal <= 240) {
     const view = of("viewpoint").filter((v) => {
       const arrive = localMinute(ctx.nowMs + v.etaMin * 60_000, ctx.utcOffsetMin);
-      const w = weatherAt(ctx.weather, v, ctx.nowMs + v.etaMin * 60_000);
+      const w = weatherAt(ctx.weather, v, ctx.nowMs + v.etaMin * 60_000, ctx.nowMs);
       return arrive >= a.sun!.sunsetMin - 100 && arrive <= a.sun!.sunsetMin - 10 && v.detourMin <= 15 && !isRainy(w);
     });
     if (view.length > 0) {
@@ -169,9 +169,9 @@ export function buildSmartStops(a: Args): SmartStop[] {
     if (worth.length > 0) {
       const best = top(worth, 1)[0];
       const arriveMs = ctx.nowMs + best.etaMin * 60_000;
-      const w = weatherAt(ctx.weather, best, arriveMs);
+      const w = weatherAt(ctx.weather, best, arriveMs, ctx.nowMs);
       const facts: string[] = [];
-      if (w && !isRainy(w) && (w.precipProb ?? 0) < 30) facts.push("clear weather");
+      if (w && !isRainy(w) && w.precipProb !== null && w.precipProb < 30) facts.push("dry weather then"); // dry, not "clear": the sky is not claimed
       const untilSunset = a.sun ? a.sun.sunsetMin - localMinute(arriveMs, ctx.utcOffsetMin) : null;
       if (untilSunset !== null && untilSunset > 5 && untilSunset <= 100) facts.push(`sunset starts ${untilSunset} min after you arrive`);
       if (best.reasons.some((r) => /Fresh updates/.test(r))) facts.push("recent traveler updates");

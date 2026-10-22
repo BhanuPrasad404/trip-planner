@@ -1,6 +1,7 @@
 import { CATEGORIES, type PlaceCategory } from "@/lib/categories";
 import type { SeasonStatus } from "@/lib/types";
 import type { Conditions } from "@/lib/weather";
+import { dailyHeatBasisC, heatLevel } from "@/lib/weather-rules";
 
 export type GoScore = {
   score: number; // 0..100
@@ -36,11 +37,14 @@ export function computeGoScore(input: {
     const t = conditions.tempMaxC;
     const p = conditions.precipMmPerDay;
     const prefix = conditions.kind === "forecast" ? "Forecast" : "Typical for these dates";
-    reasons.push(`${prefix}: ${Math.round(t)}°C high, ${p < 1 ? "<1" : Math.round(p)} mm rain/day`);
-
-    if (t >= 40) { score -= 22; reasons.push("Extreme heat"); }
-    else if (t >= 37) { score -= 12; reasons.push("Very hot"); }
-    else if (t >= 34) { score -= 4; reasons.push("Hot"); }
+    // Heat is judged on what the body feels (lib/weather-rules.ts); "pleasant" on the air temperature. Said as plain numbers for the day
+    // (a day has no hour), never as "Hot".
+    const heat = dailyHeatBasisC(conditions);
+    const level = heatLevel(heat.c);
+    const feels = heat.feels && Math.round(heat.c) !== Math.round(t) ? ` (feels like up to ${Math.round(heat.c)}°C)` : "";
+    reasons.push(`${prefix}: daytime high ${Math.round(t)}°C${feels}, ${p < 1 ? "<1" : Math.round(p)} mm rain/day`);
+    if (level === "very-hot") { score -= 18; reasons.push(`Very high daytime temperature: ${Math.round(t)}°C${feels}`); }
+    else if (level === "hot") { score -= 6; reasons.push(`High daytime temperature: ${Math.round(t)}°C${feels}`); }
     else if (t >= 20 && t <= 30) { score += 6; reasons.push("Pleasant temperatures"); }
 
     if (rain === "hates") {

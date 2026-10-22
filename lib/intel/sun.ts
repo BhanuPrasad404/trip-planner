@@ -22,6 +22,15 @@ function eventUtcHours(lat: number, lng: number, dayOfYear: number, rising: bool
 
 export type SunTimes = { sunriseMin: number; sunsetMin: number } | null;
 
+/** Is the sun up at this place at this instant (its own date, its own sunrise and sunset)? Null where it never rises or sets. */
+export function isDaylightAt(lat: number, lng: number, utcMs: number, utcOffsetMin: number): boolean | null {
+  const s = sunTimes(lat, lng, utcMs, utcOffsetMin);
+  if (!s) return null;
+  const local = new Date(utcMs + utcOffsetMin * 60_000);
+  const m = local.getUTCHours() * 60 + local.getUTCMinutes();
+  return m >= s.sunriseMin && m < s.sunsetMin;
+}
+
 /** Minutes after LOCAL midnight (for a clock `utcOffsetMin` ahead of UTC) on the local date containing `utcMs`. */
 export function sunTimes(lat: number, lng: number, utcMs: number, utcOffsetMin: number): SunTimes {
   const local = new Date(utcMs + utcOffsetMin * 60_000);

@@ -34,7 +34,13 @@ import { TripAlerts } from "./TripAlerts";
 import { Button } from "./ui/Button";
 import { TripDatesPanel } from "./TripDatesPanel";
 import { TripCheck } from "./TripCheck";
-import { weatherVisual } from "@/lib/travel/weather-visual";
+import Link from "next/link";
+import { useWeatherBoard } from "@/lib/client/use-weather-board";
+import type { BoardStop } from "@/lib/forecast/board";
+import { tripDayISO } from "@/lib/forecast/ist";
+import { DEFAULT_VIEW, plannedInstant, typicalView } from "@/lib/forecast/view-time";
+import { SEVERITY_RANK } from "@/lib/weather-rules";
+import { StopWeatherLine, WeatherAlertRow } from "@/components/weather/WeatherParts";
 import { usePlanRoad } from "@/lib/client/use-plan-road";
 import { planLine } from "@/lib/map/plan-line";
 import { FormError } from "./ui/Field";
@@ -70,6 +76,14 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   const [showAddForm, setShowAddForm] = useState(false);
   // One tool panel open at a time (plan, when to leave, dates). Import has its own state because "Find alternatives" opens it with a brief.
   const [tool, setTool] = useState<Exclude<PlanTool, "import"> | null>(null);
+  // "?tool=dates" (from "No trip date set" on the trip's Weather page) opens the date picker.
+  useEffect(() => {
+    let wanted = false;
+    try { wanted = new URLSearchParams(window.location.search).get("tool") === "dates"; } catch { /* no URL */ }
+    if (!wanted) return;
+    const t = window.setTimeout(() => setTool("dates"), 0); // after the first paint, like the page's other browser-only state
+    return () => window.clearTimeout(t);
+  }, []);
   const toolRef = useRef<HTMLDivElement>(null);
   const [importState, setImportState] = useState<{ open: boolean; brief?: string; nonce: number }>({ open: false, nonce: 0 });
   const [mapFit, setMapFit] = useState<"day" | "all">("all");
@@ -127,14 +141,28 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
         .sort((a, b) => (votes[b.place.id]?.score ?? 0) - (votes[a.place.id]?.score ?? 0) || (a.place.sequence_order ?? 0) - (b.place.sequence_order ?? 0)),
     [enriched, votes]
   );
+  // ── Weather at each scheduled stop for the time it is planned (lib/forecast), refreshed by itself. ──
+  const wxNow = nowMinute ? nowMinute * 60_000 : 0;
+  const wxStops = useMemo<BoardStop[]>(() => places
+    .filter((p) => p.day_number !== null && (p.status ?? "planned") === "planned")
+    .map((p) => {
+      const dayISO = tripDayISO(trip.start_date, p.day_number);
+      return { id: p.id, name: p.name, lat: p.lat, lng: p.lng, isNext: false, liveEta: null, planned: plannedInstant(dayISO, p.arrival_time ?? null), dayISO, typical: typicalView(conditions[p.id]) };
+    }), [places, trip.start_date, conditions]);
+  const wx = useWeatherBoard({ enabled: wxNow > 0 && wxStops.length > 0, nowMs: wxNow, mode: DEFAULT_VIEW, here: null, stops: wxStops, road: [] });
+  const wxPlaces = useMemo(() => new Map(wx.places.map((p) => [p.id, p])), [wx.places]);
+  const wxAlertsFor = (id: string) => wx.alerts.filter((a) => a.placeId === id);
+  const dayWeatherAlerts = wx.alerts.filter((a) => SEVERITY_RANK[a.level] >= SEVERITY_RANK.warning && dayItems.some((e) => e.place.id === a.placeId));
+
+  // Day-level heads-ups only for stops with no forecast at their arrival hour (no planned time yet): never "Hot", plain numbers.
   const alerts = useMemo(
     () =>
       buildAlerts(
         dayItems
-          .filter((e) => e.place.status !== "done" && e.place.status !== "skipped")
+          .filter((e) => e.place.status !== "done" && e.place.status !== "skipped" && wxPlaces.get(e.place.id)?.moment?.status !== "ok")
           .map((e) => ({ id: e.place.id, name: e.place.name, category: e.category, conditions: conditions[e.place.id] ?? null }))
       ),
-    [dayItems, conditions]
+    [dayItems, conditions, wxPlaces]
   );
   const attention = useMemo(
     () =>
@@ -362,7 +390,9 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     reportCtx: { userId, now: reportNow, onChanged: refresh, outbox },
     busy: busyId === e.place.id,
     selected: selectedId === e.place.id,
-    weather: weatherVisual(conditions[e.place.id] ?? null, e.category),
+    weather: e.place.day_number !== null && (e.place.status ?? "planned") === "planned"
+      ? <StopWeatherLine place={wxPlaces.get(e.place.id)} alerts={wxAlertsFor(e.place.id)} nowMs={wxNow} onSetDates={() => setTool("dates")} />
+      : null,
     onShowOnMap: showOnMap,
   });
 
@@ -391,7 +421,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
             />
           )}
           {tool === "leave" && (
-            <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} conditions={conditions} roadLine={road.line} onClose={() => setTool(null)} onSetDates={() => setTool("dates")} onPlanTrip={() => setTool("plan")} />
+            <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} roadLine={road.line} onClose={() => setTool(null)} onSetDates={() => setTool("dates")} onPlanTrip={() => setTool("plan")} />
           )}
           {tool === "plan" && (
             <TripBuilder
@@ -525,6 +555,12 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
               </div>
 
               <TripAlerts alerts={alerts} />
+              {dayWeatherAlerts.length > 0 && (
+                <section aria-label="Weather alerts for this day" className="mt-2">
+                  <ul className="space-y-1.5">{dayWeatherAlerts.map((a) => <WeatherAlertRow key={a.id} a={a} />)}</ul>
+                </section>
+              )}
+              {wxStops.length > 0 && <Link href={`/trips/${trip.id}/weather`} className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-teal-ink">Weather for every stop<Glyph name="arrow" size={14} /></Link>}
 
               {dayItems.length === 0 ? (
                 <p className="py-10 text-center text-base text-ink-muted">

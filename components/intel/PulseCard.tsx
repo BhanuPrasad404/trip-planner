@@ -47,7 +47,7 @@ export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null,
       const res = await fetch("/api/pulse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lng, name, hours, hours_checked_at: hoursCheckedAt, utc_offset_min: -new Date().getTimezoneOffset(), include_photos: showTravelerPhotos }),
+        body: JSON.stringify({ lat, lng, name, hours, hours_checked_at: hoursCheckedAt, include_photos: showTravelerPhotos }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error ?? "Couldn't load live information.");

@@ -30,7 +30,12 @@ export const DEPARTURE_RULES = {
   noHoursLatestMin: 9 * 60,
 } as const;
 
-export type WeatherNote = { stopId: string; kind: "heat" | "rain"; /** Only a real forecast is ever passed in. */ forecastLabel: string };
+/**
+ * The forecast at a stop for the moment you would ARRIVE (from the hourly forecast, lib/forecast): what is worth saying, or null.
+ * It is asked for each arrival time considered, so a later start is judged on the weather THEN (never on the day's maximum).
+ */
+export type ForecastAt = { kind: "heat" | "rain" | "storm" | "visibility"; /** "Heavy rain (about 9 mm in the hour), Open-Meteo forecast for 6:30 PM". */ label: string };
+export type WeatherNote = { stopId: string; at: (arriveMs: number) => ForecastAt | null };
 
 export type DepartureAdvice = {
   status: DepartureStatus;
@@ -168,9 +173,10 @@ export function recommendDeparture(input: {
   for (const w of input.weather ?? []) {
     const v = pick.res.verdicts.find((x) => x.stopId === w.stopId);
     if (!v || v.arriveMs === null) continue;
-    const local = ((v.arriveMs - midnight) / MIN);
-    if (w.kind === "heat" && local >= 11.5 * 60 && local <= 16.5 * 60) tradeoffs.push(`${w.forecastLabel} at ${v.name}, and you'd arrive around ${time12(v.arriveMs, off)}, in the hottest part of the day. An earlier start would be more comfortable if the opening hours allow it.`);
-    if (w.kind === "rain") tradeoffs.push(`${w.forecastLabel} at ${v.name} (you'd arrive around ${time12(v.arriveMs, off)}). Rain can change what is practical there.`);
+    const f = w.at(v.arriveMs);
+    if (!f) continue;
+    if (f.kind === "heat") tradeoffs.push(`${f.label} at ${v.name} when you'd arrive, around ${time12(v.arriveMs, off)}. An earlier start would be more comfortable if the opening hours allow it.`);
+    else tradeoffs.push(`${f.label} at ${v.name} when you'd arrive, around ${time12(v.arriveMs, off)}. It can change what is practical there.`);
   }
 
   const first = pick.res.verdicts[0];

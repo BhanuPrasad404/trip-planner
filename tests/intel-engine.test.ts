@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildIntel } from "@/lib/intel/engine";
-import type { IntelInput, StopInput } from "@/lib/intel/types";
+import type { IntelInput, StopInput, WeatherSample } from "@/lib/intel/types";
 import type { PoiKind, PoiRecord } from "@/lib/poi/types";
 
 // Saturday 10 Oct 2026, 10:00 India time. The road runs due east along lat 17.0 from lng 80.0 to 81.0 (~106 km).
@@ -26,6 +26,11 @@ function scenario(over: Partial<IntelInput> = {}): IntelInput {
   };
 }
 const best = (r: ReturnType<typeof buildIntel>, kind: PoiKind) => r.aheadByKind[kind]?.[0];
+/** A forecast area's steps (the panel's format), fetched 5 minutes before `nowMs`. Each step: India hour, temperature, rain mm, chance. */
+const wx = (lat: number, lng: number, steps: [number, number, number, number][], nowMs = at(10)): WeatherSample => ({
+  lat, lng, fetchedAt: nowMs - 5 * 60_000,
+  steps: steps.map(([h, tempC, precipMm, precipProb]) => ({ time: at(h), tempC, feelsC: tempC, code: null, visibilityM: null, isDay: null, precipMm, precipProb, gustKmh: null })),
+});
 
 describe("ranking along the route", () => {
   it("drops places behind you, too far from the road, or closed when you'd arrive", () => {
@@ -70,8 +75,23 @@ describe("ranking along the route", () => {
     expect(best(biker, "repair")!.score).toBeGreaterThan(best(family, "repair")!.score);
   });
 
+  it("suggestions read the weather by the SAME rules as the weather panel: rain timing, the 60-minute limit, the 25 km limit", () => {
+    const pois = [poi("viewpoint", "Point", 25)]; // reached about 10:20
+    const score = (weather: WeatherSample[]) => best(buildIntel(scenario({ pois, weather })), "viewpoint")!.score;
+    const dry = score([]);
+    // Rain for 10-11 AM is on the 11:00 step (it describes the hour BEFORE it): it counts for a 10:20 arrival.
+    expect(score([wx(17, 80.2, [[10, 26, 0, 5], [11, 26, 3, 90]])])).toBeLessThan(dry);
+    // Rain on the 10:00 step is 9-10 AM: over before the arrival, so it does not count.
+    expect(score([wx(17, 80.2, [[10, 26, 3, 90], [11, 26, 0, 5]])])).toBe(dry);
+    // A forecast fetched 61 minutes ago is not used at all (the panel shows nothing then either).
+    const old = wx(17, 80.2, [[10, 26, 0, 5], [11, 26, 3, 90]]); old.fetchedAt = at(10) - 61 * 60_000;
+    expect(score([old])).toBe(dry);
+    // A forecast area more than 25 km away does not describe the place.
+    expect(score([wx(17.4, 80.2, [[10, 26, 0, 5], [11, 26, 3, 90]])])).toBe(dry);
+  });
+
   it("rain at the time you'd arrive lowers a viewpoint and lifts a cafe", () => {
-    const rainy = [{ lat: 17, lng: 80.2, hours: [10, 11, 12].map((h) => ({ time: new Date(at(h)).toISOString(), tempC: 24, precipMm: 3, precipProb: 90 })) }];
+    const rainy = [wx(17, 80.2, [10, 11, 12].map((h) => [h, 24, 3, 90] as [number, number, number, number]))];
     const pois = [poi("viewpoint", "Point", 25), poi("cafe", "Chai", 25)];
     const dry = buildIntel(scenario({ pois }));
     const wet = buildIntel(scenario({ pois, weather: rainy }));
@@ -198,27 +218,17 @@ describe("advice: adapting the plan", () => {
     expect(r.advice.filter((x) => x.kind === "skip").map((x) => x.action)).not.toContainEqual({ type: "skip", stopId: "near" });
   });
 
-  it("flags rain at an outdoor stop at the time you'll arrive, and points to a dry alternative", () => {
-    const hrs = (prob: number) => [10, 11, 12, 13, 14, 15].map((h) => ({ time: new Date(at(h)).toISOString(), tempC: 26, precipMm: prob > 50 ? 3 : 0, precipProb: prob }));
-    const r = buildIntel(scenario({
-      route: { line: LINE, legs: [{ km: 53, minutes: 65 }, { km: 53, minutes: 65 }] },
-      stops: [stop("a", 53), stop("b", 106)],
-      weather: [{ lat: 17, lng: 80.5, hours: hrs(10) }, { lat: 17, lng: 81.0, hours: hrs(90) }],
-    }));
-    const rain = r.advice.find((x) => x.kind === "weather" && x.id === "rain-b")!;
-    expect(rain.title).toMatch(/Rain likely at Stop b around \d\d:\d\d \(90%\)/);
-    expect(rain.detail).toMatch(/Stop a looks dry/);
-    expect(r.advice.find((x) => x.id === "rain-a")).toBeUndefined();
-  });
 
-  it("does not warn about rain at indoor stops", () => {
-    const r = buildIntel(scenario({ stops: [stop("end", 106, { outdoor: false })], weather: [{ lat: 17, lng: 81, hours: [12, 13].map((h) => ({ time: new Date(at(h)).toISOString(), tempC: 24, precipMm: 5, precipProb: 95 })) }] }));
-    expect(r.advice.some((x) => x.kind === "weather")).toBe(false);
+
+  it("gives no weather advice of its own: the weather at the stops is said in one place, the weather panel (same rules)", () => {
+    const rain = [wx(17, 81, [11, 12, 13].map((h) => [h, 24, 5, 95] as [number, number, number, number])), wx(17, 80.5, [11, 12, 13].map((h) => [h, 24, 5, 95] as [number, number, number, number]))];
+    const r = buildIntel(scenario({ route: { line: LINE, legs: [{ km: 53, minutes: 65 }, { km: 53, minutes: 65 }] }, stops: [stop("a", 53), stop("b", 106)], weather: rain }));
+    expect(r.advice.filter((x) => (x.kind as string) === "weather")).toEqual([]);
   });
 
   it("warns when an outdoor stop would be reached after sunset", () => {
     const r = buildIntel(scenario({ nowMs: at(16, 30) })); // arrive ≈ 18:40, sunset ≈ 17:52
-    expect(r.advice.find((x) => x.kind === "daylight")!.detail).toMatch(/sunset is 17:5\d/);
+    expect(r.advice.find((x) => x.kind === "daylight")!.detail).toMatch(/sunset there is 17:\d\d/); // the stop's own sunset
   });
 
   it("copes with no stops at all", () => {
@@ -293,12 +303,12 @@ describe("Travel Radar, break-from-real-driving, opportunities, health", () => {
     expect(buildIntel(scenario({ drivingMin: 30, pois: [poi("cafe", "Roadside Cafe", 9)] })).smartStops.find((s) => s.type === "break")).toBeUndefined();
   });
 
-  it("calls out a 'better opportunity' with the reasons (clear weather, sunset), and offers Go There", () => {
-    const clear = [{ lat: 17, lng: 80.2, hours: [14, 15, 16, 17].map((h) => ({ time: new Date(at(h)).toISOString(), tempC: 27, precipMm: 0, precipProb: 5 })) }];
+  it("calls out a 'better opportunity' with the reasons (dry weather, sunset), and offers Go There", () => {
+    const clear = [wx(17, 80.2, [14, 15, 16, 17].map((h) => [h, 27, 0, 5] as [number, number, number, number]), at(15, 0))];
     const r = buildIntel(scenario({ nowMs: at(15, 0), weather: clear, route: { line: LINE, legs: [{ km: 106, minutes: 130 }] }, pois: [poi("sight", "Hill Temple", 12, 500)] }));
     const o = r.advice.find((a) => a.id === "detour")!;
     expect(o.title).toBe("Better opportunity found");
-    expect(o.detail).toMatch(/Hill Temple is \d+ min ahead with clear weather/);
+    expect(o.detail).toMatch(/Hill Temple is \d+ min ahead with dry weather then/); // dry, not "clear": the sky is not claimed
     expect(o.detail).toMatch(/adds a \d+-minute detour and fits your schedule/);
     expect(o.action).toEqual({ type: "insert_stop", key: "osm|sight/Hill Temple" });
     expect(o.why!.length).toBeGreaterThan(1);
@@ -329,39 +339,14 @@ describe("Travel Radar, break-from-real-driving, opportunities, health", () => {
 });
 
 describe("weather right now and the sun (the things a traveller checks first)", () => {
-  const hours = (from: number, n: number, prob = 20) => Array.from({ length: n }, (_, i) => ({ time: new Date(at(from + i)).toISOString(), tempC: 30 - i * 0.6, precipMm: 0, precipProb: prob + i * 10 }));
 
-  it("gives this hour's forecast and the next six hours, labelled in local time", async () => {
-    const { weatherNowFrom } = await import("@/lib/intel/engine");
-    const w = weatherNowFrom([{ lat: 17, lng: 80, hours: hours(9, 12) }], { lat: 17, lng: 80 }, at(10, 30), 330)!;
-    expect(w.tempC).toBe(29); // the 10:00 hour: 30 - 0.6
-    expect(w.precipProb).toBe(30);
-    expect(w.next).toHaveLength(6);
-    expect(w.next[0]).toMatchObject({ clock: "11:00", precipProb: 40 });
-    expect(w.next[5].clock).toBe("16:00");
-    expect(w.pointKm).toBe(0);
-  });
 
-  it("uses the forecast point nearest to you, and says how far away it was", async () => {
-    const { weatherNowFrom } = await import("@/lib/intel/engine");
-    const near = { lat: 17, lng: 80.05, hours: hours(9, 4, 5) };
-    const far = { lat: 17, lng: 81, hours: hours(9, 4, 95) };
-    const w = weatherNowFrom([far, near], { lat: 17, lng: 80 }, at(10, 5), 330)!;
-    expect(w.precipProb).toBe(15); // the near one
-    expect(w.pointKm).toBeGreaterThan(4);
-  });
 
-  it("returns nothing (never a guess) with no forecast or when the forecast doesn't cover now", async () => {
-    const { weatherNowFrom } = await import("@/lib/intel/engine");
-    expect(weatherNowFrom([], { lat: 17, lng: 80 }, at(10), 330)).toBeNull();
-    expect(weatherNowFrom([{ lat: 17, lng: 80, hours: hours(20, 3) }], { lat: 17, lng: 80 }, at(10), 330)).toBeNull();
-    expect(buildIntel(scenario()).weatherNow).toBeNull();
-  });
 
-  it("is part of the intelligence result when a forecast exists", () => {
-    const r = buildIntel(scenario({ weather: [{ lat: 17, lng: 80, hours: hours(9, 10) }] }));
-    expect(r.weatherNow?.tempC).toBe(29);
-  });
+
+
+
+
 
   it("names the next sun event: sunrise before dawn, sunset by day, tomorrow's sunrise at night", async () => {
     const { sunNextFrom } = await import("@/lib/intel/engine");

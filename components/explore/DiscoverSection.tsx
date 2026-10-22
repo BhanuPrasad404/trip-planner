@@ -154,7 +154,7 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
             {state.status === "error" && (
               <p role="alert" className="rounded-2xl border border-line bg-clay-light/40 p-4 text-sm font-semibold text-clay-ink">{state.error} <Button size="sm" variant="ghost" onClick={state.retry}>Try again</Button></p>
             )}
-            {state.status === "ready" && state.stale && <p className="mb-2 rounded-xl bg-sky px-3 py-2 text-xs text-ink-muted">The map servers are busy, so this is the list we saved{state.fetchedAt ? ` on ${new Date(state.fetchedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}. It may be slightly out of date.</p>}
+            {state.status === "ready" && state.stale && <p className="mb-2 rounded-xl bg-sky px-3 py-2 text-xs text-ink-muted">The map servers are busy, so this is the list we saved{state.fetchedAt ? ` on ${new Date(state.fetchedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}` : ""}. It may be slightly out of date.</p>}
             {state.status === "ready" && state.items.length === 0 && (
               <p className="rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">
                 {q.trim() ? `Nothing in these results matches “${q.trim()}”.` : `No ${catLabel} found in ${where}. The map may list few places there.`}{" "}

@@ -29,7 +29,8 @@ import { PulseCard } from "./intel/PulseCard";
 import { RadarList } from "./intel/RadarList";
 import { TripHealthStrip } from "./intel/TripHealthStrip";
 import { UndoToast } from "./intel/UndoToast";
-import { WeatherSunCard } from "./intel/WeatherSunCard";
+import { WeatherPanel } from "./weather/WeatherPanel";
+import { weatherHealth } from "@/lib/forecast/present";
 import { TripMapLazy } from "./TripMapLazy";
 import { FormError } from "./ui/Field";
 import { Glyph } from "@/components/ui/Glyph";
@@ -74,7 +75,9 @@ function LiveScreen({ e }: { e: Engine }) {
   const navUiUi = { ...navUi.ui, onArrivedDone: navUi.ui.onArrivedDone && navTarget ? () => void actions.setStatus(navTarget.id, "done", `Marked ${navTarget.name} done`) : undefined };
 
   const result = intel.result;
-  const advice = (result?.advice ?? []).filter((a) => !dismissed.has(a.id));
+  // The weather on this screen comes ONLY from the weather panel (its rules: lib/weather-rules.ts). The suggestions' own weather notes
+  // are left out until they use the same rules.
+  const advice = (result?.advice ?? []).filter((a) => !dismissed.has(a.id) && a.kind !== "weather");
   const mapping = !!intel.coverage && intel.coverage.ready < intel.coverage.total && intel.coverage.failed === 0;
   const busy = actions.replanning || actions.busyId !== null;
   const byId = new Map(places.map((p) => [p.id, p]));
@@ -150,14 +153,18 @@ function LiveScreen({ e }: { e: Engine }) {
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
       <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={left?.next.km ?? null} nextKmText={left ? kmText(left.next.km, left) : null} />
       <LiveTolls tolls={tolls} />
-      <TripHealthStrip health={result?.health ?? null} />
+      <TripHealthStrip health={result ? { ...result.health, weather: weatherHealth(e.weather.board) } : null} />
       {intel.mode === "preview" && result && live.localDate && live.localTime && (
         <p role="note" className="flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">
           <Glyph name="info" size={16} className="mt-0.5 shrink-0 text-pine" />
           <span><strong className="text-pine">Preview.</strong> Times and advice here assume you set off from {live.previewFrom?.label ?? "your start"} right now ({dayWithDate(live.localDate, live.localDate)}, {live.localTime}). Start your drive to use your real position.</span>
         </p>
       )}
-      {result && <WeatherSunCard weather={result.weatherNow} sun={result.sun} sunNext={result.sunNext} where={live.liveOk ? "your location" : live.previewFrom?.label ?? "the start"} updatedAt={intel.updatedAt} nowMs={live.nowMs} tripNote={live.weatherNote} />}
+      <WeatherPanel
+        board={e.weather.board} mode={e.weather.mode} setMode={e.weather.setMode} nowMs={e.weather.nowMs}
+        hereSource={e.weather.hereSource} device={e.weather.device} requestDevice={e.weather.requestDevice}
+        limit={4} allStopsHref={`/trips/${trip.id}/weather`}
+      />
 
       <div aria-live="polite" className="space-y-2 empty:hidden">
         <FormError message={actions.error ?? intel.error} />

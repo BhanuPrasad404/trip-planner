@@ -150,15 +150,6 @@ body {
 .tm-check-pop { animation: tm-check-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) { .tm-sheet-in, .tm-check-pop { animation: none; } }
 
-/* Live weather card: effects that exist ONLY when the weather right now calls for them. Transform and opacity only; still for reduced motion. */
-.tm-fx { z-index: 0; }
-.tm-fx-rain { background: linear-gradient(180deg, rgba(158, 201, 217, 0.22), rgba(158, 201, 217, 0)); }
-.tm-fx-rain i { position: absolute; top: -12px; width: 1.5px; height: 12px; border-radius: 2px; background: rgba(18, 84, 107, 0.45); animation: tm-fx-fall 1.2s linear infinite; }
-.tm-fx-heat { background: radial-gradient(circle at 100% 0%, rgba(232, 163, 61, 0.38), rgba(232, 163, 61, 0) 62%); animation: tm-fx-warm 5s ease-in-out infinite; }
-.tm-fx-cold { background: linear-gradient(180deg, rgba(185, 207, 227, 0.35), rgba(185, 207, 227, 0)); }
-@keyframes tm-fx-fall { from { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(150px); opacity: 0; } }
-@keyframes tm-fx-warm { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .tm-fx-rain i { display: none; } .tm-fx-heat { animation: none; opacity: 0.8; } }
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════

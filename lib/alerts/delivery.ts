@@ -9,7 +9,7 @@ export type AlertAction = { id: string; label: string };
 export type AppAlert = {
   /** Same finding = same id, so it is shown once (for a toll: one id per toll plaza on this route). */
   id: string;
-  kind: "arrival" | "toll" | "advice" | "system" | "test";
+  kind: "arrival" | "toll" | "advice" | "system" | "test" | "weather";
   level: AlertLevel;
   title: string;
   /** One short sentence. */
@@ -23,6 +23,10 @@ export type AppAlert = {
   cooldownMs?: number;
   /** Remove the in-app card by itself after this long, if it was not dismissed first (a warning that has stopped being true must not linger). */
   ttlMs?: number;
+  /** Never a sound (it may still buzz, if the traveller allows buzzing). Weather alerts while driving. */
+  silent?: boolean;
+  /** Never a phone notification: it belongs in the app's alert list only. Weather alerts while driving. */
+  noPhone?: boolean;
 };
 
 export type Permission = "granted" | "denied" | "default" | "unsupported";
@@ -39,11 +43,11 @@ export function planDelivery(alert: AppAlert, prefs: AlertPrefs, ctx: DeliveryCo
 
   const loud = important && !quiet; // the only alerts allowed to use sound, buzz or the phone's notifications
   const inApp = alert.inApp !== false && alert.level <= 3;
-  const phone = loud && prefs.phone && ctx.permission === "granted" && !ctx.appVisible;
+  const phone = loud && !alert.noPhone && prefs.phone && ctx.permission === "granted" && !ctx.appVisible;
   if (loud && prefs.phone && ctx.permission !== "granted") why.push(ctx.permission === "denied" ? "Phone notifications are blocked in the browser" : ctx.permission === "unsupported" ? "This browser can't show phone notifications" : "Phone notifications aren't allowed yet");
   if (loud && phone === false && prefs.phone && ctx.permission === "granted" && ctx.appVisible) why.push("The app is open, so no phone notification");
   // While the app is open the traveller is looking at it: a tone or buzz helps when their eyes are on the road. A notification would just repeat the card.
-  const sound = loud && prefs.sound && ctx.appVisible && ctx.canBeep;
+  const sound = loud && !alert.silent && prefs.sound && ctx.appVisible && ctx.canBeep;
   const haptic = loud && prefs.haptics && ctx.canVibrate;
   return { inApp, phone, sound, haptic, why };
 }

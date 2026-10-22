@@ -85,7 +85,9 @@ describe("Live Place Pulse", () => {
 
   it("sorts the most trustworthy and freshest information first", () => {
     const p = pulse([rep("a", ["crowded"], 10), rep("b", ["muddy"], 60 * 30)], {
-      hours: "24/7", weather: { time: "2026-10-10T08:00:00Z", tempC: 27.4, precipMm: 0, precipProb: 20 },
+      hours: "24/7",
+      // The weather here now, as lib/forecast/moment.ts gives it (the same rules as the weather panel).
+      weather: { status: "ok", at: Date.parse("2026-10-10T08:00:00Z"), shownAt: Date.parse("2026-10-10T08:00:00Z"), rainFrom: null, rainTo: null, tempC: 27.4, feelsC: null, code: null, visibilityM: null, precipMm: 0, precipProb: 20, gustKmh: null, isDay: true, condition: null, hazards: [], level: null, fetchedAt: Date.parse("2026-10-10T07:55:00Z") },
     });
     expect(p.signals.map((s) => s.source)).toEqual(["recent", "forecast", "map-data", "community"]);
     expect(p.signals.find((s) => s.source === "forecast")!.value).toBe("27°C · 20% chance of rain");

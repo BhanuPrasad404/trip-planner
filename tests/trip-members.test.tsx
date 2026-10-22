@@ -208,7 +208,9 @@ describe("the person who was removed sees a clear message", () => {
   let r: TestRenderer.ReactTestRenderer;
   let events: string[];
   beforeEach(() => {
-    browser.tripRow = { id: "t" }; browser.tripError = null; browser.listeners = []; events = []; router.refresh.mockClear();
+    // Listeners are NOT cleared: the trip's status channel is shared and lingers a moment after a watcher leaves, so the next watcher
+    // joins the same channel (lib/client/shared-channel.ts) and hears hints through it.
+    browser.tripRow = { id: "t" }; browser.tripError = null; events = []; router.refresh.mockClear();
     vi.stubGlobal("document", { visibilityState: "visible", addEventListener() {}, removeEventListener() {} });
     vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, dispatchEvent: (e: Event) => { events.push(e.type); return true; }, localStorage: { length: 0, key: () => null, removeItem() {} } });
     vi.stubGlobal("navigator", { onLine: true });

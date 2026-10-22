@@ -18,10 +18,14 @@ const browser = {
   checks: 0,
   sent: [] as unknown[],
   listeners: [] as { event: string; cb: () => void }[],
+  /** A status channel this page already has open (its own TripGoneWatcher). */
+  existing: null as null | { topic: string; send: (m: unknown) => Promise<string> },
+  removed: [] as unknown[],
 };
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => { browser.checks++; if (browser.throwOnCheck) throw new TypeError("fetch failed"); return { data: browser.tripRow, error: browser.tripError }; } }) }) }),
+    getChannels: () => (browser.existing ? [browser.existing] : []),
     channel: () => {
       const ch = {
         on: (_t: string, f: { event: string }, cb: () => void) => { browser.listeners.push({ event: f.event, cb }); return ch; },
@@ -30,7 +34,7 @@ vi.mock("@/lib/supabase/client", () => ({
       };
       return ch;
     },
-    removeChannel: async () => "ok",
+    removeChannel: async (c: unknown) => { browser.removed.push(c); return "ok"; },
   }),
 }));
 const serverUser = { current: { id: "owner" } as { id: string } | null };
@@ -205,6 +209,19 @@ describe("DeleteTripButton", () => {
     expect(JSON.parse(fetchCalls[0].init.body as string)).toEqual({ confirm_name: "Araku weekend" });
     expect(browser.sent).toHaveLength(1);
     expect(router.replace).toHaveBeenCalledWith("/trips?deleted=1");
+  });
+
+  it("the trip page's own watcher already has the status channel open: the broadcast goes out on it, and it is left open", async () => {
+    const existing = { topic: `realtime:trip-status-${TRIP}`, send: async (m: unknown) => { browser.sent.push(m); return "ok"; } };
+    browser.existing = existing; browser.removed = [];
+    try {
+      mount();
+      await act(async () => { byText("Delete trip").props.onClick(); });
+      type("Araku weekend");
+      await act(async () => { await byText("Delete forever").props.onClick(); });
+      expect(browser.sent).toEqual([{ type: "broadcast", event: "trip-deleted", payload: { tripId: TRIP } }]);
+      expect(browser.removed).toEqual([]);
+    } finally { browser.existing = null; }
   });
 
   it("a refusal from the server is shown, and nothing navigates away", async () => {

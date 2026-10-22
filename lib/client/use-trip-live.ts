@@ -3,6 +3,7 @@
 import type { Vehicle } from "@/lib/vehicle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
+import { INDIA_UTC_OFFSET_MIN, clockOf, dateOf } from "@/lib/travel/clock";
 import { useDrive, type Drive, type DriveTarget, type Me } from "@/lib/client/use-drive";
 import { speak, useNavigation, type Navigation } from "@/lib/client/use-navigation";
 import { useArrival, withoutStaleApproach } from "@/lib/client/use-arrival";
@@ -64,10 +65,10 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   const [saved] = useState(() => restore);
   const nowMinute = useNowMinute(); // 0 on the server → no clock mismatch
   const nowMs = nowMinute * 60_000;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const localNow = nowMinute ? new Date(nowMs) : null;
-  const localDate = localNow ? `${localNow.getFullYear()}-${pad(localNow.getMonth() + 1)}-${pad(localNow.getDate())}` : null;
-  const localTime = localNow ? `${pad(localNow.getHours())}:${pad(localNow.getMinutes())}` : null;
+  // "Today" and "now" are India time (+5:30) whatever time zone the phone is set to: a trip in India runs on India's calendar
+  // (a phone still on Tokyo or New York time must not move the drive to another day, or show another day's stops and weather).
+  const localDate = nowMinute ? dateOf(nowMs, INDIA_UTC_OFFSET_MIN) : null;
+  const localTime = nowMinute ? clockOf(nowMs, INDIA_UTC_OFFSET_MIN) : null;
   // Which day is this drive on? Inside the planned dates: today's day. Just AFTER the planned end (an overnight drive that
   // crosses midnight on the last day) it is still the last day — the trip is not "in the past" while you are travelling it.
   // A trip the owner RESUMED runs today on the first day that still has something to do, whatever its planned dates say; a closed

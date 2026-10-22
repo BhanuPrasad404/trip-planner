@@ -7,9 +7,16 @@ import {
   MEMBERS_CHANGED_BROADCAST, TRIP_DELETED_BROADCAST, TRIP_DELETED_TITLE, TRIP_GONE_EVENT, TRIP_GONE_TITLE, TRIP_REMOVED_TITLE,
   forgetTripLocally, isDeletingHere, provesTripGone, tripStatusChannel,
 } from "@/lib/trip/deletion";
+import { sharedChannelPool } from "@/lib/client/shared-channel";
 import { LinkButton } from "./ui/Button";
 
 const CHECK_EVERY_MS = 60_000;
+
+/** One status channel per trip on this page, shared by every watcher (lib/client/shared-channel.ts). */
+export const joinTripStatus = sharedChannelPool(["deleted", "members"] as const, (sb, tripId, emit) =>
+  sb.channel(tripStatusChannel(tripId))
+    .on("broadcast", { event: TRIP_DELETED_BROADCAST }, () => emit("deleted"))
+    .on("broadcast", { event: MEMBERS_CHANGED_BROADCAST }, () => emit("members")));
 
 /**
  * Shown on every page of a trip. If the trip is deleted while someone has it open (planning, or driving with the map), they get a
@@ -56,12 +63,10 @@ export function TripGoneWatcher({ tripId }: { tripId: string }) {
       }
     };
 
-    const channel = sb
-      .channel(tripStatusChannel(tripId))
-      .on("broadcast", { event: TRIP_DELETED_BROADCAST }, () => { hinted = "deleted"; void check(); })
-      // Someone left or was removed (maybe me): if I can still see the trip it was someone else, so just refresh the member list.
-      .on("broadcast", { event: MEMBERS_CHANGED_BROADCAST }, () => { hinted = "removed"; void check(() => { hinted = null; routerRef.current.refresh(); }); })
-      .subscribe();
+    // Shared: the trip layout's watcher hands over to the drive's (and back) without losing a hint on a channel that is closing.
+    const leaveDeleted = joinTripStatus(sb, tripId, "deleted", () => { hinted = "deleted"; void check(); });
+    // Someone left or was removed (maybe me): if I can still see the trip it was someone else, so just refresh the member list.
+    const leaveMembers = joinTripStatus(sb, tripId, "members", () => { hinted = "removed"; void check(() => { hinted = null; routerRef.current.refresh(); }); });
     const onVisible = () => { if (document.visibilityState === "visible") void check(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
@@ -72,7 +77,8 @@ export function TripGoneWatcher({ tripId }: { tripId: string }) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
-      void sb.removeChannel(channel);
+      leaveDeleted();
+      leaveMembers();
     };
   }, [tripId]);
 

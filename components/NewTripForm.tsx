@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
 import { useRouter } from "next/navigation";
 import { START_CITIES } from "@/lib/cities";
 import { MAX_TRIP_DAYS } from "@/lib/types";
@@ -8,10 +9,9 @@ import { PlaceSearch, type PickedPlace } from "./PlaceSearch";
 import { Button } from "./ui/Button";
 import { FormError, TextField } from "./ui/Field";
 
+/** Today's date in India, whatever the phone's own time zone. */
 function todayISO() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return dateOf(Date.now(), INDIA_UTC_OFFSET_MIN);
 }
 
 const QUICK_STARTS: PickedPlace[] = START_CITIES.map((c) => ({ name: c.name, address: "India", lat: c.lat, lng: c.lng }));

@@ -35,8 +35,5 @@ export const WEATHER_FIT = {
   rainyViewpoint: 0.5,
   rainySight: 0.75,
   rainShelter: 1.15, // cafés / food while it rains
-  hotCoolBreak: 1.15,
-  hotFromC: 36,
-  rainyProbPct: 60,
-  rainyMm: 1.5,
+  hotCoolBreak: 1.15, // when it is hot there then (lib/weather-rules.ts decides what "hot" and "rain likely" mean)
 } as const;

@@ -14,8 +14,7 @@ import { GoScoreBadge } from "./GoScoreBadge";
 import { PlaceReports } from "./PlaceReports";
 import { PlaceSearch, type PickedPlace } from "./PlaceSearch";
 import { SeasonBadge } from "./SeasonBadge";
-import { WeatherChip } from "./WeatherChip";
-import type { WeatherVisual } from "@/lib/travel/weather-visual";
+import type { ReactNode } from "react";
 import { Button } from "./ui/Button";
 import { Menu, MenuItem, MenuLabel } from "./ui/Menu";
 import { Spinner } from "@/components/ui/Spinner";
@@ -55,8 +54,8 @@ type StopCardProps = {
   busy?: boolean;
   /** Open the "more actions" menu on first render (tests and screenshots). */
   menuOpen?: boolean;
-  /** The weather at this stop on its day, from real data (see lib/travel/weather-visual.ts). Fair weather is not shown. */
-  weather?: WeatherVisual | null;
+  /** The weather at this stop for the time it is planned (components/weather/WeatherParts.tsx StopWeatherLine), or nothing. */
+  weather?: ReactNode;
   /** This stop is the one picked on the map (or by "Show on the map"). */
   selected?: boolean;
   /** Fly the map to this stop and open its details. */
@@ -178,7 +177,7 @@ export function StopCard({
         </div>
       )}
 
-        {weather && weather.basis === "forecast" && weather.kind !== "fair" && <WeatherChip v={weather} />}
+        {weather}
       </div>
 
       {/* The few things you do all the time */}
@@ -238,7 +237,6 @@ export function StopCard({
           </div>
           {place.address && <p className="flex items-start gap-1.5 break-words text-sm text-ink-muted"><Glyph name="pin" size={14} className="mt-0.5" />{place.address}</p>}
           {score && <GoScoreBadge score={score} forDay={scoreFor} />}
-          {weather && weather.basis === "typical" && weather.kind !== "fair" && <p className="text-sm text-ink-muted"><strong className="text-pine">{weather.headline}.</strong> {weather.detail}.</p>}
           {status === "wrong_season" && seasonReason && <p className="text-sm leading-relaxed text-ink-muted">{seasonReason}</p>}
           {place.notes && <p className="rounded-xl bg-sky/70 px-3 py-2 text-sm leading-relaxed text-ink">{place.notes}</p>}
           {seasonSource?.urls?.[0] && status !== "unknown" && (

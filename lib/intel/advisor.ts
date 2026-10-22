@@ -1,7 +1,8 @@
 // "What should I do next?" — turns the situation into a short, prioritised list of advice, each with an optional one-tap action.
 // It never changes anything itself: replan / skip are suggestions the traveller confirms.
-import { clockLabel, isRainy, localMinute, weatherAt } from "./ranking";
-import type { Advice, RankedPoi, SmartStop, StopEta, StopInput, WeatherSample } from "./types";
+import { clockLabel, localMinute } from "./ranking";
+import { sunTimes } from "./sun";
+import type { Advice, RankedPoi, SmartStop, StopEta, StopInput } from "./types";
 
 type Args = {
   smartStops: SmartStop[];
@@ -13,8 +14,8 @@ type Args = {
   dayEndMin: number;
   nowMs: number;
   utcOffsetMin: number;
-  weather: WeatherSample[];
-  sunsetMin: number | null;
+  /** Arrival instant at each stop, or null when unknown (same order as `stops`). */
+  arriveMs: (number | null)[];
   comparePlan: boolean;
   canMoveNextDay: boolean;
 };
@@ -104,38 +105,18 @@ export function buildAdvice(a: Args): Advice[] {
     }
   }
 
-  // Weather and daylight at each outdoor stop, at the time you'll actually be there.
-  const dryOutdoor: string[] = [];
-  const wet: { s: StopInput; clock: string; prob: number | null }[] = [];
+  // Daylight at each outdoor stop when you ARRIVE: its own sunset on that day (the sun, not the forecast). The WEATHER at the stops
+  // (rain, storm, fog, heat) is said in one place only, the weather panel (lib/forecast), so it is never said twice or two ways.
   a.stops.forEach((s, i) => {
-    if (!s.outdoor) return;
     const eta = a.stopEtas[i];
-    if (!eta) return;
-    const etaMs = a.nowMs + etaMinutesFrom(a, i) * 60_000;
-    const w = weatherAt(a.weather, s, etaMs);
-    if (isRainy(w)) wet.push({ s, clock: eta.etaClock, prob: w?.precipProb ?? null });
-    else if (w) dryOutdoor.push(s.name);
-    if (w && w.tempC >= 38) {
-      out.push({ id: `heat-${s.id}`, kind: "weather", priority: 70, urgency: "soon", title: `Very hot at ${s.name} (${Math.round(w.tempC)}°C)`, detail: `You'll be there around ${eta.etaClock}. Carry water and keep outdoor time short, or go earlier.` });
-    }
-    if (a.sunsetMin !== null) {
-      const arrive = localMinute(etaMs, a.utcOffsetMin);
-      if (arrive >= a.sunsetMin - 20 && arrive < a.sunsetMin + 240) {
-        out.push({ id: `dark-${s.id}`, kind: "daylight", priority: 78, urgency: "soon", title: `${s.name} may be in the dark`, detail: `You'll arrive around ${eta.etaClock}; sunset is ${String(Math.floor(a.sunsetMin / 60)).padStart(2, "0")}:${String(a.sunsetMin % 60).padStart(2, "0")}. Outdoor places can be unsafe or closed after dark.` });
-      }
+    const at = a.arriveMs[i];
+    if (!eta || !s.outdoor || at === null || at === undefined) return;
+    const sun = sunTimes(s.lat, s.lng, at, a.utcOffsetMin);
+    const arrive = localMinute(at, a.utcOffsetMin);
+    if (sun && arrive >= sun.sunsetMin - 20 && arrive < sun.sunsetMin + 240) {
+      out.push({ id: `dark-${s.id}`, kind: "daylight", priority: 78, urgency: "soon", title: `${s.name} may be in the dark`, detail: `You'll arrive around ${eta.etaClock}; sunset there is ${String(Math.floor(sun.sunsetMin / 60)).padStart(2, "0")}:${String(sun.sunsetMin % 60).padStart(2, "0")}. Outdoor places can be unsafe or closed after dark.` });
     }
   });
-  for (const w of wet) {
-    out.push({
-      id: `rain-${w.s.id}`,
-      kind: "weather",
-      priority: 85,
-      urgency: "soon",
-      title: `Rain likely at ${w.s.name} around ${w.clock}${w.prob !== null ? ` (${Math.round(w.prob)}%)` : ""}`,
-      detail: dryOutdoor.length > 0 ? `${dryOutdoor[0]} looks dry at its time — consider doing that first, or keep rain gear handy.` : "Keep rain gear handy; trails and viewpoints can be slippery or foggy.",
-      why: [`Forecast at ${w.s.name} for ${w.clock}${w.prob !== null ? `: ${Math.round(w.prob)}% chance of rain` : ""}`, "Outdoor stop (viewpoints, trails and forts are affected by rain)"],
-    });
-  }
 
   const seen = new Set<string>();
   return out.filter((x) => !seen.has(x.id) && seen.add(x.id)).sort((x, y) => y.priority - x.priority);
@@ -148,16 +129,6 @@ function whyOf(s: SmartStop): string[] {
   if (o?.open.state === "open") facts.push(`Open when you arrive${o.open.at ? ` (until ${o.open.at})` : ""}`);
   else if (o?.open.state === "unknown") facts.push("Opening hours are not listed on the map, so call ahead if it matters");
   return facts;
-}
-
-/** Minutes from now until we ARRIVE at stop i (driving legs + stays at earlier stops). */
-function etaMinutesFrom(a: Args, i: number): number {
-  let t = 0;
-  for (let k = 0; k <= i; k++) {
-    t += a.legMinutes[k] ?? 0;
-    if (k < i) t += a.stops[k].visitMin;
-  }
-  return t;
 }
 
 export type { RankedPoi };

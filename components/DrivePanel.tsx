@@ -1,5 +1,6 @@
 "use client";
 
+import { INDIA_UTC_OFFSET_MIN, minuteOfDay } from "@/lib/travel/clock";
 import { delayText, formatDistance, freshness, lastSeenText, summarizeDrive } from "@/lib/live";
 import { distanceKm } from "@/lib/geo";
 import { safeColor } from "@/lib/format";
@@ -38,13 +39,13 @@ const dotClass = { live: "bg-teal", recent: "bg-marigold", stale: "bg-line" } as
 export function DrivePanel({ drive, members, userId, stops, stayMinutes, comparePlan, dayLabel, nowMs, distanceLeft, arrival, sound }: DrivePanelProps) {
   const { active, share, me, quality, error, route, members: live } = drive;
 
-  const now = new Date(nowMs);
-  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+  // India time, whatever the phone's own time zone (the plan's times are India time).
+  const minuteNow = minuteOfDay(nowMs, INDIA_UTC_OFFSET_MIN);
   const byId = new Map(stops.map((s) => [s.id, s]));
   // Same numbers as every other screen: from my position, through the remaining stops only (never a deleted one).
   const left = distanceLeft !== undefined ? distanceLeft : remainingDistance({ targets: stops, route, nav: null, me, quality, nowMs: me?.at ?? 0 });
   const routeStops = left ? left.stops.map((s) => byId.get(s.id)).filter((s): s is DriveTarget => !!s) : [];
-  const summary = left && me && routeStops.length === left.legs.length ? summarizeDrive(left.legs, routeStops, minuteOfDay, comparePlan, stayMinutes) : null;
+  const summary = left && me && routeStops.length === left.legs.length ? summarizeDrive(left.legs, routeStops, minuteNow, comparePlan, stayMinutes) : null;
   const dist = (km: number) => (left ? kmText(km, left) : formatDistance(km));
   const delay = summary ? delayText(summary.next.delayMin) : null;
 

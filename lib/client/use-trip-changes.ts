@@ -3,38 +3,20 @@
 import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { STOPS_CHANGED, stopsChannel } from "./stop-signal";
+import { sharedChannelPool } from "./shared-channel";
 import { stopsSignature, type StopRow } from "@/lib/trip/stop-change";
 
 export const DRIVE_CHECK_MS = 120_000;
 
-// ONE Realtime channel per trip on this page, shared by every screen that listens (the drive runs app-wide, so it and the plan can be
-// open together). Supabase hands back the SAME channel for the same topic, and adding listeners to a channel that is already joined
-// throws, so each screen registers its listener here instead; the channel closes when the last screen leaves.
+// ONE Realtime channel per trip on this page, shared by every screen that listens (lib/client/shared-channel.ts). Screens that asked
+// for row events hear them and the "stops changed" hint; the others hear only the hint.
 type Sb = ReturnType<typeof createClient>;
-type Shared = { channel: ReturnType<Sb["channel"]>; broadcast: Set<() => void>; rows: Set<() => void> };
-const sharedChannels = new Map<string, Shared>();
+const joinStops = sharedChannelPool(["broadcast", "rows"] as const, (sb, tripId, emit) =>
+  sb.channel(stopsChannel(tripId)).on("broadcast", { event: STOPS_CHANGED }, () => { emit("broadcast"); emit("rows"); })
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, () => emit("rows"))
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, () => emit("rows")));
 export function joinStopsChannel(sb: Sb, tripId: string, onEvent: () => void, rows: boolean): () => void {
-  let s = sharedChannels.get(tripId);
-  if (!s) {
-    const created: Shared = { channel: null as unknown as Shared["channel"], broadcast: new Set(), rows: new Set() };
-    const fanBroadcast = () => { created.broadcast.forEach((f) => f()); created.rows.forEach((f) => f()); };
-    const fanRows = () => created.rows.forEach((f) => f());
-    created.channel = sb.channel(stopsChannel(tripId)).on("broadcast", { event: STOPS_CHANGED }, fanBroadcast)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, fanRows)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "places", filter: `trip_id=eq.${tripId}` }, fanRows);
-    created.channel.subscribe();
-    sharedChannels.set(tripId, created);
-    s = created;
-  }
-  const shared = s;
-  (rows ? shared.rows : shared.broadcast).add(onEvent);
-  return () => {
-    shared.rows.delete(onEvent); shared.broadcast.delete(onEvent);
-    if (shared.rows.size === 0 && shared.broadcast.size === 0 && sharedChannels.get(tripId) === shared) {
-      sharedChannels.delete(tripId);
-      void sb.removeChannel(shared.channel);
-    }
-  };
+  return joinStops(sb, tripId, rows ? "rows" : "broadcast", onEvent);
 }
 
 /**

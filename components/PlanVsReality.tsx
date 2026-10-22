@@ -1,6 +1,6 @@
 "use client";
 
-import { dbTime12 } from "@/lib/travel/clock";
+import { INDIA_UTC_OFFSET_MIN, dbTime12 } from "@/lib/travel/clock";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useSyncExternalStore } from "react";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
@@ -9,7 +9,8 @@ import { formatDate } from "@/lib/format";
 import { tripReality, type LearnPlace, type LearnTrip } from "@/lib/learning";
 
 const subscribe = () => () => {};
-const browserOffset = () => -new Date().getTimezoneOffset();
+/** India time (+5:30), whatever the phone's own time zone: the plan's times are India time. */
+const browserOffset = () => INDIA_UTC_OFFSET_MIN;
 
 const clock = (iso: string, offset: number) => {
   const d = new Date(Date.parse(iso) + offset * 60_000);

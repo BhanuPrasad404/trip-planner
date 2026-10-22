@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@/components/TripMapLazy", () => ({ TripMapLazy: (p: Record<string, unknown>) => { h.mapProps.push(p); return createElement("div", { "data-testid": "map" }); } }));
 vi.mock("@/lib/client/use-trip-live", () => ({ useTripLive: () => h.live }));
 vi.mock("@/lib/client/use-toll-watch", () => ({ useTollWatch: () => h.tolls }));
-vi.mock("@/lib/client/use-alerts", () => ({ useAlerts: () => ({ ...h.alerts, notify: () => true, act: () => {} }) }));
+vi.mock("@/lib/client/use-alerts", () => ({ useAlerts: () => ({ ...h.alerts, notify: () => true, act: () => {}, update: () => {}, withdraw: () => {} }) }));
 vi.mock("@/lib/client/use-visits", () => ({ useVisits: () => ({ outbox: { items: [], send: async () => "saved", syncing: false, failed: null, clearFailed: () => {}, notice: null, clearNotice: () => {} }, mark: () => {}, failed: null, clearFailed: () => {}, syncing: false }) }));
 vi.mock("@/lib/client/use-trip-actions", () => ({ useTripActions: () => ({ insertStop: () => {}, setStatus: async () => {}, undo: null, replanning: false, runUndo: async () => {}, dismissUndo: () => {} }) }));
 vi.mock("@/lib/client/use-vehicle", () => ({ useVehicle: () => ["car", () => {}] }));
@@ -46,6 +46,7 @@ const freshLive = () => ({
   navigation: { phase: "idle", choose: vi.fn(), retry: vi.fn(), routes: [], selectedId: null },
   sound: { on: true, toggle: vi.fn(), blocked: false },
   persistable: { confirmedSession: null, cued: () => [] },
+  remaining: [], intelStops: [], nowMs: 0,
 });
 const freshTolls = (o: Record<string, unknown> = {}) => ({ navigating: false, status: "idle", complete: true, unavailable: false, ahead: [], next: null, retry: vi.fn(), ...o });
 const toll = (aheadM: number) => ({ id: "node/1", lat: 0, lng: 0, name: "Kothur Toll Plaza", ref: null, operator: null, fee: null, routeM: 1, offsetM: 1, aheadM });

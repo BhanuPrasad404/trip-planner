@@ -43,7 +43,8 @@ describe("weather parsing", () => {
     Array.from({ length: n }, (_, i) => ({ date: `${year}-${String(month).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`, t, p }));
 
   it("parseDaily reads the Open-Meteo shape and rejects junk", () => {
-    expect(parseDaily({ daily: { time: ["2026-07-01"], temperature_2m_max: [30], precipitation_sum: [4], wind_speed_10m_max: [44] } })).toEqual({ time: ["2026-07-01"], tmax: [30], precip: [4], wind: [44] });
+    expect(parseDaily({ daily: { time: ["2026-07-01"], temperature_2m_max: [30], precipitation_sum: [4], wind_speed_10m_max: [44] } })).toEqual({ time: ["2026-07-01"], tmax: [30], precip: [4], wind: [44], feels: [] });
+    expect(parseDaily({ daily: { time: ["2026-07-01"], temperature_2m_max: [30], apparent_temperature_max: [36.5], precipitation_sum: [4] } })?.feels).toEqual([36.5]);
     expect(parseDaily({})).toBeNull();
   });
 

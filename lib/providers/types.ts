@@ -87,13 +87,30 @@ export interface PlacesProvider {
 }
 
 // ── Weather ────────────────────────────────────────────────────────────────
-export type HourlyWeather = {
-  /** ISO time (UTC) of the start of the hour. */
-  time: string;
-  tempC: number;
-  precipMm: number;
-  precipProb: number | null; // 0..100
+/**
+ * One forecast time step, exactly as the source gives it, at a real instant (`time`, UTC ms).
+ *   INSTANT values hold AT `time`: tempC, feelsC, code, visibilityM, isDay.
+ *   PRECEDING-HOUR values describe the hour that ENDS at `time`: precipMm (sum), precipProb (chance of > 0.1 mm), gustKmh (maximum).
+ *   So rain for 18:00-19:00 comes from the 19:00 step (Open-Meteo "valid time", https://open-meteo.com/en/docs).
+ * Every value is null when the source did not give it: never filled in.
+ */
+export type ForecastStep = {
+  time: number;
+  tempC: number | null;
+  feelsC: number | null;
+  code: number | null;
+  visibilityM: number | null;
+  isDay: boolean | null;
+  precipMm: number | null;
+  precipProb: number | null;
+  gustKmh: number | null;
 };
+
+/** A forecast AREA (~10 km square): every place inside it shares one forecast. `lat`/`lng` is the point the forecast was asked for. */
+export type ForecastArea = { key: string; lat: number; lng: number };
+
+/** The hourly forecast for one area over a window, and when the OLDEST part of it was fetched from the source. */
+export type AreaForecast = { area: string; lat: number; lng: number; steps: ForecastStep[]; fetchedAt: number };
 
 export type ConditionsRequest = { id: string; lat: number; lng: number; date: Date };
 
@@ -104,8 +121,11 @@ export interface WeatherProvider {
    * `budgetMs`: stop starting new lookups after this long and return what has arrived (a page must not wait on a slow service).
    */
   conditionsFor(requests: ConditionsRequest[], todayISO: string, budgetMs?: number): Promise<Record<string, Conditions>>;
-  /** Hour-by-hour forecast for the next `hours` hours at a point. Returns [] when unavailable. */
-  hourly(point: GeoPoint, hours: number, fetchImpl?: typeof fetch): Promise<HourlyWeather[]>;
+  /**
+   * Hour-by-hour forecasts for many areas over [fromMs, toMs], fetched in as few requests as possible and cached per area and day.
+   * An area that could not be fetched (and has nothing young enough in the cache) is null. Must never throw.
+   */
+  areaForecasts(areas: ForecastArea[], fromMs: number, toMs: number, fetchImpl?: typeof fetch): Promise<Record<string, AreaForecast | null>>;
 }
 
 // ── Geocoding ──────────────────────────────────────────────────────────────

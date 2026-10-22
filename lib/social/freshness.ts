@@ -32,6 +32,6 @@ export function freshnessOf(createdAt: string | Date, capturedAt: string | Date 
   if (age < DAY) return { state: "today", label: n(Math.floor(age / HOUR), "hour"), dot: "green", usableAsCurrent: true, effective };
   if (age < 7 * DAY) return { state: "recent", label: age < 2 * DAY ? "Yesterday" : n(Math.floor(age / DAY), "day"), dot: "amber", usableAsCurrent: false, effective };
   if (age < 60 * DAY) return { state: "older", label: n(Math.floor(age / (7 * DAY)), "week"), dot: "grey", usableAsCurrent: false, effective };
-  const when = effective.toLocaleDateString(locale, { month: "long", year: "numeric" });
+  const when = effective.toLocaleDateString(locale, { month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
   return { state: "historical", label: `Historical — posted ${when}`, dot: "grey", usableAsCurrent: false, effective };
 }

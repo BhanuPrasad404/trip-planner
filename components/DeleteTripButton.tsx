@@ -11,13 +11,18 @@ import { FormError, TextField } from "./ui/Field";
 async function announceDeleted(tripId: string): Promise<void> {
   try {
     const sb = createClient();
-    const channel = sb.channel(tripStatusChannel(tripId));
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(resolve, 2000);
-      channel.subscribe((status) => { if (status === "SUBSCRIBED") { clearTimeout(t); resolve(); } });
-    });
+    const topic = tripStatusChannel(tripId);
+    // This page's own watcher already listens on the topic (shared channel): send on it, and never remove it from under the watcher.
+    const existing = sb.getChannels().find((c) => c.topic === `realtime:${topic}`);
+    const channel = existing ?? sb.channel(topic);
+    if (!existing) {
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, 2000);
+        channel.subscribe((status) => { if (status === "SUBSCRIBED") { clearTimeout(t); resolve(); } });
+      });
+    }
     await channel.send({ type: "broadcast", event: TRIP_DELETED_BROADCAST, payload: { tripId } });
-    await sb.removeChannel(channel);
+    if (!existing) await sb.removeChannel(channel);
   } catch {
     // no realtime: members find out on their next check (focus, or within a minute)
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import { Spinner } from "@/components/ui/Spinner";
@@ -24,9 +25,10 @@ const ARROW: Record<Banner["arrow"], { glyph: GlyphName; rotate: number }> = {
 
 /** "02:10 pm", or "01:20 am (tomorrow)" when the arrival is past midnight — nobody should have to work out which day. */
 const clock = (ms: number, nowMs?: number) => {
-  const t = new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  // India time and India's calendar, whatever the phone's own time zone.
+  const t = new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
   if (!nowMs) return t;
-  const day = (x: number) => { const d = new Date(x); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); };
+  const day = (x: number) => Date.parse(`${dateOf(x, INDIA_UTC_OFFSET_MIN)}T00:00:00Z`);
   const diff = Math.round((day(ms) - day(nowMs)) / 86_400_000);
   return diff <= 0 ? t : diff === 1 ? `${t} (tomorrow)` : `${t} (+${diff} days)`;
 };

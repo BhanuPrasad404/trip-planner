@@ -1,7 +1,7 @@
 // "Is this place actually useful to ME, right now, on THIS road?" — not "is it within a radius".
 // Every score component is explained in plain words (RankedPoi.reasons) so nothing feels like a black box.
-import type { GeoPoint } from "@/lib/geo";
 import { KIND_META, type PoiKind, type PoiRecord } from "@/lib/poi/types";
+import { weatherAt, type ForecastHit } from "./forecast";
 import { openStatus } from "./hours";
 import { DETOUR, OPENNESS, SCORE_WEIGHTS, WEATHER_FIT } from "./weights";
 import { project, type RouteIndex } from "./route-geometry";
@@ -36,25 +36,12 @@ export const clockLabel = (utcMs: number, offsetMin: number) => {
 };
 export const poiKey = (p: { source: string; source_id: string }) => `${p.source}|${p.source_id}`;
 
-export type WeatherAt = { tempC: number; precipMm: number; precipProb: number | null };
+export type WeatherAt = ForecastHit;
+/** The forecast at a place for the hour containing `tMs` (lib/intel/forecast.ts: never from a point more than 25 km away). */
+export { weatherAt };
 
-/** Forecast for the sample nearest to `point`, at the hour containing `tMs`. */
-export function weatherAt(samples: WeatherSample[], point: GeoPoint, tMs: number): WeatherAt | null {
-  let best: WeatherSample | null = null;
-  let bestD = Infinity;
-  for (const s of samples) {
-    const d = (s.lat - point.lat) ** 2 + (s.lng - point.lng) ** 2;
-    if (d < bestD) { bestD = d; best = s; }
-  }
-  if (!best) return null;
-  for (const h of best.hours) {
-    const start = Date.parse(h.time);
-    if (tMs >= start && tMs < start + 3_600_000) return { tempC: h.tempC, precipMm: h.precipMm, precipProb: h.precipProb };
-  }
-  return null;
-}
-
-export const isRainy = (w: WeatherAt | null) => !!w && ((w.precipProb ?? 0) >= WEATHER_FIT.rainyProbPct || w.precipMm >= WEATHER_FIT.rainyMm);
+/** Rain is likely there then (the same rule as the weather panel: lib/weather-rules.ts). */
+export const isRainy = (w: WeatherAt | null) => !!w && w.hazards.some((h) => h.kind === "rain");
 
 export type RankContext = {
   route: RouteIndex;
@@ -113,15 +100,16 @@ export function rankPois(pois: PoiRecord[], ctx: RankContext, opts: { includeClo
     const base = proximity * W.proximity + detour * W.detour + openness * W.openness + quality * W.quality + fresh * W.freshness;
 
     let mult = ctx.prefs.tripType ? PREF_WEIGHT[ctx.prefs.tripType][p.kind] ?? 1 : 1;
-    const w = weatherAt(ctx.weather, p, arriveAtMs);
+    const w = weatherAt(ctx.weather, p, arriveAtMs, ctx.nowMs);
     const reasons: string[] = [];
+    const heat = w?.hazards.find((h) => h.kind === "heat");
     if (isRainy(w)) {
       if (p.kind === "viewpoint") { mult *= WEATHER_FIT.rainyViewpoint; reasons.push("Rain is forecast there then"); }
       else if (p.kind === "sight") { mult *= WEATHER_FIT.rainySight; reasons.push("Rain is forecast there then"); }
       else if (p.kind === "food" || p.kind === "cafe") { mult *= WEATHER_FIT.rainShelter; reasons.push("Good shelter from the rain"); }
-    } else if (w && w.tempC >= WEATHER_FIT.hotFromC && (p.kind === "cafe" || p.kind === "food")) {
+    } else if (heat && (p.kind === "cafe" || p.kind === "food")) {
       mult *= WEATHER_FIT.hotCoolBreak;
-      reasons.push(`${Math.round(w.tempC)}°C there — a cool break`);
+      reasons.push(`${heat.detail[0].toUpperCase()}${heat.detail.slice(1)} there then: a cool break`);
     }
 
     reasons.unshift(

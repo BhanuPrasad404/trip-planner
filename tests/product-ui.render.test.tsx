@@ -272,28 +272,3 @@ describe("Live and Map pages render", () => {
   });
 });
 
-import { WeatherSunCard } from "@/components/intel/WeatherSunCard";
-describe("Weather & sun card", () => {
-  const w = { tempC: 29, precipProb: 30, precipMm: 0, pointKm: 3, next: [{ clock: "11:00", tempC: 29, precipProb: 40 }, { clock: "12:00", tempC: 28, precipProb: 75 }] };
-  it("shows temperature, rain chance, the next hours, the next sun event, and credits the weather source", () => {
-    const html = renderToStaticMarkup(<WeatherSunCard weather={w} sun={{ sunrise: "06:08", sunset: "17:52" }} sunNext={{ label: "Sunset", clock: "17:52", inMin: 472, tomorrow: false }} where="your location" />);
-    expect(html).toContain("29°C");
-    expect(html).toContain("30% rain this hour");
-    expect(html).toContain("11:00");
-    expect(html).toContain("75%");
-    expect(html).toContain("Sunset 17:52");
-    expect(html).toContain("7h 52m");
-    expect(html).toContain("sunrise 06:08, sunset 17:52");
-    expect(html).toContain("at your location");
-    expect(html).toContain("Open-Meteo.com"); // attribution the weather provider requires
-  });
-  it("says plainly when there is no forecast instead of inventing weather", () => {
-    const html = renderToStaticMarkup(<WeatherSunCard weather={null} sun={{ sunrise: "06:08", sunset: "17:52" }} sunNext={{ label: "Sunrise", clock: "06:08", inMin: 600, tomorrow: true }} where="Hyderabad" />);
-    expect(html).toContain("We don&#x27;t guess the weather");
-    expect(html).not.toContain("°C");
-    expect(html).toContain("Sunrise tomorrow 06:08");
-  });
-  it("warns when the forecast point is far from you", () => {
-    expect(renderToStaticMarkup(<WeatherSunCard weather={{ ...w, pointKm: 40 }} sun={null} sunNext={null} where="the start" />)).toContain("Forecast point is 40 km away");
-  });
-});

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { alertPrefsKey, parseAlertPrefs, type AlertPrefs } from "@/lib/alerts/prefs";
-import { consider, emptyLedger, planDelivery, recordLoud, recordPhone, type AppAlert, type Permission } from "@/lib/alerts/delivery";
+import { LOUD_GAP_MS, consider, emptyLedger, planDelivery, recordLoud, recordPhone, type AppAlert, type Permission } from "@/lib/alerts/delivery";
 import { buzz, canBeep, canVibrate, notificationPermission, playTone, registerAlertWorker, requestNotificationPermission, showPhoneNotification } from "@/lib/client/alert-channels";
 import { useLocalJson } from "@/lib/client/use-local-json";
 
@@ -67,6 +67,23 @@ export function useAlerts(utcOffsetMin = 330, opts: { origin?: string } = {}) {
   }, [utcOffsetMin, opts.origin]);
 
   const dismiss = useCallback((id: string) => { setActive((a) => a.filter((x) => x.id !== id)); actions.current.delete(id); }, []);
+  /** The same alert, changed (a forecast moved): its words are updated where it is shown, quietly: no new buzz, sound or notification. */
+  const update = useCallback((alert: AppAlert) => {
+    const swap = (list: ActiveAlert[]) => (list.some((x) => x.id === alert.id) ? list.map((x) => (x.id === alert.id ? { ...x, ...alert, at: x.at } : x)) : list);
+    setActive(swap); setHistory(swap);
+  }, []);
+  /**
+   * The same alert, become more serious (a weather Warning that is now Severe): its words are updated, plus ONE buzz if the traveller
+   * allows buzzing (never a sound or a phone notification), and not closer than the usual gap after another buzz or sound.
+   */
+  const escalate = useCallback((alert: AppAlert) => {
+    update(alert);
+    const now = Date.now();
+    if (!prefsRef.current.enabled || !prefsRef.current.haptics || !canVibrate() || now - ledger.current.lastLoudAt < LOUD_GAP_MS) return;
+    if (buzz(alert.level)) ledger.current = recordLoud(ledger.current, now);
+  }, [update]);
+  /** An alert that is no longer true (the forecast changed): gone from the screen and from the list. */
+  const withdraw = useCallback((id: string) => { setActive((a) => a.filter((x) => x.id !== id)); setHistory((h) => h.filter((x) => x.id !== id)); actions.current.delete(id); }, []);
   const act = useCallback((id: string, actionId: string) => { actions.current.get(id)?.(actionId); dismiss(id); }, [dismiss]);
 
   /** From a tap on "Turn on phone notifications". Returns what the browser decided. */
@@ -79,5 +96,5 @@ export function useAlerts(utcOffsetMin = 330, opts: { origin?: string } = {}) {
 
   const sendTest = useCallback(() => notify({ id: `test:${Date.now()}`, kind: "test", level: 2, title: "Test alert", body: "If you can see, hear or feel this, alerts are working.", cooldownMs: 0 }, undefined, { test: true }), [notify]);
 
-  return { prefs, setPrefs, permission, active, history, notify, dismiss, act, enablePhone, sendTest };
+  return { prefs, setPrefs, permission, active, history, notify, dismiss, update, escalate, withdraw, act, enablePhone, sendTest };
 }

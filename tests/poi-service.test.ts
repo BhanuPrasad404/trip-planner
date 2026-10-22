@@ -6,7 +6,6 @@ import { tileBBox, tileOf, tilesAlongLine } from "@/lib/poi/tiles";
 import type { BBox, PlacesProvider, PoiGroup, RawPlace } from "@/lib/providers/types";
 import { getProvider, registerProvider } from "@/lib/providers/registry";
 import { buildTileQuery, GROUP_FILTERS, parseTile } from "@/lib/providers/places-overpass";
-import { parseHourly } from "@/lib/providers/weather-open-meteo";
 
 const LINE: [number, number][] = [[80.0, 17.0], [80.5, 17.0], [81.0, 17.0]]; // ~106 km east
 
@@ -193,10 +192,6 @@ describe("OpenStreetMap + Open-Meteo adapters", () => {
     ] });
     expect(raw.map((r) => r.id)).toEqual(["node/1", "way/2"]);
   });
-  it("parses hourly forecasts into UTC hours and ignores junk", () => {
-    const h = parseHourly({ hourly: { time: ["2026-10-10T04:00", "2026-10-10T05:00"], temperature_2m: [27.1, null], precipitation: [0.4, 0], precipitation_probability: [35, 10] } }, 24);
-    expect(h).toEqual([{ time: "2026-10-10T04:00:00Z", tempC: 27.1, precipMm: 0.4, precipProb: 35 }]);
-    expect(Date.parse(h[0].time)).toBe(Date.UTC(2026, 9, 10, 4));
-    expect(parseHourly(null, 24)).toEqual([]);
-  });
+
+
 });

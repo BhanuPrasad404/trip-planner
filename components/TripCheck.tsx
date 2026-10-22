@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
@@ -19,11 +19,16 @@ import type { LookupOutcome } from "@/lib/travel/hours-match";
 import { DEFAULT_PREFS, decide, type Decision, type EventState } from "@/lib/travel/notify-policy";
 import { checkReadiness, type NextStep, type ReadinessItem } from "@/lib/travel/readiness";
 import type { Place, Trip } from "@/lib/types";
-import type { Conditions } from "@/lib/weather";
 import { useTerrain } from "@/lib/client/use-terrain";
 import { buildTimeline, kmAlongLine, type TimelineItem } from "@/lib/travel/timeline";
 import { hillStationLinks, implications, linkSentence, NOT_ASSESSED, routeCharacter } from "@/lib/travel/hills";
-import { weatherVisual } from "@/lib/travel/weather-visual";
+import { useWeatherBoard } from "@/lib/client/use-weather-board";
+import { weatherStore } from "@/lib/client/weather-store";
+import { forecastHorizonMs } from "@/lib/forecast/areas";
+import type { BoardStop } from "@/lib/forecast/board";
+import { momentAt } from "@/lib/forecast/moment";
+import { arrivalNote } from "@/lib/forecast/present";
+import { DEFAULT_VIEW } from "@/lib/forecast/view-time";
 
 type Stored = {
   date: string;
@@ -45,7 +50,7 @@ type WindowStop = { status: "ok"; intervals: OpenInterval[] } | { status: "unver
 type HoursWindow = { key: string; status: "ok" | "error"; fromMs?: number; toMs?: number; stops?: Record<string, WindowStop> };
 const fieldsOf = (p: Place): HoursFields => ({ opening_hours: p.opening_hours ?? null, hours_source: p.hours_source ?? null, hours_ref: p.hours_ref ?? null, hours_fetched_at: p.hours_fetched_at ?? null, hours_confirmed_at: p.hours_confirmed_at ?? null });
 const confirmedOf = (h: HoursFields) => h.hours_source === "traveller" || !!h.hours_confirmed_at;
-const shortDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "");
+const shortDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "");
 function sourceLine(h: HoursFields): string {
   if (h.hours_source === "traveller") return `Entered by a trip member${h.hours_confirmed_at ? ` on ${shortDate(h.hours_confirmed_at)}` : ""}.`;
   if (h.hours_source === "map_data") return h.hours_confirmed_at
@@ -79,7 +84,7 @@ const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ b
  * (3) the alerts that follow, handled by the notification rules (dismiss, snooze, no repeats, nothing alarming from unverified data).
  * It only DESCRIBES and SUGGESTS: it never changes the itinerary. Choices are kept on this device.
  */
-export function TripCheck({ tripId, trip, places, activeDay, today, conditions = {}, roadLine = null, onClose, onSetDates, onPlanTrip }: { tripId: string; trip: Trip; places: Place[]; activeDay: number; today: string; conditions?: Record<string, Conditions>; /** The real road for the day shown on the plan, when it has loaded. */ roadLine?: [number, number][] | null; onClose?: () => void; /** Open the dates panel. */ onSetDates?: () => void; /** Open Plan my trip. */ onPlanTrip?: () => void }) {
+export function TripCheck({ tripId, trip, places, activeDay, today, roadLine = null, onClose, onSetDates, onPlanTrip }: { tripId: string; trip: Trip; places: Place[]; activeDay: number; today: string; /** The real road for the day shown on the plan, when it has loaded. */ roadLine?: [number, number][] | null; onClose?: () => void; /** Open the dates panel. */ onSetDates?: () => void; /** Open Plan my trip. */ onPlanTrip?: () => void }) {
   const [s, set] = useLocalJson<Stored>(`tm:trip-check:${tripId}`, EMPTY);
   const [hoursOpen, setHoursOpen] = useState(false);
   const [hoursError, setHoursError] = useState<Record<string, string>>({});
@@ -146,14 +151,15 @@ export function TripCheck({ tripId, trip, places, activeDay, today, conditions =
       hoursConfirmed: confirmedOf(h), evaluate, hoursNote,
     };
   }), [dayStops, hoursOverride, w, legsForDay]); // eslint-disable-line react-hooks/exhaustive-deps -- driveOf reads legsForDay
-  // Only a real forecast ever becomes a note on the advice.
-  const weatherNotes: WeatherNote[] = useMemo(() => dayStops.flatMap((p): WeatherNote[] => {
-    const v = weatherVisual(conditions[p.id] ?? null, normalizeCategory(p.category));
-    if (!v || v.basis !== "forecast") return [];
-    if (v.kind === "heat" && v.intensity >= 2) return [{ stopId: p.id, kind: "heat" as const, forecastLabel: `Hot weather is forecast (${v.detail})` }];
-    if (v.kind === "rain" && v.intensity >= 2) return [{ stopId: p.id, kind: "rain" as const, forecastLabel: `${v.headline} (${v.detail})` }];
-    return [];
-  }), [dayStops, conditions]);
+  // The weather at each stop for the moment you would ARRIVE (the hourly forecast, lib/forecast; fetched for the checked day and kept
+  // fresh by itself). A start time is judged on the weather at its own arrival times, never on the day's maximum.
+  const wxStops = useMemo<BoardStop[]>(() => (isRealISODate(date) ? dayStops.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, isNext: false, liveEta: null, planned: null, dayISO: date, typical: null })) : []), [dayStops, date]);
+  const wx = useWeatherBoard({ enabled: nowMs > 0 && wxStops.length > 0, nowMs, mode: DEFAULT_VIEW, here: null, stops: wxStops, road: [] });
+  const forecastAt = useCallback(
+    (p: { lat: number; lng: number }, t: number) => arrivalNote(momentAt(weatherStore.area(p, t - 2 * 3_600_000, t + 2 * 3_600_000), p, t, nowMs, weatherStore.horizonEnd() ?? forecastHorizonMs(nowMs))),
+    [nowMs, wx], // eslint-disable-line react-hooks/exhaustive-deps -- `wx` changes when new forecasts arrive in the store
+  );
+  const weatherNotes: WeatherNote[] = useMemo(() => dayStops.map((p) => ({ stopId: p.id, at: (t: number) => { const n = forecastAt(p, t); return n ? { kind: n.kind, label: n.label } : null; } })), [dayStops, forecastAt]);
   const allDrivesKnown = stops.length > 0 && stops.every((x) => x.driveMin !== null);
   const advice = useMemo(
     () => (advisor.asked > 0 && isRealISODate(date) && !hoursLoading && allDrivesKnown ? recommendDeparture({ dateISO: date, stops, driveBasis: dayStops.every((p) => p.drive_minutes != null) ? "plan" : legsForDay?.basis ?? "plan", weather: weatherNotes }) : null),
@@ -172,10 +178,10 @@ export function TripCheck({ tripId, trip, places, activeDay, today, conditions =
           departureMs, utcOffsetMin: INDIA_UTC_OFFSET_MIN,
           stops: dayStops.map((p, i) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, visitMin: stops[i]?.visitMin ?? 60 })),
           verdicts: result.verdicts, line: canTerrain ? roadLine : null, terrain: terrain.result?.segments ?? null,
-          weather: Object.fromEntries(dayStops.map((p) => [p.id, weatherVisual(conditions[p.id] ?? null, normalizeCategory(p.category))])),
+          weather: Object.fromEntries(dayStops.map((p) => [p.id, (t: number) => { const n = forecastAt(p, t); return n ? { title: n.title, detail: n.detail, tone: n.tone } : null; }])),
         })
       : []),
-    [result, departureMs, dayStops, stops, canTerrain, roadLine, terrain.result, conditions]
+    [result, departureMs, dayStops, stops, canTerrain, roadLine, terrain.result, forecastAt]
   );
 
   // Events and what the policy says about each (only once the browser clock is known, so server and browser agree on first paint).

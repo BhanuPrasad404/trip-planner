@@ -3,7 +3,9 @@
 // disagreements are shown, not smoothed over; and anything we do not know is listed as unknown — never filled in.
 import { openStatus } from "./hours";
 import { REPORT_TAGS, type ReportTag } from "@/lib/reports";
-import type { HourlyWeather } from "@/lib/providers/types";
+import type { Moment } from "@/lib/forecast/moment";
+import { time12 } from "@/lib/travel/clock";
+import { WEATHER_SOURCE } from "@/lib/weather-rules";
 
 export type PulseSource = "map-data" | "forecast" | "recent" | "community" | "historical";
 export type PulseTrust = "high" | "medium" | "low";
@@ -44,7 +46,8 @@ type Args = {
   hours: string | null;
   /** When our map data for this place was last fetched. */
   hoursCheckedAt: string | null;
-  weather: HourlyWeather | null;
+  /** The weather here now (lib/forecast/moment.ts), or null when there is none (unavailable, or over 60 minutes old). */
+  weather: Moment | null;
   reports: PulseReport[];
   photoUrl: (path: string) => string;
   nowMs: number;
@@ -89,17 +92,22 @@ export function buildPulse(a: Args): Pulse {
     gaps.push("Official opening hours are not available for this place.");
   }
 
-  // 2. Weather — a forecast for the current hour.
-  if (a.weather) {
-    const p = a.weather.precipProb;
+  // 2. Weather now, by the same rules as the weather panel (lib/forecast/moment.ts): the nearest forecast step, rain for the hour we are
+  //    in, nothing over 60 minutes old (then it is "unavailable", never old numbers).
+  const w = a.weather;
+  if (w && w.tempC !== null) {
+    const p = w.precipProb;
+    const feels = w.feelsC !== null && Math.round(w.feelsC) !== Math.round(w.tempC) ? ` (feels like ${Math.round(w.feelsC)}°C)` : "";
+    const hazards = w.hazards.filter((h) => h.kind !== "rain").map((h) => `${h.label.toLowerCase()}${h.kind === "heat" ? "" : `, ${h.detail}`}`);
+    const ageMin = Math.max(0, Math.round((nowMs - w.fetchedAt) / 60_000));
     signals.push({
       id: "weather",
       title: "Weather",
-      value: `${Math.round(a.weather.tempC)}°C · ${p !== null ? `${Math.round(p)}% chance of rain` : a.weather.precipMm > 0 ? `${a.weather.precipMm} mm rain` : "no rain forecast"}`,
+      value: `${Math.round(w.tempC)}°C${feels} · ${p !== null ? `${Math.round(p)}% chance of rain` : w.precipMm !== null && w.precipMm > 0 ? `${w.precipMm} mm rain` : "no rain forecast"}${hazards.length ? ` · ${hazards.join(" · ")}` : ""}`,
       source: "forecast",
       trust: "high",
-      observedAt: a.weather.time,
-      ageText: `forecast for ${new Date(a.weather.time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC hour`,
+      observedAt: new Date(w.shownAt).toISOString(),
+      ageText: `${WEATHER_SOURCE} forecast for ${time12(w.shownAt, a.utcOffsetMin)}, fetched ${ageMin < 1 ? "just now" : `${ageMin} min ago`}`,
     });
   } else {
     gaps.push("Live weather is unavailable right now.");

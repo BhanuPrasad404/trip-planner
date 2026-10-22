@@ -12,8 +12,6 @@ vi.mock("@/lib/client/use-hide-on-scroll", () => ({ useHideOnScroll: () => false
 import { AppNav } from "@/components/shell/AppNav";
 import { Logo } from "@/components/Logo";
 import { HERO_PHOTO, MobileBackdrop } from "@/components/shell/MobileBackdrop";
-import { WeatherSunCard } from "@/components/intel/WeatherSunCard";
-import { Glyph } from "@/components/ui/Glyph";
 
 const text = (n: ReactTestInstance | string): string => (typeof n === "string" ? n : n.children.map(text).join(""));
 const TRIP = "11111111-1111-4111-8111-111111111111";
@@ -121,33 +119,3 @@ describe("the scene behind the app", () => {
   });
 });
 
-describe("the weather card on a phone", () => {
-  const sun = { sunrise: "06:08", sunset: "17:55" };
-  const weather = { tempC: 29, precipProb: 0, precipMm: 0, pointKm: 3, next: [
-    { clock: "16:30", tempC: 30, precipProb: 0 }, { clock: "20:30", tempC: 28, precipProb: 0 }, { clock: "22:30", tempC: 27, precipProb: 10 }, { clock: "03:30", tempC: 25, precipProb: 0 }, { clock: "12:30", tempC: 31, precipProb: 80 },
-  ] };
-  const html = renderToStaticMarkup(createElement(WeatherSunCard, { weather, sun, sunNext: { label: "Sunrise", clock: "06:08", inMin: 665, tomorrow: true }, where: "your location" }));
-  const tiles = html.split("<li").slice(1);
-  it("keeps every fact: the temperature, the rain chance, the hours, the sun and the credit", () => {
-    for (const t of ["29°C", "0% rain this hour", "16:30", "20:30", "Sunrise tomorrow 06:08", "Open-Meteo.com"]) expect(html).toContain(t);
-  });
-  it("shows a moon for hours after sunset and before sunrise, a sun by day, and rain when rain is likely", () => {
-    // Compare each tile's drawing with the real glyph's drawing.
-    const drawing = (name: "sun" | "moon" | "rain") => { const h = renderToStaticMarkup(createElement(Glyph, { name })); return h.slice(h.indexOf(">") + 1, h.lastIndexOf("</svg>")); };
-    const which = (t: string) => (["sun", "moon", "rain"] as const).filter((n) => t.includes(drawing(n)));
-    expect(tiles.map(which)).toEqual([["sun"], ["moon"], ["moon"], ["moon"], ["rain"]]);
-  });
-  it("those pictures and the big one are phone-only (hidden until max-md), and add nothing for a screen reader", () => {
-    for (const t of tiles) expect(t).toContain("max-md:block");
-    const big = /<svg width="64"[^>]*>/.exec(html)?.[0] ?? ""; // the large picture beside the temperature
-    expect(big).toContain("hidden"); expect(big).toContain("max-md:block"); expect(big).toContain('aria-hidden="true"');
-    expect(html).toContain("max-md:text-6xl"); expect(html).toMatch(/hidden[^"]*max-md:block/);
-    for (const m of html.matchAll(/<svg[^>]*>/g)) expect(m[0]).toContain('aria-hidden="true"');
-  });
-  it("lays the hours out evenly across a phone instead of scrolling sideways", () => { expect(html).toContain("max-md:grid-flow-col"); expect(html).toContain("max-md:auto-cols-fr"); });
-  it("does not guess: with no sun times there is no moon, and with no weather there are no pictures", () => {
-    const noSun = renderToStaticMarkup(createElement(WeatherSunCard, { weather, sun: null, sunNext: null, where: "x" }));
-    const moon = renderToStaticMarkup(createElement(Glyph, { name: "moon" })); expect(noSun).not.toContain(moon.slice(moon.indexOf(">") + 1, moon.lastIndexOf("</svg>")));
-    expect(renderToStaticMarkup(createElement(WeatherSunCard, { weather: null, sun: null, sunNext: null, where: "x" }))).toContain("We don&#x27;t guess the weather");
-  });
-});

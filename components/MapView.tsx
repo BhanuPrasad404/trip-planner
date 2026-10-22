@@ -15,7 +15,8 @@ import type { Conditions } from "@/lib/weather";
 import { AheadBrowser } from "./intel/AheadBrowser";
 import { RadarList } from "./intel/RadarList";
 import { UndoToast } from "./intel/UndoToast";
-import { WeatherSunCard } from "./intel/WeatherSunCard";
+import { MapWeatherLine, WeatherSheet } from "./weather/MapWeather";
+import type { WeatherPanelProps } from "./weather/WeatherPanel";
 import { TripMapLazy } from "./TripMapLazy";
 import { Glyph } from "@/components/ui/Glyph";
 import { MapSkeleton } from "@/components/ui/Skeleton";
@@ -87,13 +88,20 @@ function MapScreen({ e }: { e: Engine }) {
   const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null })), [places]);
   const start = useMemo(() => (trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat, lng: trip.start_lng, label: trip.start_city ?? "Start" } : null), [trip.start_lat, trip.start_lng, trip.start_city]);
   const dest = useMemo(() => (trip.dest_lat != null && trip.dest_lng != null ? { lat: trip.dest_lat, lng: trip.dest_lng, label: trip.dest_name ?? "Destination" } : null), [trip.dest_lat, trip.dest_lng, trip.dest_name]);
-  const top = intel.result?.advice[0];
+  const top = intel.result?.advice.find((x) => x.kind !== "weather"); // weather on screen comes only from the weather line and panel
   const days = Array.from({ length: trip.num_days }, (_, i) => i + 1);
   const addRadar = (r: RadarItem) => actions.insertStop({ name: r.name, lat: r.lat, lng: r.lng, category: r.kind === "viewpoint" ? "viewpoint" : null }, driveDay);
 
   const pill = "min-h-11 rounded-full px-4 text-sm font-semibold shadow-sm";
   const iconBtn = "grid h-11 w-11 place-items-center rounded-full border border-line bg-white text-pine shadow-sm";
   const nothingCovers = navBusy || live.gate.open || drive.locating || ended;
+  // The weather panel opens over the map from the weather line (the map stays underneath).
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  const weatherNow = e.weather.nowMs;
+  const weatherPanel: WeatherPanelProps = {
+    board: e.weather.board, mode: e.weather.mode, setMode: e.weather.setMode, nowMs: weatherNow,
+    hereSource: e.weather.hereSource, device: e.weather.device, requestDevice: e.weather.requestDevice, limit: 4, allStopsHref: `/trips/${trip.id}/weather`,
+  };
   const inFull = full.immersive;
 
   return (
@@ -111,6 +119,8 @@ function MapScreen({ e }: { e: Engine }) {
       {/* ONE top stack, in normal flow: the turn banner, the controls, then at most one message. Nothing in it can overlap anything else. */}
       <div className="pointer-events-none absolute left-0 top-0 z-30 flex max-h-full w-full flex-col gap-2 overflow-y-auto overscroll-contain px-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:max-w-md [&>*]:pointer-events-auto">
         <NavigationBanner ui={navUi.ui} inFlow />
+        {/* Weather: while driving, ONE line only when something matters; not driving, the calm line (here when the radar sheet is hidden). */}
+        {(drive.active || nothingCovers || inFull) && <MapWeatherLine board={e.weather.board} driving={drive.active} nowMs={weatherNow} onOpen={() => setWeatherOpen(true)} />}
 
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="group" aria-label="Drive">
@@ -164,19 +174,20 @@ function MapScreen({ e }: { e: Engine }) {
 
       {/* Radar sheet: folded while driving, and hidden while you are getting directions, confirming the start, or in full screen, so nothing covers them. */}
       <div hidden={nothingCovers || inFull} className="absolute inset-x-0 bottom-0 max-h-[55%] overflow-y-auto rounded-t-3xl bg-white shadow-[0_-6px_24px_rgba(0,0,0,.18)] md:inset-x-auto md:bottom-4 md:left-4 md:w-96 md:rounded-3xl">
+        {!drive.active && <div className="px-2 pt-2"><MapWeatherLine board={e.weather.board} driving={false} nowMs={weatherNow} onOpen={() => setWeatherOpen(true)} /></div>}
         <button type="button" onClick={() => setSheet(!sheet)} aria-expanded={sheet} className="sticky top-0 z-10 flex min-h-12 w-full items-center justify-between rounded-t-3xl bg-white px-5 text-left">
           <span className="font-display text-base font-semibold text-pine">Travel Radar · {intel.result?.radar.length ?? 0} ahead</span>
           <span aria-hidden="true" className="text-ink-muted"><Glyph name={sheet ? "down" : "up"} size={16} /></span>
         </button>
         {sheet && (
           <div className="px-1 pb-3">
-            {intel.result && <div className="mb-3"><WeatherSunCard weather={intel.result.weatherNow} sun={intel.result.sun} sunNext={intel.result.sunNext} where={live.liveOk ? "your location" : live.previewFrom?.label ?? "the start"} updatedAt={intel.updatedAt} /></div>}
             <RadarList radar={intel.result?.radar ?? []} photos={intel.photos} mapping={mapping} trafficConnected={false} onAdd={addRadar} busy={actions.replanning} />
             <div className="mt-3"><AheadBrowser aheadByKind={intel.result?.aheadByKind ?? {}} photos={intel.photos} /></div>
           </div>
         )}
       </div>
       <NavigationPanel ui={navUiUi} />
+      <WeatherSheet open={weatherOpen} onClose={() => setWeatherOpen(false)} panel={weatherPanel} />
       <OutboxStatus outbox={visits.outbox} floating />
       <LiveArrival live={live} vehicle={vehicle} failed={visits.failed} onClearFailed={visits.clearFailed} />
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />

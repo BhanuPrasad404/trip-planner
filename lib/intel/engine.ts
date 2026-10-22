@@ -1,6 +1,5 @@
 // Trip Intelligence: one pure function from "where you are + the road ahead + what's around + the weather + who you are"
 // to "what to do next". No network, no database — every input is passed in, so it is fast and fully testable.
-import { distanceKm } from "@/lib/geo";
 import type { PoiKind } from "@/lib/poi/types";
 import { buildAdvice } from "./advisor";
 import { computeHealth } from "./health";
@@ -9,7 +8,7 @@ import { clockLabel, localMinute, rankPois, type RankContext } from "./ranking";
 import { buildRoute, project } from "./route-geometry";
 import { buildSmartStops } from "./smart-stops";
 import { sunTimes } from "./sun";
-import type { IntelInput, IntelResult, RankedPoi, StopEta, SunNext, WeatherNow, WeatherSample } from "./types";
+import type { IntelInput, IntelResult, RankedPoi, StopEta, SunNext } from "./types";
 import { ALGORITHM_VERSION } from "./weights";
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -19,27 +18,6 @@ const toMin = (hhmm: string | null) => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 const PER_KIND = 8;
-
-/** The forecast for the hour we are in, at the forecast point nearest to `pos`, plus the next six hours. Null if there is none. */
-export function weatherNowFrom(samples: WeatherSample[], pos: { lat: number; lng: number }, nowMs: number, utcOffsetMin: number): WeatherNow | null {
-  let best: WeatherSample | null = null;
-  let bestKm = Infinity;
-  for (const s of samples) {
-    const km = distanceKm(pos, s);
-    if (km < bestKm) { bestKm = km; best = s; }
-  }
-  if (!best) return null;
-  const i = best.hours.findIndex((h) => nowMs >= Date.parse(h.time) && nowMs < Date.parse(h.time) + 3_600_000);
-  if (i < 0) return null;
-  const cur = best.hours[i];
-  return {
-    tempC: Math.round(cur.tempC),
-    precipProb: cur.precipProb,
-    precipMm: cur.precipMm,
-    next: best.hours.slice(i + 1, i + 7).map((h) => ({ clock: clockLabel(Date.parse(h.time), utcOffsetMin), tempC: Math.round(h.tempC), precipProb: h.precipProb })),
-    pointKm: Math.round(bestKm),
-  };
-}
 
 /** Sunrise if it hasn't happened yet today, sunset if it's daytime, otherwise (approximately) tomorrow's sunrise. */
 export function sunNextFrom(sun: { sunriseMin: number; sunsetMin: number } | null, nowLocalMin: number): SunNext | null {
@@ -70,6 +48,7 @@ export function buildIntel(input: IntelInput): IntelResult {
   // Arrival time at each planned stop, from the route legs (drive) plus time spent at the earlier stops.
   const stopEtas: StopEta[] = [];
   const legMinutes: number[] = [];
+  const arriveAt: (number | null)[] = input.stops.map(() => null);
   let cum = 0;
   let legMissingAt: number | null = null; // first stop with no routed driving time: nothing after it can be dated honestly
   input.stops.forEach((s, i) => {
@@ -82,6 +61,7 @@ export function buildIntel(input: IntelInput): IntelResult {
     legMinutes.push(leg);
     cum += leg;
     const arriveMs = input.nowMs + cum * 60_000;
+    arriveAt[i] = arriveMs;
     const planned = input.comparePlan ? toMin(s.plannedArrival) : null;
     stopEtas.push({
       id: s.id,
@@ -111,8 +91,8 @@ export function buildIntel(input: IntelInput): IntelResult {
 
   const advice = buildAdvice({
     smartStops, stops: input.stops, stopEtas, legMinutes, finishAtMs, dayEndMin: input.dayEndMin,
-    nowMs: input.nowMs, utcOffsetMin: input.utcOffsetMin, weather: input.weather,
-    sunsetMin: sun?.sunsetMin ?? null, comparePlan: input.comparePlan, canMoveNextDay: input.canMoveNextDay ?? false,
+    nowMs: input.nowMs, utcOffsetMin: input.utcOffsetMin, arriveMs: arriveAt,
+    comparePlan: input.comparePlan, canMoveNextDay: input.canMoveNextDay ?? false,
   });
 
   const aheadByKind: Partial<Record<PoiKind, RankedPoi[]>> = {};
@@ -140,7 +120,6 @@ export function buildIntel(input: IntelInput): IntelResult {
     finishClock: finishAtMs !== null ? clockLabel(finishAtMs, input.utcOffsetMin) : null,
     sun: sun ? { sunrise: hm(sun.sunriseMin), sunset: hm(sun.sunsetMin) } : null,
     smartStops, advice, aheadByKind, stopEtas, notes, radar, health,
-    weatherNow: weatherNowFrom(input.weather, input.position, input.nowMs, input.utcOffsetMin),
     sunNext: sunNextFrom(sun, localMinute(input.nowMs, input.utcOffsetMin)),
   };
 }

@@ -1,10 +1,13 @@
 // Weather conditions for a place on a date, from Open-Meteo (free, no API key).
 //  - within the next 16 days  -> real forecast
 //  - otherwise                -> "typical" conditions: the same calendar window averaged over the last 6 years
+import { getOpenMeteoConfig, openMeteoKeyParam } from "@/lib/env";
 
 export type Conditions = {
   kind: "forecast" | "typical";
   tempMaxC: number;
+  /** The day's highest feels-like (apparent) temperature, when the source gave it. Heat is judged on this (lib/weather-rules.ts). */
+  feelsMaxC?: number | null;
   precipMmPerDay: number;
   rainyDayShare: number; // 0..1 share of days with >= 2.5 mm
   sampleDays: number;
@@ -14,13 +17,13 @@ export type Conditions = {
   forecastDate?: string;
 };
 
-export type Daily = { time: string[]; tmax: (number | null)[]; precip: (number | null)[]; wind?: (number | null)[] };
+export type Daily = { time: string[]; tmax: (number | null)[]; precip: (number | null)[]; wind?: (number | null)[]; feels?: (number | null)[] };
 
 export function parseDaily(json: unknown): Daily | null {
   const d = (json as { daily?: Record<string, unknown> } | null)?.daily;
   if (!d || !Array.isArray(d.time)) return null;
   const arr = (k: string) => (Array.isArray(d[k]) ? (d[k] as (number | null)[]) : []);
-  return { time: d.time as string[], tmax: arr("temperature_2m_max"), precip: arr("precipitation_sum"), wind: arr("wind_speed_10m_max") };
+  return { time: d.time as string[], tmax: arr("temperature_2m_max"), precip: arr("precipitation_sum"), wind: arr("wind_speed_10m_max"), feels: arr("apparent_temperature_max") };
 }
 
 const RAINY_MM = 2.5;
@@ -33,10 +36,11 @@ function mean(xs: number[]): number {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
 
-/** Average the same calendar window (±windowDays) across every year in the series. */
+/** Average the same calendar window (Â±windowDays) across every year in the series. */
 export function summarizeWindow(daily: Daily, month: number, day: number, windowDays = 7): Conditions | null {
   const target = dayOfYear(month, day);
   const temps: number[] = [];
+  const feels: number[] = [];
   const rains: number[] = [];
   for (let i = 0; i < daily.time.length; i++) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(daily.time[i]);
@@ -47,12 +51,15 @@ export function summarizeWindow(daily: Daily, month: number, day: number, window
     const t = daily.tmax[i];
     const p = daily.precip[i];
     if (typeof t === "number") temps.push(t);
+    const f = daily.feels?.[i];
+    if (typeof f === "number" && Number.isFinite(f)) feels.push(f);
     if (typeof p === "number") rains.push(p);
   }
   if (temps.length < 5 || rains.length < 5) return null;
   return {
     kind: "typical",
     tempMaxC: mean(temps),
+    feelsMaxC: feels.length >= 5 ? mean(feels) : null,
     precipMmPerDay: mean(rains),
     rainyDayShare: rains.filter((r) => r >= RAINY_MM).length / rains.length,
     sampleDays: rains.length,
@@ -66,7 +73,8 @@ export function summarizeForecast(daily: Daily, dateISO: string): Conditions | n
   const p = daily.precip[i];
   if (typeof t !== "number" || typeof p !== "number") return null;
   const wind = daily.wind?.[i];
-  return { kind: "forecast", tempMaxC: t, precipMmPerDay: p, rainyDayShare: p >= RAINY_MM ? 1 : 0, sampleDays: 1, windMaxKmh: typeof wind === "number" && Number.isFinite(wind) ? wind : null, forecastDate: dateISO };
+  const feels = daily.feels?.[i];
+  return { kind: "forecast", tempMaxC: t, feelsMaxC: typeof feels === "number" && Number.isFinite(feels) ? feels : null, precipMmPerDay: p, rainyDayShare: p >= RAINY_MM ? 1 : 0, sampleDays: 1, windMaxKmh: typeof wind === "number" && Number.isFinite(wind) ? wind : null, forecastDate: dateISO };
 }
 
 const iso = (d: Date) =>
@@ -84,12 +92,13 @@ export async function getConditions(
   const dateISO = iso(date);
   const today = new Date(`${todayISO}T00:00:00`);
   const daysAhead = Math.round((date.getTime() - today.getTime()) / 86_400_000);
+  const cfg = getOpenMeteoConfig(); // free API, or the commercial one when OPEN_METEO_API_KEY is set (docs/LAUNCH_CHECKLIST.md)
 
   try {
     if (daysAhead >= 0 && daysAhead <= 15) {
       const url =
-        `https://api.open-meteo.com/v1/forecast?latitude=${round(lat)}&longitude=${round(lng)}` +
-        `&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max&forecast_days=16&timezone=auto`;
+        `${cfg.forecastUrl}?latitude=${round(lat)}&longitude=${round(lng)}` +
+        `&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,wind_speed_10m_max&forecast_days=16&timezone=auto${openMeteoKeyParam(cfg)}`;
       const res = await fetchImpl(url, { signal: AbortSignal.timeout(6000), next: { revalidate: 3600 } } as RequestInit);
       if (!res.ok) return null;
       const daily = parseDaily(await res.json());
@@ -98,8 +107,8 @@ export async function getConditions(
 
     const endYear = Number(todayISO.slice(0, 4)) - 1;
     const url =
-      `https://archive-api.open-meteo.com/v1/archive?latitude=${round(lat)}&longitude=${round(lng)}` +
-      `&start_date=${endYear - 5}-01-01&end_date=${endYear}-12-31&daily=temperature_2m_max,precipitation_sum&timezone=auto`;
+      `${cfg.archiveUrl}?latitude=${round(lat)}&longitude=${round(lng)}` +
+      `&start_date=${endYear - 5}-01-01&end_date=${endYear}-12-31&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum&timezone=auto${openMeteoKeyParam(cfg)}`;
     const res = await fetchImpl(url, { signal: AbortSignal.timeout(8000), next: { revalidate: 60 * 60 * 24 * 7 } } as RequestInit);
     if (!res.ok) return null;
     const daily = parseDaily(await res.json());

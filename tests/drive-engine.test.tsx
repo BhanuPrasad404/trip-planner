@@ -8,7 +8,7 @@ const T0 = 1_800_000_000_000;
 
 const h = vi.hoisted(() => ({ live: null as unknown as Record<string, unknown>, stops: 0, resumes: 0, starts: 0, args: null as null | { onDriveStart?: () => void } }));
 vi.mock("@/lib/client/use-trip-live", () => ({ useTripLive: (args: { onDriveStart?: () => void }) => { h.args = args; return h.live; } }));
-vi.mock("@/lib/client/use-alerts", () => ({ useAlerts: () => ({ prefs: {}, notify: () => true, dismiss: () => {}, active: [], history: [] }) }));
+vi.mock("@/lib/client/use-alerts", () => ({ useAlerts: () => ({ prefs: {}, notify: () => true, dismiss: () => {}, update: () => {}, withdraw: () => {}, active: [], history: [] }) }));
 vi.mock("@/lib/client/use-visits", () => ({ useVisits: () => ({ outbox: { items: [] }, mark: async () => "saved" }) }));
 vi.mock("@/lib/client/use-vehicle", () => ({ useVehicle: () => ["car", () => {}] }));
 vi.mock("@/lib/client/use-toll-watch", () => ({ useTollWatch: () => ({ unavailable: false }) }));
@@ -20,13 +20,14 @@ import { DEFAULT_UI, NO_GPS_EXPIRY_MS, driveKey, type DriveSnapshot } from "@/li
 const liveOf = (o: { active?: boolean; meAt?: number | null; session?: number; next?: string } = {}) => ({
   drive: {
     active: o.active ?? true, share: true, session: o.session ?? 3, error: null, locating: false, shareFailed: false, route: null,
-    me: o.meAt === null || o.meAt === undefined ? null : { at: o.meAt, manual: false },
+    me: o.meAt === null || o.meAt === undefined ? null : { at: o.meAt, manual: false, lat: 17.4, lng: 78.5 },
     stop: () => { h.stops++; }, start: () => { h.starts++; }, resume: () => { h.resumes++; },
   },
   navigation: { routes: [], selectedId: null, armed: true, target: { id: "s1" }, phase: "navigating" },
   nextTarget: { id: o.next ?? "s1", name: "Bhongir Fort" },
   sound: { needsTap: false, blocked: false, canBuzz: true },
   persistable: { confirmedSession: 3, cued: () => ["approach:s1"] },
+  remaining: [], intelStops: [], nowMs: 0, // the weather board (tested on its own) has nothing to show here
 });
 
 let store: Map<string, string>; let now: number;

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AsyncCache } from "@/lib/cache";
-import { clearHourlyCache, openMeteoWeather } from "@/lib/providers/weather-open-meteo";
 import { clearRoutingCache, osrmRouting } from "@/lib/providers/routing-osrm";
 
 describe("AsyncCache", () => {
@@ -59,42 +58,8 @@ describe("AsyncCache", () => {
   });
 });
 
-const forecast = (hours = 48) => ({
-  hourly: {
-    time: Array.from({ length: hours }, (_, i) => `2026-10-11T${String(i % 24).padStart(2, "0")}:00`),
-    temperature_2m: Array.from({ length: hours }, () => 30),
-    precipitation: Array.from({ length: hours }, () => 0),
-    precipitation_probability: Array.from({ length: hours }, () => 10),
-  },
-});
 const okJson = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as unknown as Response;
 
-describe("weather provider efficiency", () => {
-  beforeEach(() => clearHourlyCache());
-  it("makes one outside call for simultaneous requests, and shares it across different hour counts", async () => {
-    const f = vi.fn(async () => okJson(forecast()));
-    const p = { lat: 17.385, lng: 78.486 };
-    const [a, b, c] = await Promise.all([
-      openMeteoWeather.hourly(p, 18, f as never),
-      openMeteoWeather.hourly({ lat: 17.39, lng: 78.49 }, 24, f as never), // same ~10 km cell
-      openMeteoWeather.hourly(p, 6, f as never),
-    ]);
-    expect(f).toHaveBeenCalledTimes(1);
-    expect([a.length, b.length, c.length]).toEqual([18, 24, 6]);
-  });
-  it("keeps serving the last good forecast when the provider fails later, and never caches an empty one", async () => {
-    const p = { lat: 10, lng: 10 };
-    const empty = vi.fn(async () => okJson({ hourly: { time: [] } }));
-    expect(await openMeteoWeather.hourly(p, 12, empty as never)).toEqual([]);
-    expect(await openMeteoWeather.hourly(p, 12, empty as never)).toEqual([]);
-    expect(empty).toHaveBeenCalledTimes(2); // empty answers are not cached
-    const good = vi.fn(async () => okJson(forecast()));
-    expect((await openMeteoWeather.hourly({ lat: 20, lng: 20 }, 12, good as never)).length).toBe(12);
-    const down = vi.fn(async () => { throw new Error("offline"); });
-    expect((await openMeteoWeather.hourly({ lat: 20, lng: 20 }, 12, down as never)).length).toBe(12); // fresh hit, not even tried
-    expect(down).not.toHaveBeenCalled();
-  });
-});
 
 describe("routing provider efficiency", () => {
   beforeEach(() => clearRoutingCache());

@@ -13,6 +13,8 @@ import { getPoiService } from "@/lib/poi";
 import { runBackground } from "@/lib/poi/background";
 import { groupsOfKinds, POI_KINDS, type PoiKind } from "@/lib/poi/types";
 import { eventsProvider, routingProvider, trafficProvider, weatherProvider } from "@/lib/providers/registry";
+import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
+import { areaOf } from "@/lib/forecast/areas";
 import type { RouteLeg } from "@/lib/providers/types";
 import { consumeQuota } from "@/lib/quota";
 import { intelSchema } from "@/lib/validation/schemas";
@@ -23,6 +25,10 @@ const HORIZON_M = 150_000; // we map and search the nearest 150 km of the road a
 const BUFFER_KM = 3; // places within 3 km of the road are candidates
 const KINDS = POI_KINDS.filter((k): k is PoiKind => k !== "parking"); // parking is only useful at a destination
 const NO_STOPS_LOOKAHEAD_M = 60_000;
+const WX_ROAD_STEP_M = 50_000;
+const MAX_ROAD_WX_POINTS = 3;
+/** Two days of hours: a stop reached tomorrow evening still has its forecast. */
+const WX_HOURS = 48;
 
 // Trip Intelligence: where you are + the road ahead + what's near it + weather + who you're travelling as
 // → Smart Stops and "what should I do next?". Places come from OUR database (filled tile by tile), never per request from a public map server.
@@ -51,10 +57,19 @@ export async function POST(req: Request) {
   const position = input.position;
   const notes: string[] = [];
 
-  // Weather only needs where you are and where you are going — not the road or the places — so it runs ALONGSIDE them.
-  const wxPoints = [position, ...(input.stops[0] ? [input.stops[0]] : []), ...(input.stops.length > 1 ? [input.stops[input.stops.length - 1]] : [])];
-  const unique = wxPoints.filter((p, i) => wxPoints.findIndex((q) => Math.abs(q.lat - p.lat) < 0.1 && Math.abs(q.lng - p.lng) < 0.1) === i);
-  const weatherPromise = timed("weather", Promise.all(unique.map(async (p) => ({ lat: p.lat, lng: p.lng, hours: await weatherProvider().hourly({ lat: p.lat, lng: p.lng }, 18).catch(() => []) }))));
+  // Weather where you are and at EVERY stop runs alongside the road and places lookups; the points along the road ahead are added
+  // once the road is known (below). Points in the same ~10 km forecast cell share one forecast (and one cached call).
+  // The SAME forecast as the weather panel: areas of ~10 km (lib/forecast/areas.ts), true timing, cached per area and day, never over
+  // 60 minutes old (the provider's areaForecasts). Each area becomes one sample; lib/intel/forecast.ts reads it with the panel's rules.
+  const fetchWeather = async (points: { lat: number; lng: number }[]): Promise<WeatherSample[]> => {
+    const areas = [...new Map(points.map((p) => { const a = areaOf(p); return [a.key, a] as const; })).values()];
+    if (areas.length === 0) return [];
+    const got = await weatherProvider().areaForecasts(areas, nowMs - 3_600_000, nowMs + WX_HOURS * 3_600_000).catch(() => ({} as Record<string, null>));
+    return areas.flatMap((a) => { const f = got[a.key]; return f ? [{ lat: f.lat, lng: f.lng, steps: f.steps, fetchedAt: f.fetchedAt }] : []; });
+  };
+  const asked = new Set<string>();
+  const newCells = (points: { lat: number; lng: number }[]) => points.filter((p) => { const k = areaOf(p).key; if (asked.has(k)) return false; asked.add(k); return true; });
+  const weatherPromise = timed("weather", fetchWeather(newCells([position, ...input.stops])));
 
   // 1. The road ahead.
   let line = input.route?.line ?? null;
@@ -84,6 +99,11 @@ export async function POST(req: Request) {
   const ahead = trimLine(line, HORIZON_M);
   const mappedKm = Math.min(full.totalM, HORIZON_M) / 1000;
 
+  // Weather along the road ahead: a point every 50 km of the next 150 km (rain, storm or fog on the way, not only at the stops).
+  const roadPoints: { lat: number; lng: number }[] = [];
+  for (let m = WX_ROAD_STEP_M; m <= Math.min(full.totalM, HORIZON_M); m += WX_ROAD_STEP_M) roadPoints.push(pointAt(full, m));
+  const roadWeatherPromise = timed("weather-road", fetchWeather(newCells(roadPoints).slice(0, MAX_ROAD_WX_POINTS)));
+
   // 2. Our own places database: make sure the corridor is covered, then query it.
   const poiService = getPoiService();
   const groups = groupsOfKinds(KINDS);
@@ -105,7 +125,7 @@ export async function POST(req: Request) {
   timings.places = Math.round(performance.now() - placesStart);
 
   // 3. Weather (already running; hourly forecasts are cached per ~10 km cell and shared between requests).
-  const weather: WeatherSample[] = (await weatherPromise).filter((w) => w.hours.length > 0);
+  const weather: WeatherSample[] = [...(await weatherPromise), ...(await roadWeatherPromise)];
 
   // 4. Fresh community updates near the candidates (best-effort; used ONLY as a ranking signal — never as a picture of a place).
   let reports: ReportLite[] = [];
@@ -126,7 +146,8 @@ export async function POST(req: Request) {
   // 5. Think — first with quick estimates, then re-think the few places we are about to show using real road detours.
   const intelInput = {
     nowMs,
-    utcOffsetMin: input.utc_offset_min,
+    // An India-only product: every clock is India time, whatever time zone the phone is set to.
+    utcOffsetMin: INDIA_UTC_OFFSET_MIN,
     position,
     heading: input.heading,
     speedKmh: input.speed_kmh,

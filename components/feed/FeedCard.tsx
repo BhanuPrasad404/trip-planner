@@ -30,7 +30,7 @@ export type CardProps = {
 };
 
 const dotClass = { green: "bg-emerald-400", amber: "bg-marigold", grey: "bg-white/60" } as const;
-const postedAt = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const postedAt = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
 const crowdTone = { quiet: "bg-emerald-500/85", moderate: "bg-marigold text-pine", crowded: "bg-red-500/85" } as const;
 function Chip({ children, tone = "bg-white/20" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold backdrop-blur ${tone}`}>{children}</span>;

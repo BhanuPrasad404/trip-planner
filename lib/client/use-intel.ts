@@ -87,7 +87,6 @@ export function useIntel(args: {
           position: { lat: origin.lat, lng: origin.lng },
           heading: a.live ? origin.heading : null,
           speed_kmh: a.live ? origin.speedKmh : null,
-          utc_offset_min: -new Date().getTimezoneOffset(),
           day_end_min: a.dayEndMin ?? 20 * 60,
           compare_plan: a.comparePlan && !!a.live,
           driving_min: a.live ? a.drivingMin ?? null : null,

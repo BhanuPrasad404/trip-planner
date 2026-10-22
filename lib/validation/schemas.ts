@@ -260,7 +260,8 @@ export const intelSchema = z.object({
   position: z.object({ lat: latitude, lng: longitude }),
   heading: z.number().min(0).max(360).nullish().transform((v) => v ?? null),
   speed_kmh: z.number().min(0).max(400).nullish().transform((v) => v ?? null),
-  utc_offset_min: z.number().int().min(-840).max(840),
+  /** Ignored: an India-only product always uses India time (older apps still send the phone's offset). */
+  utc_offset_min: z.number().int().min(-840).max(840).optional(),
   day_end_min: z.number().int().min(0).max(1439).default(20 * 60),
   compare_plan: z.boolean().default(false),
   driving_min: z.number().min(0).max(1440).nullish().transform((v) => v ?? null),
@@ -323,13 +324,28 @@ export const restoreSchema = z.object({
   delete_ids: z.array(uuid).max(10).default([]),
 });
 
+/**
+ * Weather for many places over a time window (the trip's weather panel). Times are UTC milliseconds. A place may carry its own
+ * window (a stop ten days away needs only its own day), else the request's window applies.
+ */
+export const weatherSchema = z.object({
+  places: z.array(z.object({
+    id: z.string().trim().min(1).max(64), lat: latitude, lng: longitude,
+    from: z.number().int().positive().optional(), to: z.number().int().positive().optional(),
+  }).refine((p) => p.from === undefined || p.to === undefined || (p.to >= p.from && p.to - p.from <= 17 * 86_400_000), { message: "Bad window for a place" })).min(1).max(60),
+  from: z.number().int().positive(),
+  to: z.number().int().positive(),
+}).refine((v) => v.to >= v.from, { message: "The end of the window is before its start", path: ["to"] })
+  .refine((v) => v.to - v.from <= 17 * 86_400_000, { message: "At most 16 days at a time", path: ["to"] });
+
 export const pulseSchema = z.object({
   lat: latitude,
   lng: longitude,
   name: z.string().trim().min(1).max(120),
   hours: z.string().trim().max(200).nullish().transform((v) => v || null),
   hours_checked_at: z.string().datetime().nullish().transform((v) => v ?? null),
-  utc_offset_min: z.number().int().min(-840).max(840).default(0),
+  /** Ignored: an India-only product always uses India time (older apps still send the phone's offset). */
+  utc_offset_min: z.number().int().min(-840).max(840).optional(),
   /** Traveler photos belong to destinations/trip stops. A Radar POI (restaurant, pump…) never borrows photos taken nearby. */
   include_photos: z.boolean().default(false),
 });

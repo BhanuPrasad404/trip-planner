@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { INDIA_UTC_OFFSET_MIN, minuteOfDay } from "@/lib/travel/clock";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
 import { useAction } from "@/lib/client/use-action";
@@ -11,8 +12,9 @@ import { clockLabel, dayEndFrom, type Lifecycle } from "@/lib/trip/lifecycle";
 
 const EMPTY = {} as Record<string, never>;
 const HOURS = [1, 2, 3, 4, 6, 8, 10, 12] as const;
-const when = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+// India time, whatever the phone's own time zone.
+const when = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+const nowMinutes = () => minuteOfDay(Date.now(), INDIA_UTC_OFFSET_MIN);
 const toMinutes = (hhmm: string): number | null => { const m = /^(\d{2}):(\d{2})$/.exec(hhmm); return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
 type Props = { tripId: string; lifecycle: Lifecycle; isOwner: boolean; /** e.g. "12 Oct – 13 Oct", or null when the trip has no dates. */ plannedLabel: string | null };

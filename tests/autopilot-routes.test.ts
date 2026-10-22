@@ -58,7 +58,8 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 vi.mock("@/lib/providers/registry", () => ({
-  weatherProvider: () => ({ id: "t", hourly: async () => [{ time: new Date(Date.now() - 600_000).toISOString(), tempC: 28, precipMm: 0, precipProb: 10 }], conditionsFor: async () => ({}) }),
+  // One forecast step 10 minutes ago (the nearest step now), fetched just now, in the panel's area format.
+  weatherProvider: () => ({ id: "t", conditionsFor: async () => ({}), areaForecasts: async (areas: { key: string; lat: number; lng: number }[]) => Object.fromEntries(areas.map((a) => [a.key, { area: a.key, lat: a.lat, lng: a.lng, fetchedAt: Date.now(), steps: [{ time: Date.now() - 600_000, tempC: 28, feelsC: 29, code: 1, visibilityM: 20_000, isDay: true, precipMm: 0, precipProb: 10, gustKmh: 10 }] }])) }),
 }));
 
 import { POST as insertPOST } from "@/app/api/trips/[id]/insert-stop/route";

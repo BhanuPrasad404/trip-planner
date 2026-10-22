@@ -155,10 +155,19 @@ describe("recommendDeparture: time zones and midnight", () => {
   });
 });
 
-describe("recommendDeparture: weather is only a note, and only for a real forecast", () => {
-  it("a forecast heat note appears when arrival falls in the hottest hours", () => {
-    const a = recommendDeparture({ dateISO: DAY, stops: [fort({ driveMin: 30, hours: "Mo-Su 12:00-18:00" })], weather: [{ stopId: "s1", kind: "heat", forecastLabel: "A 38°C day is forecast" }] });
-    expect(a.tradeoffs.join(" ")).toMatch(/hottest part of the day/);
+describe("recommendDeparture: weather is only a note, judged at the moment you would ARRIVE (never on the day's maximum)", () => {
+  it("the forecast is asked for at the recommended arrival time, and its note names that time", () => {
+    const asked: number[] = [];
+    const at = (t: number) => { asked.push(t); return { kind: "heat" as const, label: "Very hot (feels like 41°C), Open-Meteo forecast for 12:30 PM" }; };
+    const a = recommendDeparture({ dateISO: DAY, stops: [fort({ driveMin: 30, hours: "Mo-Su 12:00-18:00" })], weather: [{ stopId: "s1", at }] });
+    const arrive = a.result!.verdicts[0].arriveMs!;
+    expect(asked).toContain(arrive);
+    expect(a.tradeoffs.join(" ")).toContain(`Very hot (feels like 41°C), Open-Meteo forecast for 12:30 PM at`);
+    expect(a.tradeoffs.join(" ")).toMatch(/when you'd arrive, around \d{1,2}:\d{2} [AP]M\. An earlier start/);
+  });
+  it("nothing worth saying at that moment (a hot day, but a cool arrival hour): no weather note at all", () => {
+    const a = recommendDeparture({ dateISO: DAY, stops: [fort({ driveMin: 30, hours: "Mo-Su 12:00-18:00" })], weather: [{ stopId: "s1", at: () => null }] });
+    expect(a.tradeoffs.join(" ")).not.toMatch(/hot|rain/i);
   });
   it("without a forecast note there is no weather advice at all", () => {
     const a = recommendDeparture({ dateISO: DAY, stops: [fort({ driveMin: 30, hours: "Mo-Su 11:00-18:00" })] });

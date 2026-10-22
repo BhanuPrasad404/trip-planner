@@ -171,7 +171,7 @@ export function FeedView({ tripId, trips, hasProfile }: { tripId: string | null;
 
   return (
     <div className="relative bg-black md:bg-[#0c2b2a]">
-      <nav aria-label="What are you looking for?" className="flex h-12 items-center gap-2 overflow-x-auto bg-black px-3 [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">
+      <nav aria-label="What are you looking for?" className="flex h-12 items-center gap-2 relative overflow-x-auto bg-black px-3 [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">
         {INTENT_IDS.filter((id) => id !== "trip" || tripId).map((id) => (
           <button key={id} type="button" onClick={() => setIntent(id)} aria-pressed={intent === id} title={INTENTS[id].hint}
             className={`min-h-9 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors ${intent === id ? "bg-white text-black" : "bg-white/12 text-white/80 hover:bg-white/20"}`}>{INTENTS[id].label}</button>

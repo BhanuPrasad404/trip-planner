@@ -40,7 +40,25 @@ export const createTripSchema = z.object({
     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date").nullish().transform((v) => v ?? null)
   ),
   num_days: z.number().int().min(1, "At least 1 day").max(MAX_TRIP_DAYS, `Max ${MAX_TRIP_DAYS} days`),
-});
+  /** How the trip ends (lib/trip/end.ts). Absent = the old form: the destination, if any, is the end. */
+  end_mode: z.enum(["start", "place", "open"]).optional(),
+  /** What the traveller told us in the guided flow (lib/intake). Absent for the old form. */
+  intake: z.object({
+    group: z.enum(["solo", "couple", "friends", "family", "family_kids", "family_elders"]).optional(),
+    group_size: z.number().int().min(1).max(60).optional(),
+    mode: z.enum(["car", "bike", "bus", "train"]).optional(),
+    pace: z.enum(["relaxed", "balanced", "packed"]).optional(),
+    max_drive_hours: z.number().min(1).max(14).optional(),
+    night_driving: z.boolean().optional(),
+    interests: z.array(z.enum(["nature", "temples", "food", "adventure", "photography", "offbeat", "shopping", "beaches", "history"])).max(9).optional(),
+    stay: z.enum(["hotel", "homestay", "hostel", "camping", "resort"]).optional(),
+    avoid: z.array(z.string().trim().min(1).max(60)).max(8).optional(),
+    month: z.number().int().min(1).max(12).optional(),
+  }).strict().optional(),
+})
+  // "End at a place" needs that place; returning to the start or an open end must not keep a stray destination that Live would drive to.
+  .refine((t) => t.end_mode !== "place" || (t.dest_lat != null && t.dest_lng != null), { message: "Choose the place where the trip ends", path: ["dest_name"] })
+  .transform((t) => (t.end_mode === "start" || t.end_mode === "open" ? { ...t, dest_name: null, dest_lat: null, dest_lng: null } : t));
 
 export const createPlaceSchema = z.object({
   trip_id: uuid,
@@ -103,6 +121,8 @@ export const bulkPlacesSchema = z.object({
         season_tag_id: uuid.nullish().transform((v) => v ?? null),
         notes: z.string().trim().max(300).nullish().transform((v) => v || null),
         address: z.string().trim().max(200).nullish().transform((v) => v || null),
+        /** "must" for the traveller's must-sees (the planner never drops them). Absent = the database default ("normal"). */
+        priority: z.enum(["must", "high", "normal", "optional"]).optional(),
       })
     )
     .min(1, "Select at least one place")
@@ -129,13 +149,21 @@ export const placeHoursSchema = z.object({
   ]),
 });
 
+/** The Phase 3 engine (Relaxed / Balanced / Most places, drive days, night halts) and the traveller's overrides of their saved answers. */
+const engineFields = {
+  engine: z.boolean().optional(),
+  night_driving: z.boolean().optional(),
+  max_drive_hours: z.number().min(1).max(14).optional(),
+};
 export const builderSchema = z.object({
   end_mode: z.enum(["free", "start", "point"]).default("free"),
   styles: z.array(z.enum(["balanced", "relaxed", "explorer", "scenic", "photography", "family", "roadtrip"])).min(1).max(4).optional(),
+  ...engineFields,
 });
 export const builderApplySchema = z.object({
   style: z.enum(["balanced", "relaxed", "explorer", "scenic", "photography", "family", "roadtrip"]),
   end_mode: z.enum(["free", "start", "point"]).default("free"),
+  ...engineFields,
   /** What the traveller was looking at: if the places changed since, we refuse instead of applying a stale plan. */
   signature: z.string().min(16).max(128),
 });
@@ -183,6 +211,44 @@ export const voteSchema = z.object({ vote: z.union([z.literal(-1), z.literal(0),
 export const geocodeSchema = z.object({
   query: z.string().trim().min(2, "Type at least 2 letters").max(120, "Search is too long"),
   near: z.object({ lat: latitude, lng: longitude }).nullish(),
+});
+
+// ─── Place search (start, stops, end) — works signed out too ────────────────
+const nearPoint = z.object({ lat: latitude, lng: longitude }).nullish().transform((v) => v ?? null);
+
+export const placeSearchSchema = z.object({
+  q: z.string().trim().min(2, "Type at least 2 letters").max(120, "Search is too long"),
+  near: nearPoint,
+  layer: z.enum(["local", "map", "more"]).default("local"),
+});
+
+export const placeHereSchema = z.object({ lat: latitude, lng: longitude });
+
+export const placeSuggestSchema = z.object({ near: nearPoint });
+
+/** Road times for the fit meter: the start, then up to 40 places (the engine's limit). */
+export const intakeRoadsSchema = z.object({ points: z.array(z.object({ lat: latitude, lng: longitude })).min(2, "Need a start and at least one place").max(41, "Up to 40 places") });
+
+/** Typical weather for a month at the start, and our researched places in season then. */
+export const intakeSeasonSchema = z.object({ lat: latitude, lng: longitude, name: z.string().trim().min(1).max(120), month: z.number().int().min(1).max(12) });
+
+/** "Places like these": the trip so far. */
+export const intakeSimilarSchema = z.object({
+  start: z.object({ lat: latitude, lng: longitude }),
+  places: z.array(z.object({
+    id: z.string().trim().min(1).max(120), name: z.string().trim().min(1).max(120), lat: latitude, lng: longitude,
+    kind: z.string().trim().max(20), state: z.string().trim().max(80).nullish().transform((v) => v ?? null), must: z.boolean().default(false),
+  })).min(1).max(20),
+  interests: z.array(z.enum(["nature", "temples", "food", "adventure", "photography", "offbeat", "shopping", "beaches", "history"])).max(9).default([]),
+  month: z.number().int().min(1).max(12).nullish().transform((v) => v ?? null),
+  round_trip: z.boolean().default(true),
+});
+
+// ─── Trip creation: reading what the traveller wrote — works signed out too ─
+export const intakeReadSchema = z.object({
+  text: z.string().trim().min(2, "Write or paste a little more").max(4000, "That's too much text — paste less"),
+  /** The start the traveller already chose (Phase 1 picker), so places are judged from there. */
+  start: z.object({ lat: latitude, lng: longitude, name: z.string().trim().min(1).max(120) }).nullish().transform((v) => v ?? null),
 });
 
 export const feedbackSchema = z.object({

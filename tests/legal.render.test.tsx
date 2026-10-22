@@ -29,10 +29,11 @@ describe("legalContact", () => {
 describe("the Privacy Policy matches what the app really does", () => {
   const t = text(privacySections(contact));
   it("names every outside service the app sends data to", () => {
-    for (const s of ["supabase", "vercel", "osrm", "nominatim", "overpass", "open-meteo", "openfreemap", "wikipedia", "gemini", "anthropic", "discord"]) expect(t, s).toContain(s);
+    for (const s of ["supabase", "vercel", "osrm", "nominatim", "photon", "geonames", "overpass", "open-meteo", "openfreemap", "wikipedia", "gemini", "anthropic", "discord"]) expect(t, s).toContain(s);
   });
   it("covers every kind of data the app keeps", () => {
-    for (const d of ["email address", "location", "photos and videos", "comments", "likes", "votes", "notifications", "ip address", "cookie", "feedback", "time-zone"]) expect(t, d).toContain(d);
+    // (The time-zone cookie was removed with the weather rebuild; the signed-out visitor cookie for search limits replaced it in this list.)
+    for (const d of ["email address", "location", "photos and videos", "comments", "likes", "votes", "notifications", "ip address", "cookie", "feedback", "visitor cookie"]) expect(t, d).toContain(d);
   });
   it("states the live-location promise the app really keeps (opt-in, deleted on stop, hidden after 6 hours, no history)", () => {
     expect(t).toContain("do not keep a history");

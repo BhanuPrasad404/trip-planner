@@ -1,6 +1,6 @@
 import { Glyph } from "@/components/ui/Glyph";
 
-export type PlanTool = "plan" | "leave" | "import" | "dates";
+export type PlanTool = "plan" | "leave" | "import" | "dates" | "group";
 
 /**
  * The top of the Plan page, kept to what a traveller needs first: when, how big, and the three things they can do.
@@ -21,7 +21,7 @@ export function PlanHeader({ dates, meta, status, countdown, active, onTool, has
   onTool: (t: PlanTool) => void;
   hasDates: boolean;
 }) {
-  const tools: { id: Exclude<PlanTool, "dates">; label: string; icon: "navigate" | "car" | "sparkles"; primary?: boolean }[] = [
+  const tools: { id: Exclude<PlanTool, "dates" | "group">; label: string; icon: "navigate" | "car" | "sparkles"; primary?: boolean }[] = [
     { id: "plan", label: "Plan my trip", icon: "navigate", primary: true },
     { id: "leave", label: "When to leave", icon: "car" },
     { id: "import", label: "Import places", icon: "sparkles" },
@@ -55,6 +55,9 @@ export function PlanHeader({ dates, meta, status, countdown, active, onTool, has
             </button>
           ))}
         </div>
+        <button type="button" aria-pressed={active === "group"} onClick={() => onTool("group")} className={`mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold underline-offset-2 ${active === "group" ? "text-teal-ink" : "text-pine underline"}`}>
+          <Glyph name="chat" size={15} />Ask your group: their pace, interests and things to avoid
+        </button>
       </div>
     </header>
   );

@@ -49,6 +49,7 @@ export async function POST(req: Request) {
     season_tag_id: p.season_tag_id,
     notes: p.notes,
     address: p.address,
+    ...(p.priority ? { priority: p.priority } : {}),
     day_number: null,
     sequence_order: ++seq,
     added_by: user.id,

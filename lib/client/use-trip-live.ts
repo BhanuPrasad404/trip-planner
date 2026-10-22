@@ -25,6 +25,7 @@ import { safeColor } from "@/lib/format";
 import { checkStart } from "@/lib/location/start-check";
 import { journeySummary } from "@/lib/map/journey";
 import { DESTINATION_ID, planDriveTargets, type PlanTarget } from "@/lib/map/drive-targets";
+import { tripEndPoint } from "@/lib/trip/end";
 import { tripTiming } from "@/lib/time-context";
 import { liveDayFor } from "@/lib/trip-state";
 import { isClosed, isResumed, resumedDay } from "@/lib/trip/lifecycle";
@@ -88,9 +89,16 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
   // destination. A trip with a start and a destination but no stops used to have nothing to navigate to.
   const finishedToday = useMemo(() => dayPlaces.filter((p) => p.status === "done" || p.status === "skipped"), [dayPlaces]);
   const scheduledStopCount = useMemo(() => places.filter((p) => p.day_number !== null).length, [places]);
+  // The end comes from the traveller's end choice (lib/trip/end.ts): back to the start, a chosen place, or none. A round trip with no
+  // stops has nowhere to go but home, which is where it starts, so it gets no end target.
+  const { end_mode, start_city, start_lat, start_lng, dest_name, dest_lat, dest_lng } = trip;
+  const end = useMemo(() => tripEndPoint({ end_mode, start_city, start_lat, start_lng, dest_name, dest_lat, dest_lng }), [end_mode, start_city, start_lat, start_lng, dest_name, dest_lat, dest_lng]);
   const targets = useMemo<PlanTarget[]>(
-    () => planDriveTargets({ remaining, finished: finishedToday, destination: { lat: trip.dest_lat, lng: trip.dest_lng, name: trip.dest_name }, driveDay, numDays: trip.num_days, scheduledStopCount }),
-    [remaining, finishedToday, trip.dest_lat, trip.dest_lng, trip.dest_name, driveDay, trip.num_days, scheduledStopCount]
+    () => planDriveTargets({
+      remaining, finished: finishedToday, driveDay, numDays: trip.num_days, scheduledStopCount,
+      destination: end && !(trip.end_mode === "start" && scheduledStopCount === 0) ? { lat: end.lat, lng: end.lng, name: end.label } : { lat: null, lng: null, name: null },
+    }),
+    [remaining, finishedToday, end, trip.end_mode, driveDay, trip.num_days, scheduledStopCount]
   );
   const driveStops = useMemo<DriveTarget[]>(() => targets.map((t) => ({ id: t.id, name: t.name, lat: t.lat, lng: t.lng, plannedArrival: t.plannedArrival })), [targets]);
   /** Real planned stops only: the autopilot and radar reason about places to visit, not about "the destination". */

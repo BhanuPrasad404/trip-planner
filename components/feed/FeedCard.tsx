@@ -82,7 +82,7 @@ export function FeedCard(p: CardProps) {
           <FeedVideo src={video.url} poster={video.posterUrl} width={video.width} height={video.height} active={active} near={near} frugal={p.frugal}
             muted={p.muted} onToggleMute={p.onToggleMute} onPlay={p.onVideoPlay} onProgress={p.onVideoProgress} />
         ) : images.length > 0 ? (
-          <div className="flex h-full w-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none]"
+          <div className="flex h-full w-full snap-x snap-mandatory relative overflow-x-auto [scrollbar-width:none]"
             onScroll={(e) => setSlide(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}>
             {images.map((m, i) => (
               // eslint-disable-next-line @next/next/no-img-element -- private signed Storage URL, already sized for the feed

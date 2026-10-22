@@ -32,6 +32,7 @@ import { SATELLITE_TILES_URL } from "@/lib/map/style";
 import { dayWithDate } from "@/lib/time-context";
 import { useTripEngine } from "./drive/DriveProvider";
 import type { Engine } from "./drive/DriveEngine";
+import { tripEndMarker } from "@/lib/trip/end";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
 
@@ -87,7 +88,10 @@ function MapScreen({ e }: { e: Engine }) {
 
   const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null })), [places]);
   const start = useMemo(() => (trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat, lng: trip.start_lng, label: trip.start_city ?? "Start" } : null), [trip.start_lat, trip.start_lng, trip.start_city]);
-  const dest = useMemo(() => (trip.dest_lat != null && trip.dest_lng != null ? { lat: trip.dest_lat, lng: trip.dest_lng, label: trip.dest_name ?? "Destination" } : null), [trip.dest_lat, trip.dest_lng, trip.dest_name]);
+  const dest = useMemo(
+    () => tripEndMarker({ end_mode: trip.end_mode, start_city: trip.start_city, start_lat: trip.start_lat, start_lng: trip.start_lng, dest_name: trip.dest_name, dest_lat: trip.dest_lat, dest_lng: trip.dest_lng }),
+    [trip.end_mode, trip.start_city, trip.start_lat, trip.start_lng, trip.dest_name, trip.dest_lat, trip.dest_lng]
+  );
   const top = intel.result?.advice.find((x) => x.kind !== "weather"); // weather on screen comes only from the weather line and panel
   const days = Array.from({ length: trip.num_days }, (_, i) => i + 1);
   const addRadar = (r: RadarItem) => actions.insertStop({ name: r.name, lat: r.lat, lng: r.lng, category: r.kind === "viewpoint" ? "viewpoint" : null }, driveDay);

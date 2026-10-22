@@ -1,13 +1,14 @@
 import Image from "next/image";
-import heroPhoto from "@/public/brand/mobile-hero.webp";
+import heroPhoto from "@/public/brand/trailmate-hills.webp";
 
 /**
- * The scene behind the whole app on phones: a real photograph (self-hosted in /public/brand, optimised by next/image: sized for the
+ * The scene behind the whole app (phones and desktop): a real photograph (misty tea hills at sunrise) (self-hosted in /public/brand, optimised by next/image: sized for the
  * phone, modern formats, a blurred placeholder while it loads), fading into deep forest green so every card and every line of text sits
- * on a dark, calm surface. Nothing moves. Hidden from screen readers and never catches a tap. Not shown from 768 px up.
+ * on a dark, calm surface; from 768 px up (light theme) it fades into the light mist instead. Nothing moves. Hidden from screen readers
+ * and never catches a tap.
  * Set HERO_PHOTO to null to go back to the drawn scene below (no image download at all).
  */
-export const HERO_PHOTO: string | null = "/brand/mobile-hero.webp";
+export const HERO_PHOTO: string | null = "/brand/trailmate-hills.webp";
 /** Who took the photo and under which licence, shown in the app (lib/legal-content / profile). Null until the owner confirms it. */
 export const HERO_CREDIT: string | null = null;
 
@@ -22,12 +23,14 @@ export const BACKDROP_COLORS = {
 
 export function MobileBackdrop() {
   return (
-    <div aria-hidden="true" data-mobile-backdrop className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#06201c] md:hidden">
+    <div aria-hidden="true" data-mobile-backdrop className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#06201c] md:bg-sky">
       {HERO_PHOTO ? (
         <>
-          <Image src={heroPhoto} alt="" fill priority sizes="768px" placeholder={typeof heroPhoto === "object" && heroPhoto.blurDataURL ? "blur" : "empty"} quality={70} className="object-cover object-top" />
+          <Image src={heroPhoto} alt="" fill priority sizes="(max-width: 767px) 768px, 1600px" placeholder={typeof heroPhoto === "object" && heroPhoto.blurDataURL ? "blur" : "empty"} quality={70} className="object-cover object-top" />
           {/* Dark at the top (under the header), clear through the view, then into the forest green the cards sit on. */}
-          <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(6,32,28,0.55) 0%, rgba(6,32,28,0.05) 18%, rgba(6,32,28,0.15) 38%, ${BACKDROP_COLORS.ground} 72%)` }} />
+          <div className="absolute inset-0 md:hidden" style={{ background: `linear-gradient(180deg, rgba(6,32,28,0.55) 0%, rgba(6,32,28,0.05) 18%, rgba(6,32,28,0.15) 38%, ${BACKDROP_COLORS.ground} 72%)` }} />
+          {/* Desktop (light theme): the photo shows at the top and melts into the light mist the pages sit on. */}
+          <div className="absolute inset-0 hidden md:block" style={{ background: "linear-gradient(180deg, rgba(234,244,241,0.15) 0%, rgba(234,244,241,0.55) 30%, #eaf4f1 60%)" }} />
         </>
       ) : (
         <svg viewBox="0 0 390 800" preserveAspectRatio="xMidYMin slice" className="absolute inset-0 h-full w-full">

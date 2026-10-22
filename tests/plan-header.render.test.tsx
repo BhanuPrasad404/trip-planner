@@ -12,7 +12,9 @@ describe("PlanHeader: what a traveller needs first, and the three things they ca
   });
   it("has exactly three tool buttons, each large enough to tap, and the active one is marked", () => {
     const h = html({ active: "leave" });
-    expect(h.match(/aria-pressed="/g)?.length).toBe(4); // three tools + the dates button
+    expect(h.match(/aria-pressed="/g)?.length).toBe(5); // three tools + the dates button + the "Ask your group" link (Phase 2)
+    expect(h.match(/min-h-\[3\.75rem\]/g)?.length).toBe(3); // still exactly three big tool buttons
+    expect(h).toContain("Ask your group");
     expect(h).toContain("min-h-[3.75rem]");
     expect(h.match(/aria-pressed="true"/g)?.length).toBe(1);
   });

@@ -40,6 +40,7 @@ import { useMapTheme } from "@/lib/client/use-map-theme";
 import { useTripEngine } from "./drive/DriveProvider";
 import type { Engine } from "./drive/DriveEngine";
 import { Skeleton } from "./ui/Skeleton";
+import { tripEndMarker } from "@/lib/trip/end";
 
 type Props = { trip: Trip; places: PlaceWithSeason[]; members: TripMember[]; votes: Record<string, VoteSummary>; conditions: Record<string, Conditions>; userId: string; today: string };
 
@@ -124,7 +125,10 @@ function LiveScreen({ e }: { e: Engine }) {
 
   const mapPlaces = useMemo(() => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, status: p.status ?? null })), [places]);
   const start = useMemo(() => (trip.start_lat != null && trip.start_lng != null ? { lat: trip.start_lat, lng: trip.start_lng, label: trip.start_city ?? "Start" } : null), [trip.start_lat, trip.start_lng, trip.start_city]);
-  const dest = useMemo(() => (trip.dest_lat != null && trip.dest_lng != null ? { lat: trip.dest_lat, lng: trip.dest_lng, label: trip.dest_name ?? "Destination" } : null), [trip.dest_lat, trip.dest_lng, trip.dest_name]);
+  const dest = useMemo(
+    () => tripEndMarker({ end_mode: trip.end_mode, start_city: trip.start_city, start_lat: trip.start_lat, start_lng: trip.start_lng, dest_name: trip.dest_name, dest_lat: trip.dest_lat, dest_lng: trip.dest_lng }),
+    [trip.end_mode, trip.start_city, trip.start_lat, trip.start_lng, trip.dest_name, trip.dest_lat, trip.dest_lng]
+  );
   const days = Array.from({ length: trip.num_days }, (_, i) => i + 1);
 
   return (

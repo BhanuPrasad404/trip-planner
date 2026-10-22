@@ -33,7 +33,7 @@ export function RouteThread({ numDays, activeDay, onSelectDay, startDate, stopCo
 
   return (
     <nav aria-label="Trip days" className="bg-pine">
-      <div className="scroll-thin overflow-x-auto px-3 pb-4 pt-2 sm:px-5">
+      <div className="scroll-thin relative overflow-x-auto px-3 pb-4 pt-2 sm:px-5">
         <ul className="relative mx-auto flex w-max min-w-full items-start justify-between gap-1 sm:gap-2">
           {/* Dotted thread behind the day dots */}
           <li

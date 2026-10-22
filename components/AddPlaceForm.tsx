@@ -89,8 +89,9 @@ export function AddPlaceForm({ tripId, dayNumber, near, onAdded, onCancel }: Add
           if (p && !name.trim()) setName(p.name);
         }}
         near={near}
+        currentLocation="offer"
         placeholder="e.g. Kondapalli Fort"
-        hint="Search by name, add the town for common names."
+        hint="Start typing: places appear as you type. Add the town for common names."
       />
 
       <TextField

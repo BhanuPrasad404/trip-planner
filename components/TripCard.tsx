@@ -2,6 +2,7 @@ import Link from "next/link";
 import { StateChip } from "./StateChip";
 import { parseISODate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { routeLabel } from "@/lib/trip/end";
 import { primaryAction, type TripSummary } from "@/lib/server/trip-summaries";
 
 export function TripCard({ trip, isOwner }: { trip: TripSummary; isOwner: boolean }) {
@@ -15,7 +16,7 @@ export function TripCard({ trip, isOwner }: { trip: TripSummary; isOwner: boolea
         <StateChip state={trip.state} outcome={trip.outcome} />
       </div>
       <p className="mt-1 text-sm text-ink-muted">
-        {trip.start_city ?? "Start not set"}{trip.dest_name && <> → {trip.dest_name}</>}
+        {routeLabel(trip)}
       </p>
       <p className="mt-2 font-mono text-xs text-ink-muted">
         {trip.num_days} {trip.num_days === 1 ? "DAY" : "DAYS"} · {start ? formatDate(start, { day: "numeric", month: "short", year: "numeric" }).toUpperCase() : "DATES NOT SET"}

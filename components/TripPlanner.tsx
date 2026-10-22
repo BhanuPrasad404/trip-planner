@@ -49,6 +49,8 @@ import { describeDistance, summarizeDay, summarizeTrip } from "@/lib/trip-distan
 import { dayWithDate, isoDate, relativeDay, tripTiming } from "@/lib/time-context";
 import { WhenChip } from "@/components/ui/WhenChip";
 import { TripBuilder } from "@/components/builder/TripBuilder";
+import { builderEndMode } from "@/lib/trip/end";
+import { GroupPanel } from "@/components/plan/GroupPanel";
 import { NO_OVERRIDES, applyPlaceOverrides, applyVoteOverrides, dropOverride, withPlaceOverride, withVoteOverride, type Overrides } from "@/lib/optimistic";
 import { duration, hhmm, type PlanOption } from "@/lib/trip-builder";
 
@@ -76,12 +78,13 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   const [showAddForm, setShowAddForm] = useState(false);
   // One tool panel open at a time (plan, when to leave, dates). Import has its own state because "Find alternatives" opens it with a brief.
   const [tool, setTool] = useState<Exclude<PlanTool, "import"> | null>(null);
-  // "?tool=dates" (from "No trip date set" on the trip's Weather page) opens the date picker.
+  // "?tool=dates" (from "No trip date set" on the trip's Weather page) opens the date picker; "?tool=plan" (right after the guided
+  // flow created the trip) opens "Plan my trip"; "?tool=group" opens "Ask your group".
   useEffect(() => {
-    let wanted = false;
-    try { wanted = new URLSearchParams(window.location.search).get("tool") === "dates"; } catch { /* no URL */ }
-    if (!wanted) return;
-    const t = window.setTimeout(() => setTool("dates"), 0); // after the first paint, like the page's other browser-only state
+    let wanted: string | null = null;
+    try { wanted = new URLSearchParams(window.location.search).get("tool"); } catch { /* no URL */ }
+    if (wanted !== "dates" && wanted !== "plan" && wanted !== "group") return;
+    const t = window.setTimeout(() => setTool(wanted as "dates" | "plan" | "group"), 0); // after the first paint, like the page's other browser-only state
     return () => window.clearTimeout(t);
   }, []);
   const toolRef = useRef<HTMLDivElement>(null);
@@ -423,6 +426,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
           {tool === "leave" && (
             <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} roadLine={road.line} onClose={() => setTool(null)} onSetDates={() => setTool("dates")} onPlanTrip={() => setTool("plan")} />
           )}
+          {tool === "group" && <GroupPanel tripId={trip.id} onClose={() => setTool(null)} />}
           {tool === "plan" && (
             <TripBuilder
               tripId={trip.id}
@@ -431,6 +435,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
               hasDestination={trip.dest_lat != null && trip.dest_lng != null}
               startLabel={trip.start_city}
               destLabel={trip.dest_name}
+              defaultEndMode={builderEndMode(trip)}
               canEditTrip={trip.owner_id === userId}
               hasDates={!!trip.start_date}
               onClose={() => { setTool(null); setPreview(null); }}

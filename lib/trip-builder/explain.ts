@@ -31,8 +31,9 @@ export function assembleDays(ctx: Ctx, days: number[][], clusters: ClusterMap): 
 
   days.forEach((order, d) => {
     const day = d + 1;
-    const timed = scheduleDay(ctx, day, order, prev);
     const isLast = d === days.length - 1;
+    const tail = isLast && ret !== null && order.length ? ctx.driveMin(order[order.length - 1], ret) : 0;
+    const timed = scheduleDay(ctx, day, order, prev, 0, tail);
     let returnLeg: DayPlan["returnLeg"] = null;
     let drive = timed.driveMin, km = timed.driveKm, endMin = timed.endMin;
     if (isLast && ret !== null && order.length) {

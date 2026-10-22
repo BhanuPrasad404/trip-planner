@@ -8,7 +8,7 @@ vi.mock("@/lib/client/use-trip-realtime", () => ({ useTripRealtime: vi.fn() }));
 
 import { DrivePanel } from "@/components/DrivePanel";
 
-const NOW = new Date(2026, 9, 10, 9, 40).getTime(); // 09:40 local
+const NOW = Date.parse("2026-10-10T09:40:00+05:30"); // 09:40 India time, on any computer (the app uses India time)
 const stops: DriveTarget[] = [
   { id: "a", name: "Kondapalli Fort", lat: 16.6, lng: 80.5, plannedArrival: "10:00" },
   { id: "b", name: "Kolleru Lake", lat: 16.6, lng: 81.2, plannedArrival: "13:00" },

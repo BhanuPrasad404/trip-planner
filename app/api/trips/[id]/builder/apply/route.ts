@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { consumeQuota } from "@/lib/quota";
 import { loadBuilder } from "@/lib/server/builder";
+import { runEngine } from "@/lib/server/trip-engine";
 import { todayISO } from "@/lib/server/trip-data";
 import { clock24 } from "@/lib/trip-builder";
 import { builderApplySchema, uuid } from "@/lib/validation/schemas";
@@ -21,10 +22,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (bodyError) return bodyError;
   if (!(await consumeQuota(supabase, "builder_apply", 40))) return jsonError("Too many plan changes today. Please try again tomorrow.", 429);
 
-  const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: [input.style], todayISO: await todayISO(), userId: user.id });
+  const today = await todayISO();
+  const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: input.engine ? [] : [input.style], todayISO: today, userId: user.id });
   if (!r.ok) return jsonError(r.error, r.status);
   if (r.signature !== input.signature) return jsonError("Your places or dates changed since this preview. Refresh the options and choose again.", 409);
-  const option = r.result.options[0];
+  let option = r.result.options[0];
+  if (input.engine) {
+    // The engine's plan, re-computed the same way the preview was (tolls are not needed to save a plan). Its day numbers already count
+    // the drive days to a far-away area, so places land on the right trip day.
+    try {
+      const run = await runEngine(r.input, { intake: r.trip.intake ?? null, todayISO: today, nightDriving: input.night_driving, maxDriveHours: input.max_drive_hours, checkTolls: false });
+      option = run.plan.variants.find((v) => v.option.style === input.style)?.option ?? option;
+    } catch (e) {
+      console.error("engine: apply failed", e);
+      return jsonError("Couldn't re-check this plan right now. Please try again.", 503);
+    }
+  }
   if (!option) return jsonError("Nothing to apply.", 422);
 
   const byId = new Map(r.input.places.map((p) => [p.id, p]));

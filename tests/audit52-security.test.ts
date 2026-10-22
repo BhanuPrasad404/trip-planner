@@ -99,8 +99,21 @@ describe("every API route authenticates (or is secret-gated)", () => {
   // Public ON PURPOSE: the connectivity probe has to work with no sign-in (and when the session service itself is unreachable). It is only
   // allowed to stay public while it is provably inert: no imports at all (so no database, no secrets, no user data), a 204, never cached.
   const PUBLIC_BY_DESIGN = new Set(["ping/route.ts"]);
+  // Open to signed-out visitors ON PURPOSE (trip creation, phase 1: "search and reverse lookup must also work for guests, limited per
+  // visitor"). Each must identify the visitor (signed-in user, or a hashed random cookie + hashed network), apply the per-minute limit,
+  // validate its input, set the visitor cookie, and never use the service-role key itself (guest daily limits go through
+  // lib/places/visitor.ts, which only calls one locked-down database function).
+  const GUEST_ROUTES = new Set(["place-search/route.ts", "place-here/route.ts", "place-suggest/route.ts", "intake/read/route.ts", "intake/ai/route.ts", "intake/roads/route.ts", "intake/season/route.ts", "intake/similar/route.ts", "poll/[code]/route.ts"]);
   it.each(routes.map((p) => [p.split("/app/api/")[1], p] as const))("%s", (n, p) => {
     const src = readFileSync(decodeURIComponent(p).replace(/^\/([A-Za-z]:)/, "$1"), "utf8");
+    if (GUEST_ROUTES.has(n)) {
+      expect(src).toContain("await identify(req)");
+      expect(src).toMatch(/rateLimiter\.take\(`[a-z-]+:\$\{burstKey\(visitor\)\}`/);
+      expect(src).toMatch(/parseBody\(req, (?:place|intake|group)[A-Za-z]+Schema\)/);
+      expect(src).toContain("rememberVisitor(");
+      expect(/supabase\/admin|SERVICE_ROLE|createAdminClient/.test(src)).toBe(false);
+      return;
+    }
     if (PUBLIC_BY_DESIGN.has(n)) {
       expect(/^\s*import\s/m.test(src), "a public route must import nothing").toBe(false);
       expect(/require\(|fetch\(|process\.env|supabase|cookies\(|headers\(/i.test(src)).toBe(false);

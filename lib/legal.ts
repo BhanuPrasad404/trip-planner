@@ -1,7 +1,8 @@
 // Who the legal pages say you are, and when they were last changed. The contact details come from environment variables so
 // they are set once (in Vercel) and show on both pages; nothing personal is hard-coded in the repository.
 export const LEGAL_VERSION = "2026-10-12";
-export const LEGAL_UPDATED_LABEL = "12 October 2026";
+// The date moves when the text changes; LEGAL_VERSION moves only when people must agree again (it is stored with each acceptance).
+export const LEGAL_UPDATED_LABEL = "22 October 2026";
 /** Minimum age to use Trailmate. */
 export const MINIMUM_AGE = 18;
 

@@ -13,6 +13,8 @@ import type { PlaceWithSeason } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import type { DurationAdvice } from "@/lib/trip-builder/duration";
 import { parseISODate } from "@/lib/dates";
+import type { EngineView, NightHalt } from "@/lib/engine/types";
+import { FuelCard, HaltLine, PlanLabels, TransitDayCard, WhatIfStepper } from "./EngineExtras";
 
 type Props = {
   tripId: string;
@@ -22,6 +24,8 @@ type Props = {
   /** Names used in the "where does it end?" choices. */
   startLabel?: string | null;
   destLabel?: string | null;
+  /** Where the plan should end at first: the trip's own end choice (lib/trip/end.ts). The traveller can still change it here. */
+  defaultEndMode?: EndMode;
   /** The signed-in person owns the trip (only the owner can change its length). */
   canEditTrip?: boolean;
   /** The trip has a start date (so opening days, weather and season could be considered). */
@@ -33,7 +37,7 @@ type Props = {
   onChanged: () => void;
 };
 
-type Loaded = { result: BuilderResult; signature: string; duration: DurationAdvice | null };
+type Loaded = { result: BuilderResult; signature: string; duration: DurationAdvice | null; /** The Phase 3 engine's extras (null when it fell back to the builder). */ engine: EngineView | null };
 
 const intensityStyle: Record<DayPlan["intensity"], { chip: string; bar: string; label: string }> = {
   comfortable: { chip: "bg-teal-light text-teal-ink", bar: "bg-teal", label: "Easy" },
@@ -55,25 +59,28 @@ async function post<T>(url: string, body: unknown, method = "POST"): Promise<{ o
   }
 }
 
-export function TripBuilder({ tripId, places, hasStart, hasDestination, startLabel, destLabel, canEditTrip = false, hasDates = false, onClose, onPreview, onChanged }: Props) {
+export function TripBuilder({ tripId, places, hasStart, hasDestination, startLabel, destLabel, defaultEndMode = "free", canEditTrip = false, hasDates = false, onClose, onPreview, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Loaded | null>(null);
-  const [endMode, setEndMode] = useState<EndMode>("free");
+  const [endMode, setEndMode] = useState<EndMode>(defaultEndMode);
   const [chosen, setChosen] = useState<PlanOption["style"] | null>(null);
   const [applied, setApplied] = useState<{ label: string; snapshot: ReturnType<typeof snapshotPlaces> } | null>(null);
+  /** The traveller's choice here about driving after dark; null = their saved answer (no driving after dark by default). */
+  const [night, setNight] = useState<boolean | null>(null);
 
-  const load = useCallback(async (mode: EndMode = endMode) => {
+  const load = useCallback(async (mode: EndMode = endMode, nightDriving: boolean | null = night) => {
     setBusy(true); setError(null);
-    const r = await post<{ result: BuilderResult; signature: string; duration?: DurationAdvice }>(`/api/trips/${tripId}/builder`, { end_mode: mode });
+    const r = await post<{ result: BuilderResult; signature: string; duration?: DurationAdvice; engine?: EngineView | null }>(`/api/trips/${tripId}/builder`, { end_mode: mode, engine: true, ...(nightDriving === null ? {} : { night_driving: nightDriving }) });
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
-    setData({ result: r.data.result, signature: r.data.signature, duration: r.data.duration ?? null });
+    const engine = r.data.engine ?? null;
+    setData({ result: r.data.result, signature: r.data.signature, duration: r.data.duration ?? null, engine });
     // Point at the plan we recommend and show it on the map straight away.
-    const rec = recommendOption(r.data.result.options);
+    const rec = (engine?.recommendedStyle as PlanOption["style"] | undefined) ?? recommendOption(r.data.result.options);
     setChosen((c) => c ?? rec);
     if (rec) onPreview(r.data.result.options.find((o) => o.style === rec) ?? null);
-  }, [tripId, endMode, onPreview]);
+  }, [tripId, endMode, night, onPreview]);
 
   async function patchPlace(id: string, body: object) {
     setBusy(true);
@@ -87,7 +94,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
     if (!data) return;
     setBusy(true); setError(null);
     const snapshot = snapshotPlaces(places);
-    const r = await post<{ placed: number; movedToIdeas: number }>(`/api/trips/${tripId}/builder/apply`, { style: option.style, end_mode: endMode, signature: data.signature });
+    const r = await post<{ placed: number; movedToIdeas: number }>(`/api/trips/${tripId}/builder/apply`, { style: option.style, end_mode: endMode, signature: data.signature, engine: !!data.engine, ...(night === null ? {} : { night_driving: night }) });
     setBusy(false);
     if (!r.ok) { setError(r.error); if (/changed since/.test(r.error)) void load(); return; }
     setApplied({ label: option.label, snapshot });
@@ -122,10 +129,11 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the panel opens
 
-  const recommended = data ? recommendOption(data.result.options) : null;
+  const recommended = data ? ((data.engine?.recommendedStyle as PlanOption["style"] | undefined) ?? recommendOption(data.result.options)) : null;
   const groups = data ? distinctPlans(data.result.options, recommended) : [];
   const group = groups.find((g) => g.options.some((o) => o.style === chosen)) ?? groups[0] ?? null;
   const option = group ? group.options.find((o) => o.style === chosen) ?? group.primary : null;
+  const ev = data?.engine && option ? data.engine.variants.find((v) => v.style === option.style) ?? null : null;
   const start = startLabel?.trim() || "your start";
   const dest = destLabel?.trim() || "your destination";
   const closeBtn = <button type="button" onClick={() => { onPreview(null); onClose?.(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sky" aria-label="Close Plan my trip"><Glyph name="close" size={20} /></button>;
@@ -207,7 +215,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
                     );
                   })}
                 </div>
-                <p className="mt-2 text-xs text-ink-muted">{paceRules(option.style).lines.slice(0, 3).join(" · ")}</p>
+                <p className="mt-2 text-xs text-ink-muted">{ev ? ev.tradeoff : paceRules(option.style).lines.slice(0, 3).join(" · ")}</p>
               </>
             )}
           </div>
@@ -222,9 +230,23 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
                 )}
               </ul>
             )}
+            {data.engine && (data.engine.direction || data.engine.notes.length > 0 || data.engine.warnings.length > 0 || (ev && !ev.feasible && ev.needDays)) && (
+              <ul className="mb-3 space-y-1.5 text-sm">
+                {data.engine.warnings.map((w, i) => <li key={`ew${i}`} className={`flex gap-2 rounded-xl border px-3 py-2 ${sevStyle[w.severity]}`}><Glyph name="warn" size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}
+                {data.engine.notes.map((n) => <li key={n} className="rounded-xl bg-sky/60 px-3 py-2 text-ink-muted">{n}</li>)}
+                {ev && !ev.feasible && ev.needDays && <li className="rounded-xl bg-sky/60 px-3 py-2 text-ink-muted">Everything fits in this plan with {ev.needDays} days.</li>}
+                {data.engine.direction && <li className="rounded-xl bg-sky/60 px-3 py-2 text-ink-muted">{data.engine.direction}</li>}
+              </ul>
+            )}
             <PlanComfort option={option} hasDates={hasDates} />
             <div className="space-y-3">
-              {option.days.map((d) => <Day key={d.day} d={d} />)}
+              {ev
+                ? [
+                    ...ev.transitOut.map((t) => ({ day: t.day, el: <TransitDayCard key={`o${t.day}`} t={t} kind="out" /> })),
+                    ...option.days.map((d) => ({ day: d.day, el: <Day key={d.day} d={d} halt={ev.halts.find((h) => h.day === d.day) ?? null} /> })),
+                    ...ev.transitBack.map((t) => ({ day: t.day, el: <TransitDayCard key={`b${t.day}`} t={t} kind="back" /> })),
+                  ].sort((a, b) => a.day - b.day).map((x) => x.el)
+                : option.days.map((d) => <Day key={d.day} d={d} />)}
             </div>
             {option.removed.length > 0 && (
               <div className="mt-3">
@@ -238,6 +260,14 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
               </div>
             )}
           </div>
+
+          {data.engine && ev && (
+            <div className="space-y-3">
+              <WhatIfStepper key={ev.style} v={ev} numDays={data.engine.numDays} canEdit={canEditTrip} busy={busy} onPlan={(d) => void changeDays(d)} />
+              <FuelCard km={ev.totals.km} defaultMileage={data.engine.mileage} />
+              <PlanLabels e={data.engine} />
+            </div>
+          )}
 
           {data.result.clusters.length > 0 && (
             <details className="rounded-xl bg-sky/50 px-3.5">
@@ -261,6 +291,18 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
                 </div>
                 <p className="mt-1.5 text-xs text-ink-muted">{endMode === "start" ? "We add the drive home to the last day." : endMode === "point" ? "Every plan is built to finish there." : "The trip ends at your last place. No drive home is added."}</p>
               </fieldset>
+              {data.engine && (
+                <fieldset>
+                  <legend className="text-sm font-semibold text-pine">Driving after dark</legend>
+                  <div role="radiogroup" aria-label="Driving after dark" className="mt-2 flex flex-wrap gap-2">
+                    {([[false, "No (safer)"], [true, "Yes, it's fine"]] as [boolean, string][]).map(([v, label]) => {
+                      const on = (night ?? data.engine!.nightDriving) === v;
+                      return <button key={label} type="button" role="radio" aria-checked={on} onClick={() => { setNight(v); void load(endMode, v); }} className={`min-h-11 rounded-full border-2 px-4 text-sm font-semibold ${on ? "border-teal bg-teal-light/50 text-teal-ink" : "border-line text-ink-muted hover:border-teal/60"}`}>{label}</button>;
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink-muted">With No, every drive is planned to end by sunset (an hour earlier on hill roads).</p>
+                </fieldset>
+              )}
               <fieldset>
                 <legend className="text-sm font-semibold text-pine">Each place</legend>
                 <p className="mt-0.5 text-xs text-ink-muted">How long you will stay changes how many days you need. &ldquo;How much it matters&rdquo; only counts if your days are too full: places are given up from the bottom, and Must do places never are.</p>
@@ -329,7 +371,7 @@ function Verdict({ r, routing, customVisits }: { r: BuilderResult["reality"]; ro
   );
 }
 
-function Day({ d }: { d: DayPlan }) {
+function Day({ d, halt = null }: { d: DayPlan; halt?: NightHalt | null }) {
   const st = intensityStyle[d.intensity];
   return (
     <article className="rounded-xl border border-line p-3">
@@ -353,7 +395,8 @@ function Day({ d }: { d: DayPlan }) {
         </ol>
       )}
       {d.returnLeg && <p className="mt-2 text-xs text-ink-muted">Then back to {d.returnLeg.to}: {d.returnLeg.km} km · {duration(d.returnLeg.driveMin)}</p>}
-      {d.whyEnds && <p className="mt-2 rounded-lg bg-sky px-3 py-1.5 text-xs text-ink-muted">{d.whyEnds}{d.overnightNear ? ` Night near ${d.overnightNear}.` : ""}</p>}
+      {d.whyEnds && <p className="mt-2 rounded-lg bg-sky px-3 py-1.5 text-xs text-ink-muted">{d.whyEnds}{d.overnightNear && !halt ? ` Night near ${d.overnightNear}.` : ""}</p>}
+      {halt && <HaltLine h={halt} />}
     </article>
   );
 }

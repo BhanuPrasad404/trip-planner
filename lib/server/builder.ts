@@ -23,7 +23,7 @@ export function hoursOf(p: Record<string, unknown>): { hours: string | null; hou
 import type { EndMode } from "@/lib/trip-builder/types";
 
 export type BuilderLoad =
-  | { ok: true; input: BuilderInput; result: BuilderResult; signature: string; unscheduledIds: string[] }
+  | { ok: true; input: BuilderInput; result: BuilderResult; signature: string; unscheduledIds: string[]; /** The trip row (for the guided-flow answers in `intake`). */ trip: Row }
   | { ok: false; status: number; error: string };
 
 type Row = Record<string, unknown>;
@@ -42,7 +42,7 @@ export function inputSignature(input: BuilderInput): string {
 }
 
 export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts: { endMode: EndMode; styles?: StyleId[]; todayISO: string; userId: string; utcOffsetMin?: number }): Promise<BuilderLoad> {
-  const { data: trip, error: tripError } = await supabase.from("trips").select("id, num_days, start_date, start_lat, start_lng, start_city, dest_lat, dest_lng, dest_name").eq("id", tripId).maybeSingle();
+  const { data: trip, error: tripError } = await supabase.from("trips").select("*").eq("id", tripId).maybeSingle();
   if (tripError) return { ok: false, status: 500, error: "Couldn't load the trip." };
   if (!trip) return { ok: false, status: 404, error: "Trip not found" };
   if (trip.start_lat == null || trip.start_lng == null) return { ok: false, status: 422, error: "Set a starting point for this trip first." };
@@ -101,5 +101,5 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
   const matrix = await getMatrix([start, ...base, ...(end && endMode === "point" ? [end] : [])]);
   const input: BuilderInput = { places: base, start, end, endMode, numDays, startDateISO: startDate, utcOffsetMin: opts.utcOffsetMin ?? 330, matrix, evalHours: hoursStatusAt };
   const result = buildTrip(input, opts.styles);
-  return { ok: true, input, result, signature: inputSignature(input), unscheduledIds: places.filter((p) => p.day_number == null).map((p) => p.id as string) };
+  return { ok: true, input, result, signature: inputSignature(input), unscheduledIds: places.filter((p) => p.day_number == null).map((p) => p.id as string), trip: trip as Row };
 }

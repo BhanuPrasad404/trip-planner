@@ -64,6 +64,12 @@ export class AsyncCache<T> {
     return p;
   }
 
+  /** A fresh value already held, without loading anything (and without counting as a hit or miss). */
+  peek(key: string): T | undefined {
+    const hit = this.entries.get(key);
+    return hit && this.now() - hit.at < hit.ttl ? hit.value : undefined;
+  }
+
   clear() { this.entries.clear(); this.inflight.clear(); }
   stats(): CacheStats { return { name: this.opts.name, size: this.entries.size, ...this.s }; }
 }

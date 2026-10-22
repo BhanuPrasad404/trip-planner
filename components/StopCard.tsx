@@ -289,6 +289,7 @@ export function StopCard({
             value={target}
             onChange={setTarget}
             near={near}
+            currentLocation="offer"
             placeholder={`Search again, e.g. ${place.name}, ${place.address?.split(",").slice(-2, -1)[0]?.trim() || "town name"}`}
             hint="Pick the correct match and we'll move the pin. You can also add the town to your search."
           />

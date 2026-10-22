@@ -100,12 +100,16 @@ describe("the logo", () => {
 
 describe("the scene behind the app", () => {
   const html = renderToStaticMarkup(createElement(MobileBackdrop));
-  it("is decoration only: hidden from screen readers, never catches a tap, behind everything, and phones only", () => {
-    for (const k of ['aria-hidden="true"', "pointer-events-none", "fixed", "-z-10", "md:hidden"]) expect(html).toContain(k);
+  it("is decoration only: hidden from screen readers, never catches a tap, behind everything, on every screen size", () => {
+    for (const k of ['aria-hidden="true"', "pointer-events-none", "fixed", "-z-10"]) expect(html).toContain(k);
+    expect(html).not.toMatch(/data-mobile-backdrop[^>]*md:hidden/);
+  });
+  it("desktop (light theme) fades into the light mist; phones (dark theme) into the dark green", () => {
+    expect(html).toContain("#eaf4f1 60%"); expect(html).toContain("hidden md:block");
   });
   it("is a real photograph, self-hosted and optimised by next/image, with no outside address", () => {
-    expect(HERO_PHOTO).toBe("/brand/mobile-hero.webp");
-    expect(html).toContain("<img"); expect(html).toContain("/_next/image?url="); expect(html).toContain("mobile-hero"); expect(html).toContain('alt=""');
+    expect(HERO_PHOTO).toBe("/brand/trailmate-hills.webp");
+    expect(html).toContain("<img"); expect(html).toContain("/_next/image?url="); expect(html).toContain("trailmate-hills"); expect(html).toContain('alt=""');
     expect(html).not.toMatch(/src="https?:\/\//); expect(html).not.toContain("url(http");
   });
   it("fades into the dark green the cards sit on, so text stays readable over any part of the photo", () => { expect(html).toContain("linear-gradient(180deg"); expect(html).toContain("#06201c 72%"); });

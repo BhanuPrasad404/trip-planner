@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   // Pin the workspace root so a stray lockfile in a parent folder
   // (e.g. C:\Users\you\Desktop\package-lock.json) can't confuse Turbopack.
   turbopack: { root: process.cwd() },
+  // The India place-name index (GeoNames) is read from disk at run time by these routes, so it must ship with them.
+  outputFileTracingIncludes: {
+    "/api/place-search": ["./data/geo/**/*"],
+    "/api/place-here": ["./data/geo/**/*"],
+    "/api/place-suggest": ["./data/geo/**/*"],
+    "/api/intake/read": ["./data/geo/**/*"],
+    "/api/intake/ai": ["./data/geo/**/*"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

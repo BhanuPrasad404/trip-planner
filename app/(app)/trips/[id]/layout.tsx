@@ -5,6 +5,7 @@ import { TripGoneWatcher } from "@/components/TripGoneWatcher";
 import { TripLifecycleCard } from "@/components/TripLifecycleCard";
 import { createClient } from "@/lib/supabase/server";
 import { lifecycleChip, lifecycleOf } from "@/lib/trip/lifecycle";
+import { routeLabel } from "@/lib/trip/end";
 import { TravelersRow } from "@/components/TravelersRow";
 import { TripTabs } from "@/components/shell/TripTabs";
 import { parseISODate, addDays } from "@/lib/dates";
@@ -39,8 +40,7 @@ export default async function TripLayout({ children, params }: { children: React
             <StateChip state={chip?.pulse ? "active" : state} outcome={chip ? { label: chip.label, kind: chip.kind, note: null } : outcome} />
           </div>
           <p className="mt-1 text-sm text-ink-muted">
-            {trip.start_city ?? "Start not set"}
-            {trip.dest_name && <> → {trip.dest_name}</>}
+            {routeLabel(trip)}
             {" · "}
             {start && end ? `${formatDate(start, fmt)} – ${formatDate(end, fmt)}` : "Dates not set"}
             {" · "}{trip.num_days} {trip.num_days === 1 ? "day" : "days"}

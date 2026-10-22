@@ -82,7 +82,7 @@ export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null,
               ))}
               {pulse.signals.length > 0 ? <ul className="divide-y divide-line">{pulse.signals.map((s) => <Signal key={s.id} s={s} />)}</ul> : <p className="text-sm text-ink-muted">No live signals for this place right now.</p>}
               {pulse.photos.length > 0 && (
-                <ul className="mt-2 flex gap-2 overflow-x-auto" aria-label="Recent traveler photos">
+                <ul className="mt-2 flex gap-2 relative overflow-x-auto" aria-label="Recent traveler photos">
                   {pulse.photos.map((p) => (
                     <li key={p.url} className="shrink-0">
                       <SafeImg src={p.url} alt={`Traveler photo of ${name}, ${p.ageText}`} width={96} height={96} className="h-24 w-24 rounded-lg object-cover" fallback={<span className="flex h-24 w-24 items-center justify-center rounded-lg bg-teal-light px-1 text-center text-[11px] text-ink-muted">Photo unavailable</span>} />

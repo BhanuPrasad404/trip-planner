@@ -32,7 +32,7 @@ export function ViewModeSwitch({ mode, setMode, nowMs, horizonEnd }: { mode: Vie
       </div>
       {mode.kind === "picked" && (
         <div className="space-y-1.5 rounded-xl border border-line bg-white p-2" aria-label="Pick a day and an hour">
-          <div role="group" aria-label="Day" className="flex gap-1.5 overflow-x-auto pb-1">
+          <div role="group" aria-label="Day" className="flex gap-1.5 relative overflow-x-auto pb-1">
             {days.map((d) => (
               <button key={d} type="button" aria-pressed={d === day} onClick={() => { setDay(d); const h = pickedHour !== null && pickableHours(d, nowMs, horizonEnd).includes(pickedHour) ? pickedHour : pickableHours(d, nowMs, horizonEnd)[0]; if (h !== undefined) choose(d, h); }}
                 className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${d === day ? "border-pine bg-pine text-white" : "border-line text-pine"}`}>
@@ -40,7 +40,7 @@ export function ViewModeSwitch({ mode, setMode, nowMs, horizonEnd }: { mode: Vie
               </button>
             ))}
           </div>
-          <div role="group" aria-label="Hour" className="flex gap-1.5 overflow-x-auto pb-1">
+          <div role="group" aria-label="Hour" className="flex gap-1.5 relative overflow-x-auto pb-1">
             {hours.map((h) => (
               <button key={h} type="button" aria-pressed={pickedDay === day && pickedHour === h} onClick={() => choose(day, h)}
                 className={`min-h-11 min-w-12 shrink-0 rounded-full border px-2.5 text-sm font-semibold ${pickedDay === day && pickedHour === h ? "border-pine bg-pine text-white" : "border-line text-pine"}`}>

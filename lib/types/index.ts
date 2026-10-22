@@ -12,6 +12,8 @@ export type Trip = {
   dest_lng: number | null;
   start_date: string | null; // "YYYY-MM-DD"
   num_days: number;
+  /** How the trip ends (lib/trip/end.ts). null/absent = created before this existed: the old behaviour. */
+  end_mode?: "start" | "place" | "open" | null;
   /** Personalisation for Trip Intelligence (absent until the latest migration is applied). */
   trip_type?: "friends" | "family" | "couple" | "solo" | "biker" | "backpacker";
   vehicle_range_km?: number;

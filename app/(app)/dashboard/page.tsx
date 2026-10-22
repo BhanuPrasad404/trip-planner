@@ -59,7 +59,7 @@ export default async function DashboardPage() {
         <section className="rounded-3xl border border-dashed border-teal/40 bg-white/70 p-8 text-center">
           <p className="font-display text-2xl font-semibold text-pine">No trips yet</p>
           <p className="mx-auto mt-2 max-w-md text-ink-muted">Tell us where you&apos;re starting and where you&apos;re headed. Add the places you want to see and Trailmate orders them, checks the season and keeps watching the road.</p>
-          <LinkButton href="/trips" className="mt-5">Create your first trip</LinkButton>
+          <LinkButton href="/plan" className="mt-5">Plan your first trip</LinkButton>
         </section>
       )}
 

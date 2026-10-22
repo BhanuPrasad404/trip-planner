@@ -18,7 +18,7 @@ export function TripTabs({ tripId, activeNow }: { tripId: string; activeNow: boo
   const pathname = usePathname() ?? "";
   const base = `/trips/${tripId}`;
   return (
-    <nav aria-label="Trip sections" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav aria-label="Trip sections" className="-mx-4 relative overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-line">
         {TABS.map((t) => {
           const href = base + t.sub;

@@ -47,6 +47,8 @@ beforeEach(() => {
   const target = new EventTarget();
   vi.stubGlobal("window", Object.assign(target, {
     isSecureContext: true, setInterval, clearInterval, setTimeout, clearTimeout, confirm: () => true, alert: () => {},
+    // A real window has fetch (the place picker in the drive gate reads the connection state, which wraps window.fetch).
+    fetch: (...a: Parameters<typeof fetch>) => globalThis.fetch(...a),
     localStorage: { get length() { return store.size; }, key: (i: number) => [...store.keys()][i] ?? null, getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); }, removeItem: (k: string) => { store.delete(k); } },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     location: { href: "https://trailmate.test/trips/t1/map", origin: "https://trailmate.test" },

@@ -140,4 +140,32 @@ export async function reversePlaceName(lat: number, lng: number, fetchImpl: type
   });
 }
 
+type ReverseDetailRow = { address?: Record<string, string> };
+export type ReverseDetail = { name: string; area: string; state: string | null };
+
+/** "Madhapur" + "Hyderabad, Telangana" from a Nominatim reverse answer at street-area zoom. Pure and tested. */
+export function parseReverseDetail(json: unknown): ReverseDetail | null {
+  const a = (json as ReverseDetailRow | null)?.address;
+  if (!a || (a.country_code && a.country_code !== "in")) return null;
+  const local = a.suburb || a.neighbourhood || a.quarter || a.village || a.hamlet || a.town || a.city_district || a.city || a.municipality;
+  const city = a.city || a.town || a.county || a.state_district;
+  if (!local && !city) return null;
+  const name = (local && city && local !== city ? `${local}, ${city}` : local || city)!.trim().slice(0, 120);
+  const district = a.state_district && a.state_district !== city ? a.state_district : null;
+  return { name, area: [district, a.state].filter(Boolean).join(", ").slice(0, 200), state: a.state?.trim() || null };
+}
+
+/** Name an area more finely than our own index can (used only when the index can say just "near …"). Same throttle as every Nominatim call. */
+export async function reverseDetail(lat: number, lng: number, fetchImpl: typeof fetch = fetch): Promise<ReverseDetail | null> {
+  const params = new URLSearchParams({ format: "jsonv2", lat: String(roundForReverse(lat)), lon: String(roundForReverse(lng)), zoom: "14", addressdetails: "1", "accept-language": "en" });
+  return throttled(async () => {
+    const res = await fetchImpl(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+      headers: { "User-Agent": process.env.GEOCODER_USER_AGENT || "Trailmate/1.0 (set GEOCODER_USER_AGENT)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`nominatim reverse ${res.status}`);
+    return parseReverseDetail(await res.json());
+  });
+}
+
 export const nominatimGeocoder: Geocoder = async (query, bias) => (await searchPlaces(query, bias, 5))[0] ?? null;

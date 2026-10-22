@@ -53,7 +53,15 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
             <ul className="grid gap-4 sm:grid-cols-2">{shown.map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
           )}
         </section>
-        <NewTripForm />
+        <div className="space-y-4">
+          <Link href="/plan" className="block rounded-3xl bg-pine p-5 text-white shadow-sm hover:bg-[#0f5a50]">
+            <p className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">New</p>
+            <p className="mt-1 font-display text-xl font-semibold">Saw places in a reel? Plan it here</p>
+            <p className="mt-1 text-sm text-white/80">Paste a caption or describe the trip in English, Telugu, Hindi, Tamil, Kannada or Marathi. We find the places and check it fits.</p>
+            <span className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-marigold px-4 font-bold text-pine">Plan with Trailmate</span>
+          </Link>
+          <NewTripForm />
+        </div>
       </div>
     </main>
   );

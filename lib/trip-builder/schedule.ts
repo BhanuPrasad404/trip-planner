@@ -11,7 +11,8 @@ export type TimedDay = { stops: Omit<PlannedStop, "reasons" | "name" | "fromPrev
 /** Time one day. `prev` is the matrix node the day starts from (the trip start, or last night's place). */
 export const MAX_GOLDEN_SHIFT_MIN = 180;
 
-export function scheduleDay(ctx: Ctx, day: number, order: number[], prev: number, shift = 0): TimedDay {
+/** `tailMin` = driving still to come after the last stop (the drive home on the last day): a golden-hour late start must leave room for it. */
+export function scheduleDay(ctx: Ctx, day: number, order: number[], prev: number, shift = 0, tailMin = 0): TimedDay {
   const s = ctx.style;
   let t = s.dayStartMin + shift, from = prev;
   let earlyBy = 0; // how much earlier than the golden hour the first golden stop is reached
@@ -61,10 +62,10 @@ export function scheduleDay(ctx: Ctx, day: number, order: number[], prev: number
   });
   if (t > s.dayEndMin) penalty += (t - s.dayEndMin) * 2;
   // Too early for the golden hour but the day has room: start the day later instead of standing around (up to 3 h, never past the day's end).
-  if (shift === 0 && earlyBy >= 15 && t < s.dayEndMin) {
-    const slack = s.dayEndMin - t;
+  if (shift === 0 && earlyBy >= 15 && t + tailMin < s.dayEndMin) {
+    const slack = s.dayEndMin - t - tailMin;
     const want = Math.min(earlyBy, MAX_GOLDEN_SHIFT_MIN, slack);
-    if (want >= 15) return scheduleDay(ctx, day, order, prev, Math.round(want / 5) * 5);
+    if (want >= 15) return scheduleDay(ctx, day, order, prev, Math.floor(want / 5) * 5, tailMin);
   }
   return { stops, startMin: s.dayStartMin + shift, endMin: t, driveMin, driveKm, visitMin, bufferMin, penalty };
 }

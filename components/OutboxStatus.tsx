@@ -27,12 +27,12 @@ export function OutboxStatus({ outbox, floating = false }: { outbox: Outbox; flo
       )}
       {outbox.failed && (
         <p role="alert" className="rounded-xl border border-clay/40 bg-clay-light px-4 py-3 text-sm font-medium text-clay-ink">
-          {outbox.failed} <button type="button" onClick={outbox.clearFailed} className="ml-1 min-h-8 font-semibold underline underline-offset-2">OK</button>
+          {outbox.failed} <button type="button" onClick={outbox.clearFailed} className="tm-action ml-1 min-h-11 font-semibold">OK</button>
         </p>
       )}
       {n === 0 && outbox.notice && (
         <p role="status" className="rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">
-          {outbox.notice} <button type="button" onClick={outbox.clearNotice} className="ml-1 min-h-8 font-semibold underline underline-offset-2">OK</button>
+          {outbox.notice} <button type="button" onClick={outbox.clearNotice} className="tm-action ml-1 min-h-11 font-semibold">OK</button>
         </p>
       )}
     </div>

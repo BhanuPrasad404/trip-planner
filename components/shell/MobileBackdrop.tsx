@@ -28,7 +28,9 @@ export function MobileBackdrop() {
         <>
           <Image src={heroPhoto} alt="" fill priority sizes="(max-width: 767px) 768px, 1600px" placeholder={typeof heroPhoto === "object" && heroPhoto.blurDataURL ? "blur" : "empty"} quality={70} className="object-cover object-top" />
           {/* Dark at the top (under the header), clear through the view, then into the forest green the cards sit on. */}
-          <div className="absolute inset-0 md:hidden" style={{ background: `linear-gradient(180deg, rgba(6,32,28,0.55) 0%, rgba(6,32,28,0.05) 18%, rgba(6,32,28,0.15) 38%, ${BACKDROP_COLORS.ground} 72%)` }} />
+          {/* The photo's lower half is white mist: light text over it was unreadable. Only the sunrise and the hills show (top third);
+              below that the scene is dark green before any page text can reach it. */}
+          <div className="absolute inset-0 md:hidden" style={{ background: `linear-gradient(180deg, rgba(6,32,28,0.55) 0%, rgba(6,32,28,0.2) 14%, rgba(6,32,28,0.5) 30%, rgba(6,32,28,0.85) 42%, ${BACKDROP_COLORS.ground} 52%)` }} />
           {/* Desktop (light theme): the photo shows at the top and melts into the light mist the pages sit on. */}
           <div className="absolute inset-0 hidden md:block" style={{ background: "linear-gradient(180deg, rgba(234,244,241,0.15) 0%, rgba(234,244,241,0.55) 30%, #eaf4f1 60%)" }} />
         </>

@@ -27,7 +27,7 @@ export function FitMeterBar({ meter, roads }: { meter: Meter; roads: RoadsState 
           {meter.detail && <p className="text-xs text-ink-muted">{meter.detail}{meter.estimated ? " Road times are estimates right now (the routing service didn't answer)." : ""}</p>}
         </div>
         {meter.leftOut.length > 0 && (
-          <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-teal-ink underline underline-offset-2">{open ? "Hide" : "What's left out?"}</button>
+          <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="tm-action min-h-11 shrink-0 text-xs font-semibold">{open ? "Hide" : "What's left out?"}</button>
         )}
       </div>
       <div aria-hidden="true" className="mt-2 h-1.5 overflow-hidden rounded-full bg-sky"><div className={`h-full ${look.bar}`} style={{ width: `${pct}%` }} /></div>

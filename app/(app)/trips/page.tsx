@@ -41,7 +41,7 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
         ))}
       </nav>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+      <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <section aria-label="Trips">
           {error && <p role="alert" className="rounded-xl border border-clay/30 bg-clay-light px-4 py-3 text-sm font-medium text-clay-ink">We couldn&apos;t load your trips. Please refresh the page.</p>}
           {!error && shown.length === 0 ? (
@@ -50,7 +50,7 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
               <p className="mt-2 text-base text-ink-muted">{trips.length === 0 ? "Create your first trip with the form — or open an invite link a friend shared with you." : "Try another filter above."}</p>
             </div>
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2">{shown.map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">{shown.map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
           )}
         </section>
         <div className="space-y-4">

@@ -21,6 +21,43 @@
   --teal-ink: #14624f;
   --clay-ink: #a8431f;
   --ink-muted: #4f5c5a;
+
+  /* Day colours on the plan map (Your plan). Never the only signal: days are also named and stops numbered. */
+  --tm-day-1: #1c7c6d;
+  --tm-day-2: #c1542c;
+  --tm-day-3: #3a5fb0;
+  --tm-day-4: #a2731a;
+  --tm-day-5: #7b4fa8;
+  --tm-day-6: #0b3d3a;
+  --tm-map-stop: #0b3d3a;
+  --tm-map-stop-text: #ffffff;
+  --tm-map-halt: #e8a33d;
+  --tm-map-halt-text: #1c2430;
+  /* The dimmed page behind a sheet or dialog. */
+  --tm-scrim: rgba(11, 61, 58, 0.45);
+}
+
+/* A stand-alone action that used to be an underlined text link ("Show more", "Search more", "Cancel"): a clear pill button built from
+   theme colours. Links INSIDE a sentence stay ordinary underlined links. */
+@utility tm-action {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding-inline: 1rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--teal) 45%, transparent);
+  background-color: var(--teal-light);
+  color: var(--teal-ink);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
+  &:hover { border-color: var(--teal); }
+  &:active { transform: scale(0.98); }
+  &:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  &:disabled { opacity: 0.6; cursor: default; transform: none; }
 }
 
 @theme inline {
@@ -170,6 +207,15 @@ body {
 
     /* one-role tokens: translucent tints on the dark backdrop instead of pale fills */
     --sky: rgba(255, 255, 255, 0.07);
+    --tm-day-1: #4fd1b5;
+    --tm-day-2: #ff9a6b;
+    --tm-day-3: #8fb4ff;
+    --tm-day-4: #f2c14e;
+    --tm-day-5: #d3a6ff;
+    --tm-day-6: #b8e0d6;
+    --tm-map-stop: #f5f0e4;
+    --tm-map-stop-text: #06201c;
+    --tm-scrim: rgba(0, 0, 0, 0.6);
     --teal-light: rgba(79, 209, 181, 0.17);
     --marigold-light: rgba(232, 163, 61, 0.2);
     --clay-light: rgba(224, 110, 70, 0.22);
@@ -188,6 +234,8 @@ body {
     --tm-glass-edge: rgba(255, 255, 255, 0.16);
     --tm-cream: #f5f0e4;
   }
+  /* Headings may sit straight on the photo: a soft shadow keeps them readable over any bright part of it. */
+  :is(h1, h2, h3) { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); }
   html { color-scheme: dark; } /* native date/time pickers, selects, checkboxes and scrollbars turn dark too */
   body { background: var(--background); color: var(--foreground); }
   ::placeholder { color: rgba(237, 243, 238, 0.55); opacity: 1; }

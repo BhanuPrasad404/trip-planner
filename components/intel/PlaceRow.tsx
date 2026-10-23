@@ -45,10 +45,10 @@ export function PlaceRow({ kind, name, lat, lng, etaMin, aheadKm, detourMin, ope
         <p className={`text-xs ${open.state === "open" ? "text-teal-ink" : open.state === "closed" ? "text-clay-ink" : "text-ink-muted"}`}>{openText(open)}{photo?.creditUrl && (<> · <a href={photo.creditUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Photo: Wikimedia<span className="sr-only"> (opens in a new tab)</span></a></>)}</p>
         {note && <p className="flex items-center gap-1 text-xs font-semibold text-[#7a4a00]"><Glyph name="sun" size={13} />{note}</p>}
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-          <a href={googleMapsDirections({ lat, lng })} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">
+          <a href={googleMapsDirections({ lat, lng })} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">
             Navigate<span className="sr-only"> to {name} in Google Maps (opens in a new tab)</span>
           </a>
-          <a href={googleMapsPlace({ lat, lng })} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 text-ink-muted underline underline-offset-2">
+          <a href={googleMapsPlace({ lat, lng })} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5">
             Open in Google Maps<span className="sr-only"> (opens in a new tab)</span>
           </a>
           {children}

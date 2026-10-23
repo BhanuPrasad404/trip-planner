@@ -37,7 +37,7 @@ export default async function TripOverviewPage({ params }: { params: Promise<{ i
   const shareText = buildItineraryText({ trip, places, flags: {}, link: `${getSiteUrl()}/join/${trip.invite_code}` });
 
   return (
-    <main id="main" className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+    <main id="main" className="mx-auto grid grid-cols-1 w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
       <div className="space-y-6">
         <section className="rounded-3xl bg-pine p-6 text-white sm:p-8" aria-labelledby="hero-heading">
           <p className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">{hero.kicker}</p>
@@ -48,7 +48,7 @@ export default async function TripOverviewPage({ params }: { params: Promise<{ i
 
         <section aria-labelledby="glance-heading">
           <div className="flex items-baseline justify-between"><h2 id="glance-heading" className="font-display text-xl font-semibold text-pine">Itinerary at a glance</h2><Link href={`/trips/${id}/plan`} className="text-sm font-semibold text-teal-ink underline underline-offset-2">Edit plan</Link></div>
-          <ol className="mt-3 grid gap-3 sm:grid-cols-2">
+          <ol className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {days.map((d) => {
               const stops = scheduled.filter((p) => p.day_number === d).sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
               const date = dateOfTripDay(trip.start_date, d);

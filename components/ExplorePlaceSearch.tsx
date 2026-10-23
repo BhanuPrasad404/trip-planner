@@ -44,7 +44,7 @@ export function ExplorePlaceSearch({ onPick, near = null }: Props) {
         {typed.length >= 2 && s.mapSearched && s.results.length === 0 && <p className="text-sm text-ink-muted">Nothing found for “{typed}”. Try the name of a nearby town.</p>}
         {typed.length === 0 && shown.length > 0 && <p className="text-xs text-ink-muted">Popular with travellers</p>}
         {shown.length > 0 && (
-          <ul className="mt-1 grid gap-1.5 sm:grid-cols-2">
+          <ul className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             {shown.map((p) => (
               <li key={`${p.name}|${p.lat.toFixed(3)},${p.lng.toFixed(3)}`}>
                 <button type="button" onClick={() => onPick(p)} className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-line bg-white px-3 py-2 text-left text-sm hover:border-teal">

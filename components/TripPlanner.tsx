@@ -83,10 +83,12 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   useEffect(() => {
     let wanted: string | null = null;
     try { wanted = new URLSearchParams(window.location.search).get("tool"); } catch { /* no URL */ }
-    if (wanted !== "dates" && wanted !== "plan" && wanted !== "group") return;
-    const t = window.setTimeout(() => setTool(wanted as "dates" | "plan" | "group"), 0); // after the first paint, like the page's other browser-only state
+    // "Plan my trip" is now its own full screen (Your plan, Phase 4): an old "?tool=plan" link goes there.
+    if (wanted === "plan") { router.replace(`/trips/${trip.id}/result`); return; }
+    if (wanted !== "dates" && wanted !== "group") return;
+    const t = window.setTimeout(() => setTool(wanted as "dates" | "group"), 0); // after the first paint, like the page's other browser-only state
     return () => window.clearTimeout(t);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on arrival
   const toolRef = useRef<HTMLDivElement>(null);
   const [importState, setImportState] = useState<{ open: boolean; brief?: string; nonce: number }>({ open: false, nonce: 0 });
   const [mapFit, setMapFit] = useState<"day" | "all">("all");
@@ -335,10 +337,11 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
 
   /** Open one tool at a time; tapping the open one closes it. */
   function openTool(t: PlanTool) {
+    if (t === "plan") { router.push(`/trips/${trip.id}/result`); return; }
     setShowAddForm(false);
     if (t === "import") { setTool(null); setPreview(null); setImportState((st) => ({ open: !st.open, nonce: st.nonce + 1 })); return; }
     setImportState((st) => ({ ...st, open: false }));
-    if (t !== "plan") setPreview(null);
+    setPreview(null);
     setTool((cur) => (cur === t ? null : t));
   }
   useEffect(() => { if (tool) toolRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); }, [tool]);
@@ -424,7 +427,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
             />
           )}
           {tool === "leave" && (
-            <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} roadLine={road.line} onClose={() => setTool(null)} onSetDates={() => setTool("dates")} onPlanTrip={() => setTool("plan")} />
+            <TripCheck tripId={trip.id} trip={trip} places={places} activeDay={activeDay} today={today} roadLine={road.line} onClose={() => setTool(null)} onSetDates={() => setTool("dates")} onPlanTrip={() => router.push(`/trips/${trip.id}/result`)} />
           )}
           {tool === "group" && <GroupPanel tripId={trip.id} onClose={() => setTool(null)} />}
           {tool === "plan" && (
@@ -467,14 +470,14 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
         </div>
       </div>
 
-      <main id="main" className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
+      <main id="main" className="mx-auto grid grid-cols-1 w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
         {/* ───── Map (stays in view on a laptop while you read the days) + trip overview ───── */}
         <div className="space-y-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-stretch">
         <div id="plan-map" className="relative h-56 scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:h-72 lg:sticky lg:top-4 lg:z-20 lg:h-[26rem]">
           {preview && (
             <p role="status" className="absolute inset-x-2 bottom-2 z-10 flex items-center justify-between gap-2 rounded-xl bg-pine/95 px-3 py-2 text-xs font-semibold text-white shadow">
               <span>Previewing the {preview.label} plan — not saved yet</span>
-              <button type="button" onClick={() => setPreview(null)} className="min-h-8 underline underline-offset-2">Back to my plan</button>
+              <button type="button" onClick={() => setPreview(null)} className="tm-action min-h-11">Back to my plan</button>
             </p>
           )}
           <TripMapLazy
@@ -520,7 +523,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
               </ul>
               {worthALook.length > 3 && (
                 <details>
-                  <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">{worthALook.length - 3} more</summary>
+                  <summary className="tm-action flex min-h-11 cursor-pointer items-center text-sm font-semibold">{worthALook.length - 3} more</summary>
                   <ul className="space-y-1.5 pb-1">
                     {worthALook.slice(3).map((w) => <li key={w.key}><button type="button" onClick={() => w.day && setActiveDay(w.day)} disabled={!w.day} className="w-full rounded-xl bg-white/80 px-3 py-2 text-left text-sm hover:bg-white disabled:cursor-default"><span className="font-semibold text-pine">{w.title}</span><span className="block text-ink-muted">{w.detail}</span></button></li>)}
                   </ul>

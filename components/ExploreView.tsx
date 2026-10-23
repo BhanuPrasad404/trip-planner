@@ -101,7 +101,7 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
         {list.length === 0 ? (
           <p className="mt-4 rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">{pool.length === 0 ? "No season data is available yet." : `Nothing in this filter is at its best in ${MONTH(month)}. Try another type, or show out-of-season places.`}</p>
         ) : (
-          <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {list.map((t) => {
               const c = CATEGORIES[normalizeCategory(t.category)];
               const good = t.good_months.includes(month);
@@ -121,8 +121,8 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
                   {!verified && <p className="mt-1 text-xs font-semibold text-clay-ink">Unverified starter data — no source, not researched.</p>}
                   {t.source_urls?.[0] && <p className="mt-1 text-xs text-ink-muted">{t.confidence === "researched" ? "Researched" : "Draft"} · <a href={t.source_urls[0]} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2">{new URL(t.source_urls[0]).hostname.replace(/^www\./, "")}<span className="sr-only"> (opens in a new tab)</span></a></p>}
                   <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 text-sm">
-                    <a href={googleMapsPlace(t)} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">Open in Google Maps<span className="sr-only"> (opens in a new tab)</span></a>
-                    {tripId && (added.has(key) ? <span className="font-semibold text-teal-ink"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Added to Ideas</span></span> : <button type="button" onClick={() => void addIdea({ key, name: t.place_name, lat: t.lat, lng: t.lng, category: t.category, seasonId: t.id })} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2">Add to my ideas</button>)}
+                    <a href={googleMapsPlace(t)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Open in Google Maps<span className="sr-only"> (opens in a new tab)</span></a>
+                    {tripId && (added.has(key) ? <span className="font-semibold text-teal-ink"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Added to Ideas</span></span> : <button type="button" onClick={() => void addIdea({ key, name: t.place_name, lat: t.lat, lng: t.lng, category: t.category, seasonId: t.id })} className="tm-action min-h-11 py-1.5 font-semibold">Add to my ideas</button>)}
                   </div>
                 </li>
               );
@@ -157,7 +157,7 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
               {!busy && places && places.length > 0 && kind === "sights" && <p className="mb-2 text-xs text-ink-muted">We haven&apos;t researched the best months for these places yet, so none are shown as &ldquo;in season&rdquo;. Check the weather before you go.</p>}
               {!busy && places && places.length === 0 && <p className="text-sm text-ink-muted">Nothing found here. The map may list few places in this area.</p>}
               {!busy && places && places.length > 0 && (
-                <ul className="grid gap-3 sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {places.map((p) => (
                     <li key={p.id} className="flex gap-3 rounded-xl border border-line p-3 text-sm">
                       {p.photo ? (
@@ -168,8 +168,8 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
                         <p className="text-xs text-ink-muted">{p.km} km away{p.hours && ` · ${p.hours}`}</p>
                         {p.photo?.creditUrl && <a href={p.photo.creditUrl} target="_blank" rel="noopener noreferrer" className="block truncate text-[11px] text-ink-muted underline underline-offset-2">{p.photo.licence ? creditText(p.photo) : "Photo: Wikimedia"}<span className="sr-only"> (opens in a new tab)</span></a>}
                         <div className="mt-1 flex flex-wrap gap-x-4">
-                          <a href={googleMapsPlace(p)} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">Google Maps<span className="sr-only"> for {p.name} (opens in a new tab)</span></a>
-                          {tripId && (added.has(p.id) ? <span className="py-1.5 font-semibold text-teal-ink"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Added</span></span> : <button type="button" onClick={() => void addIdea({ key: p.id, name: p.name, lat: p.lat, lng: p.lng, category: kind === "sights" ? "other" : kind === "food" ? "food" : kind === "stay" ? "stay" : null })} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2">Add to ideas</button>)}
+                          <a href={googleMapsPlace(p)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Google Maps<span className="sr-only"> for {p.name} (opens in a new tab)</span></a>
+                          {tripId && (added.has(p.id) ? <span className="py-1.5 font-semibold text-teal-ink"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Added</span></span> : <button type="button" onClick={() => void addIdea({ key: p.id, name: p.name, lat: p.lat, lng: p.lng, category: kind === "sights" ? "other" : kind === "food" ? "food" : kind === "stay" ? "stay" : null })} className="tm-action min-h-11 py-1.5 font-semibold">Add to ideas</button>)}
                         </div>
                       </div>
                     </li>

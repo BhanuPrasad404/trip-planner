@@ -27,7 +27,7 @@ export function CardSkeleton() {
 }
 
 export function CardGridSkeleton({ count = 4 }: { count?: number }) {
-  return <div aria-hidden="true" className="grid gap-4 sm:grid-cols-2">{Array.from({ length: count }, (_, i) => <CardSkeleton key={i} />)}</div>;
+  return <div aria-hidden="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2">{Array.from({ length: count }, (_, i) => <CardSkeleton key={i} />)}</div>;
 }
 
 /** The heading block most pages start with. */

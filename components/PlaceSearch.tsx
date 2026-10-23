@@ -208,7 +208,7 @@ export function PlaceSearch({ label, hint, placeholder, near = null, value, onCh
             <button
               type="button"
               onClick={() => { touched.current = true; onChange(null); setQuery(""); queueMicrotask(() => inputRef.current?.focus()); }}
-              className="min-h-10 shrink-0 px-2 text-sm font-semibold text-teal-ink underline underline-offset-2"
+              className="tm-action min-h-11 shrink-0 text-sm font-semibold"
             >
               Change<span className="sr-only"> {label}</span>
             </button>
@@ -232,7 +232,7 @@ export function PlaceSearch({ label, hint, placeholder, near = null, value, onCh
     <div ref={boxRef} className={open ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--background)] px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:relative sm:inset-auto sm:z-auto sm:block sm:overflow-visible sm:bg-transparent sm:p-0" : "relative"}>
       <div className="flex items-center justify-between gap-2">
         <label htmlFor={id} className="block text-sm font-semibold text-ink">{label}</label>
-        {open && <button type="button" onClick={close} className="min-h-10 px-2 text-sm font-semibold text-teal-ink underline underline-offset-2 sm:hidden">Cancel</button>}
+        {open && <button type="button" onClick={close} className="tm-action min-h-11 text-sm font-semibold sm:hidden">Cancel</button>}
       </div>
 
       <div className="relative mt-1.5">
@@ -333,7 +333,7 @@ export function PlaceSearch({ label, hint, placeholder, near = null, value, onCh
               )}
               {online && query.trim().length === 1 && <p>Keep typing…</p>}
               {online && typing && query.trim().length >= 3 && search.more !== "done" && search.map !== "loading" && !search.waiting && (
-                <button type="button" onClick={search.searchMore} disabled={search.more === "loading"} className="mt-1 inline-flex min-h-10 items-center gap-2 font-semibold text-teal-ink underline underline-offset-2">
+                <button type="button" onClick={search.searchMore} disabled={search.more === "loading"} className="tm-action mt-1 inline-flex min-h-11 items-center gap-2 font-semibold">
                   {search.more === "loading" ? <><Spinner /> Searching more…</> : "Not here? Search more"}
                 </button>
               )}

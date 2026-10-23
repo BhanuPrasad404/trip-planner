@@ -23,5 +23,5 @@ export function haltFor(day: number, stop: { name: string; lat: number; lng: num
   const km = distanceKm(stop, t);
   const atStop = km < 2 || t.name.toLowerCase() === stop.name.toLowerCase();
   const d = atStop ? { km: 0, min: 0 } : haltDrive(km);
-  return { day, town: t.name, area: t.area, km: d.km, driveMin: d.min, pop: t.pop, checkStays: t.checkStays, atStop };
+  return { day, town: t.name, area: t.area, km: d.km, driveMin: d.min, pop: t.pop, checkStays: t.checkStays, atStop, at: { lat: t.lat, lng: t.lng } };
 }

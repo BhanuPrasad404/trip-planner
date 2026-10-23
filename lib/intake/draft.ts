@@ -1,6 +1,7 @@
 // The guided flow's state, as plain data and pure functions (the screens only render it). Priority for every answer:
 //   the traveller's own tap ("you")  >  what they wrote ("said" by our reader, or "ai" backed by their words)  >  a visible default.
 // Questions: only what is still missing, in a fixed order, at most 3 at a time; anything can be skipped (the default then stays).
+import type { PlaceCategory } from "@/lib/categories";
 import type { Suggestion } from "./defaults";
 import { categoryFor } from "./fit-meter";
 import type { AiReading } from "./ai-read";
@@ -10,7 +11,8 @@ import type { InstantReading } from "./read";
 import { GROUP_LABEL, INTEREST_LABEL, MODE_LABEL, PACE_LABEL, STAY_LABEL, type AnswerKey, type Source, type TripAnswers, type Understanding } from "./types";
 
 export type AiState = "idle" | "reading" | "ok" | "slow" | "busy" | "limit" | "off" | "failed" | "offline";
-export type DraftPlace = PlaceMatch & { key: string };
+/** `category`: set when the kind of place is already known (a ready-made example), so the saved plan matches the one that was shown. */
+export type DraftPlace = PlaceMatch & { key: string; category?: PlaceCategory };
 export type Draft = {
   text: string;
   start: { place: Option | null; from: "you" | "text" | null };
@@ -113,7 +115,8 @@ export function summaryChips(d: Draft, eff: Effective): Chip[] {
 export const usablePlaces = (d: Draft) => d.places.filter((p) => p.place && p.status !== "missing");
 
 /** The two requests that create the trip and add its places (the existing endpoints). Pure, so it is tested. */
-export function tripRequests(d: Draft, eff: Effective, name?: string) {
+/** `startDate`: the first day the traveller confirmed in the save step ("YYYY-MM-DD"), or null for "no dates yet". */
+export function tripRequests(d: Draft, eff: Effective, name?: string, startDate: string | null = null) {
   const a = eff.answers;
   const start = d.start.place;
   const places = usablePlaces(d).filter((p) => p.place!.kind !== "state");
@@ -129,12 +132,12 @@ export function tripRequests(d: Draft, eff: Effective, name?: string) {
       start_city: start?.name ?? null, start_lat: start?.lat ?? null, start_lng: start?.lng ?? null,
       end_mode: a.endMode === "place" && !end ? "open" : a.endMode ?? "start",
       dest_name: end?.name ?? null, dest_lat: end?.lat ?? null, dest_lng: end?.lng ?? null,
-      start_date: null, num_days: a.days ?? 3, intake,
+      start_date: startDate, num_days: a.days ?? 3, intake,
     },
     places: places.slice(0, 20).map((p) => ({
       name: p.place!.name, lat: p.place!.lat, lng: p.place!.lng,
       // The same kind the fit meter used, so the planner's visit times match what the traveller saw.
-      category: categoryFor(p.place!) === "other" ? null : categoryFor(p.place!),
+      category: p.category ?? (categoryFor(p.place!) === "other" ? null : categoryFor(p.place!)),
       source_type: p.source === "ai" ? "ai_text" : "search", address: p.place!.area || null,
       ...(p.must ? { priority: "must" as const } : {}),
     })),

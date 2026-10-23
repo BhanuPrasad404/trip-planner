@@ -106,7 +106,7 @@ export function AddPlaceForm({ tripId, dayNumber, near, onAdded, onCancel }: Add
       {!picked && (
         <details className="rounded-xl border border-line bg-white px-4 py-3">
           <summary className="cursor-pointer text-sm font-semibold text-ink-muted">Or enter coordinates yourself</summary>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
               label="Latitude"
               inputMode="decimal"
@@ -130,7 +130,7 @@ export function AddPlaceForm({ tripId, dayNumber, near, onAdded, onCancel }: Add
         </details>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextField
           label="Reel / video link (optional)"
           type="url"

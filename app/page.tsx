@@ -44,7 +44,7 @@ export default function Home() {
 
       <main id="main" className="flex-1">
         {/* Hero */}
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 pb-14 pt-8 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:pb-20 lg:pt-14">
+        <section className="mx-auto grid grid-cols-1 w-full max-w-6xl items-center gap-10 px-4 pb-14 pt-8 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:pb-20 lg:pt-14">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-teal-ink">Group trip planner</p>
             <h1 className="mt-3 font-display text-4xl font-semibold leading-[1.1] text-pine sm:text-5xl lg:text-6xl">
@@ -75,7 +75,7 @@ export default function Home() {
             <h2 id="features-heading" className="font-display text-3xl font-semibold text-pine sm:text-4xl">
               Built for how groups really travel
             </h2>
-            <ul className="mt-8 grid gap-5 md:grid-cols-3">
+            <ul className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
               {features.map((f) => (
                 <li key={f.title} className="rounded-2xl border border-line bg-sky/50 p-6">
                   <h3 className="font-display text-xl font-semibold text-pine">{f.title}</h3>
@@ -91,7 +91,7 @@ export default function Home() {
           <h2 id="how-heading" className="font-display text-3xl font-semibold text-pine sm:text-4xl">
             How it works
           </h2>
-          <ol className="mt-8 grid gap-5 md:grid-cols-3">
+          <ol className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
             {steps.map((s) => (
               <li key={s.n} className="flex gap-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-marigold font-mono text-base text-pine">

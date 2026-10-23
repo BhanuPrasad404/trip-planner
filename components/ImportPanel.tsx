@@ -174,7 +174,7 @@ export function ImportPanel({ tripId, startDate, today, initialBrief, onDone, on
         <h2 id="import-heading" className="font-display text-xl font-semibold text-pine">
           {phase === "review" ? "Review what we found" : "Add places from links, text or screenshots"}
         </h2>
-        <button type="button" onClick={onCancel} className="min-h-10 px-2 text-sm font-semibold text-ink-muted underline underline-offset-2">
+        <button type="button" onClick={onCancel} className="tm-action min-h-11 text-sm font-semibold">
           Close
         </button>
       </div>

@@ -153,11 +153,11 @@ export function PlaceReports({ place, reports, userId, onChanged, now, outbox }:
                   <span>A traveler · {timeAgo(r.createdAt, now)}</span>
                   <span aria-hidden="true">·</span>
                   {r.mine ? (
-                    <button type="button" onClick={() => act(r.id, "delete")} className="min-h-8 font-semibold underline underline-offset-2 hover:text-clay-ink">Delete</button>
+                    <button type="button" onClick={() => act(r.id, "delete")} className="tm-action min-h-11 font-semibold hover:text-clay-ink">Delete</button>
                   ) : flagged.has(r.id) ? (
                     <span>Thanks, flagged</span>
                   ) : (
-                    <button type="button" onClick={() => act(r.id, "flag")} className="min-h-8 font-semibold underline underline-offset-2 hover:text-clay-ink">Flag</button>
+                    <button type="button" onClick={() => act(r.id, "flag")} className="tm-action min-h-11 font-semibold hover:text-clay-ink">Flag</button>
                   )}
                 </p>
               </div>

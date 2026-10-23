@@ -44,7 +44,7 @@ export function PlaceStep({ place, spot, precision, onPlace, onSpot, onPrecision
             <p className="truncate font-display text-lg font-semibold text-pine">{place.name}</p>
             <p className="truncate text-xs text-ink-muted">{place.address}</p>
           </div>
-          <button type="button" onClick={() => { onPlace(null); setQuery(""); }} className="min-h-11 shrink-0 px-2 text-sm font-semibold text-teal-ink underline underline-offset-2">Change</button>
+          <button type="button" onClick={() => { onPlace(null); setQuery(""); }} className="tm-action min-h-11 shrink-0 text-sm font-semibold">Change</button>
         </div>
       ) : (
         <div>
@@ -91,7 +91,7 @@ export function PlaceStep({ place, spot, precision, onPlace, onSpot, onPrecision
 
       <fieldset>
         <legend className="flex items-center gap-1.5 text-sm font-semibold text-pine"><ShieldIcon size={16} className="text-teal" />How precisely should we show where this was?</legend>
-        <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+        <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {([["approx", "Approximate area", "About 1 km. Enough for “Echo Point”, not “which bench”.", "Recommended"], ["exact", "Exact spot", "The pin lands where you were. Good for a trailhead or a viewpoint.", null]] as const).map(([v, title, text, badge]) => (
             <label key={v} className={`relative flex cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3.5 transition-colors ${precision === v ? "border-teal bg-teal-light/50" : "border-line hover:border-teal/40"}`}>
               <input type="radio" name="precision" value={v} checked={precision === v} onChange={() => onPrecision(v)} className="sr-only" />

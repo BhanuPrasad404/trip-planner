@@ -158,13 +158,13 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
             {state.status === "ready" && state.items.length === 0 && (
               <p className="rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">
                 {q.trim() ? `Nothing in these results matches “${q.trim()}”.` : `No ${catLabel} found in ${where}. The map may list few places there.`}{" "}
-                {(category !== "all" || q.trim()) && <button type="button" onClick={() => { setCategory("all"); setQ(""); }} className="min-h-11 font-semibold text-teal-ink underline underline-offset-2">Show everything</button>}
+                {(category !== "all" || q.trim()) && <button type="button" onClick={() => { setCategory("all"); setQ(""); }} className="tm-action min-h-11 font-semibold">Show everything</button>}
               </p>
             )}
             {state.status === "ready" && state.items.length > 0 && (
               <>
                 <p className="mb-2 text-xs text-ink-muted">Showing {state.items.length} of {state.total} {catLabel} · {where}</p>
-                <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {state.items.map((i) => (
                     <ExploreCard key={i.id} item={i} photo={photos[`explore-${i.id}`]} season={seasonOf.get(i.id) ?? null}
                       saved={saved.isSaved(i.id)} onToggleSave={() => void saved.toggle(toSaved(i))}
@@ -188,7 +188,7 @@ function safeHost(url: string): string | null { try { return new URL(url).hostna
 
 function Skeleton() {
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading places" aria-busy="true">
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading places" aria-busy="true">
       {Array.from({ length: 6 }, (_, i) => (
         <li key={i} className="rounded-2xl border border-line bg-white p-5"><div className="h-36 animate-pulse rounded-xl bg-sky motion-reduce:animate-none" /><div className="mt-3 h-5 w-2/3 animate-pulse rounded bg-sky motion-reduce:animate-none" /><div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-sky motion-reduce:animate-none" /></li>
       ))}
@@ -201,7 +201,7 @@ function SavedList({ saved, tripId, added, addIdea }: { saved: Saved; tripId: st
   if (saved.loadFailed) return <p role="alert" className="mt-4 text-sm font-semibold text-clay-ink">Couldn&apos;t load your saved places. Please try again in a moment.</p>;
   if (saved.places.length === 0) return <p className="mt-4 rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">Nothing saved yet. Tap Save on any place to keep it here, with or without a trip.</p>;
   return (
-    <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+    <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
       {saved.places.map((p) => {
         const cat = plannerCategorySafe(p.category);
         return (
@@ -209,9 +209,9 @@ function SavedList({ saved, tripId, added, addIdea }: { saved: Saved; tripId: st
             <p className="break-words font-semibold text-pine"><CategoryGlyph category={cat} size={16} className="mr-1.5 inline align-text-bottom text-teal" />{p.name}</p>
             <p className="text-xs text-ink-muted">{CATEGORIES[cat].label}{p.region && ` · ${p.region}`}</p>
             <div className="mt-1 flex flex-wrap gap-x-4">
-              <a href={googleMapsPlace(p)} target="_blank" rel="noopener noreferrer" className="min-h-11 py-2 font-semibold text-teal-ink underline underline-offset-2">Map<span className="sr-only"> of {p.name} (opens in a new tab)</span></a>
-              {tripId && (added.has(p.key) ? <span className="inline-flex min-h-11 items-center font-semibold text-teal-ink">Added to Ideas</span> : <button type="button" onClick={() => void addIdea({ key: p.key, name: p.name, lat: p.lat, lng: p.lng, category: cat })} className="min-h-11 py-2 font-semibold text-pine underline underline-offset-2">Add to my ideas</button>)}
-              <button type="button" onClick={() => void saved.toggle(p)} className="min-h-11 py-2 font-semibold text-clay-ink underline underline-offset-2">Remove<span className="sr-only"> {p.name}</span></button>
+              <a href={googleMapsPlace(p)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-2 font-semibold">Map<span className="sr-only"> of {p.name} (opens in a new tab)</span></a>
+              {tripId && (added.has(p.key) ? <span className="inline-flex min-h-11 items-center font-semibold text-teal-ink">Added to Ideas</span> : <button type="button" onClick={() => void addIdea({ key: p.key, name: p.name, lat: p.lat, lng: p.lng, category: cat })} className="tm-action min-h-11 py-2 font-semibold">Add to my ideas</button>)}
+              <button type="button" onClick={() => void saved.toggle(p)} className="tm-action min-h-11 py-2 font-semibold text-clay-ink">Remove<span className="sr-only"> {p.name}</span></button>
             </div>
           </li>
         );

@@ -34,7 +34,7 @@ export function TripCard({ trip, isOwner }: { trip: TripSummary; isOwner: boolea
       <div className="mt-4 flex items-center justify-between gap-3">
         <Link href={action.href} className="inline-flex min-h-10 items-center rounded-xl bg-marigold px-4 text-sm font-bold text-pine hover:bg-[#f0b254]">{action.label}</Link>
         <span className="flex items-center gap-2">
-          {trip.state === "completed" && <Link href={`/trips/${trip.id}/map`} className="inline-flex min-h-10 items-center text-sm font-semibold text-teal-ink underline underline-offset-2">View on map</Link>}
+          {trip.state === "completed" && <Link href={`/trips/${trip.id}/map`} className="tm-action inline-flex min-h-11 items-center text-sm font-semibold">View on map</Link>}
           <span className="rounded-full bg-teal-light px-2.5 py-0.5 text-xs font-semibold text-teal-ink">{isOwner ? "Owner" : "Member"}</span>
         </span>
       </div>

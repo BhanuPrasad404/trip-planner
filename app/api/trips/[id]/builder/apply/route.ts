@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!(await consumeQuota(supabase, "builder_apply", 40))) return jsonError("Too many plan changes today. Please try again tomorrow.", 429);
 
   const today = await todayISO();
-  const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: input.engine ? [] : [input.style], todayISO: today, userId: user.id });
+  const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: input.engine ? [] : [input.style], todayISO: today, userId: user.id, skip: input.skip });
   if (!r.ok) return jsonError(r.error, r.status);
   if (r.signature !== input.signature) return jsonError("Your places or dates changed since this preview. Refresh the options and choose again.", 409);
   let option = r.result.options[0];
@@ -40,11 +40,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   if (!option) return jsonError("Nothing to apply.", 422);
 
-  const byId = new Map(r.input.places.map((p) => [p.id, p]));
+  const byId = new Map<string, { name: string; lat: number; lng: number }>([...r.input.places.map((p) => [p.id, p] as const), ...r.skipped.map((s) => [s.id, s] as const)]);
   const placed = option.days.flatMap((d) => d.stops.map((s) => ({
     id: s.placeId, day_number: s.day, sequence_order: s.order, arrival_time: clock24(s.arriveMin), drive_minutes: Math.round(s.driveMin), drive_km: s.driveKm,
   })));
   const dropped = option.removed.map((x) => ({ id: x.placeId, day_number: null, sequence_order: null, arrival_time: null, drive_minutes: null, drive_km: null }));
+  // Places the traveller skipped go back to Ideas too (only this trip's own places: loadBuilder found them in this trip).
+  for (const s of r.skipped) dropped.push({ id: s.id, day_number: null, sequence_order: null, arrival_time: null, drive_minutes: null, drive_km: null });
   const rows = [...placed, ...dropped].map((row) => {
     const p = byId.get(row.id)!;
     return { ...row, trip_id: id, name: p.name, lat: p.lat, lng: p.lng };

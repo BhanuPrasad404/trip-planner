@@ -122,8 +122,8 @@ export function TripLifecycleCard({ tripId, lifecycle, isOwner, plannedLabel }: 
       return shell(
         <p className="flex flex-wrap items-center gap-x-3">
           <span className="text-ink-muted">Dates passed · saved plan kept as it is.</span>
-          {isOwner && <button type="button" onClick={() => { setKeep({ keep: false }); setStep("resume"); }} className="min-h-11 font-semibold text-teal-ink underline underline-offset-2">Resume</button>}
-          <button type="button" onClick={() => setKeep({ keep: false })} className="min-h-11 font-semibold text-pine underline underline-offset-2">Show options</button>
+          {isOwner && <button type="button" onClick={() => { setKeep({ keep: false }); setStep("resume"); }} className="tm-action min-h-11 font-semibold">Resume</button>}
+          <button type="button" onClick={() => setKeep({ keep: false })} className="tm-action min-h-11 font-semibold">Show options</button>
         </p>, "quiet");
     }
     return shell(

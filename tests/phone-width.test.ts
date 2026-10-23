@@ -17,7 +17,7 @@ describe.skipIf(!ready)("no screen is wider than the phone (360, 390, 412 px)", 
     expect(control).toHaveLength(3);
     for (const r of control) expect(r.bad.length, `control at ${r.width}`).toBeGreaterThan(0);
   });
-  for (const page of ["weather", "addplace"]) {
+  for (const page of Object.keys(pages).filter((p) => p !== "control")) {
     it(`${page}: as wide as the screen at every width, nothing sticking out`, () => {
       const rs = results.filter((x) => x.page === page);
       expect(rs).toHaveLength(3);

@@ -154,6 +154,8 @@ const engineFields = {
   engine: z.boolean().optional(),
   night_driving: z.boolean().optional(),
   max_drive_hours: z.number().min(1).max(14).optional(),
+  /** Places the traveller tapped "Skip" on in the result screen: left out of this plan (they go back to Ideas when it's used). */
+  skip: z.array(uuid).max(40).optional(),
 };
 export const builderSchema = z.object({
   end_mode: z.enum(["free", "start", "point"]).default("free"),

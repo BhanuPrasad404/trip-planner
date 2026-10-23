@@ -62,11 +62,11 @@ export function TripDatesPanel({ tripId, startDate, numDays, canEdit, stopCounts
 
       {editing && (
         <form className="mt-4 space-y-4 rounded-2xl border border-line bg-sky/50 p-4" onSubmit={(e) => { e.preventDefault(); if (preview.valid && preview.changed) void save.run(); }}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="trip-start-date" className="text-sm font-semibold text-pine">First day of the trip</label>
               <input id="trip-start-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1.5 min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base" />
-              {date && <button type="button" onClick={() => setDate("")} className="mt-1.5 min-h-8 text-sm font-semibold text-ink-muted underline underline-offset-2 hover:text-clay-ink">Clear the date</button>}
+              {date && <button type="button" onClick={() => setDate("")} className="tm-action mt-1.5 min-h-11 text-sm font-semibold hover:text-clay-ink">Clear the date</button>}
             </div>
             <div>
               <span id="trip-days-label" className="text-sm font-semibold text-pine">How many days?</span>

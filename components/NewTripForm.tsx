@@ -106,7 +106,7 @@ export function NewTripForm() {
 
       <fieldset>
         <legend id={endGroup} className="block text-sm font-semibold text-ink">How does the trip end?</legend>
-        <div role="radiogroup" aria-labelledby={endGroup} className="mt-1.5 grid gap-2 sm:grid-cols-3">
+        <div role="radiogroup" aria-labelledby={endGroup} className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {END_CHOICES.map((c) => {
             const on = endMode === c.id;
             return (
@@ -143,7 +143,7 @@ export function NewTripForm() {
         />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextField
           label="Start date"
           type="date"

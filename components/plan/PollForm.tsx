@@ -58,7 +58,7 @@ export function PollForm({ code }: { code: string }) {
     <div role="status" className="rounded-2xl border border-teal/40 bg-teal-light/50 p-5">
       <p className="flex items-center gap-2 font-display text-xl font-semibold text-pine"><Glyph name="checkCircle" size={22} />Thanks, {name.trim()}!</p>
       <p className="mt-1 text-base text-ink-muted">Your answer is saved for “{info.trip_name}”. You can change it from this phone any time with the same link.</p>
-      <button type="button" onClick={() => setSaved(false)} className="mt-2 min-h-11 font-semibold text-teal-ink underline underline-offset-2">Change my answer</button>
+      <button type="button" onClick={() => setSaved(false)} className="tm-action mt-2 min-h-11 font-semibold">Change my answer</button>
     </div>
   );
 

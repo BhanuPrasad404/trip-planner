@@ -182,7 +182,7 @@ function LiveScreen({ e }: { e: Engine }) {
         {intel.notes.map((n) => <p key={n} className="text-xs text-ink-muted">ℹ {n}</p>)}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
         <div className="space-y-5">
           <div className="relative h-[52vh] min-h-[22rem] overflow-hidden rounded-3xl border border-line bg-white shadow-sm lg:h-[62vh]">
             <TripMapLazy theme={mapTheme} places={mapPlaces} start={start} destination={dest} activeDay={driveDay} numDays={trip.num_days} fit="day" frameStartDest={false} live={live.liveMarkers} pois={live.poiMarkers} driveLine={drive.active && !navUi.navBusy ? drive.route?.source === "osrm" ? drive.route.line : null : null} nav={navUi.nav} headingUp={navUi.headingUp} viewRequest={navUi.viewRequest} recenter={navUi.recenter} onCompass={navUi.onCompass} onSelectRoute={live.navigation.choose} follow={drive.active && follow} onUserPan={() => setFollow(false)} />
@@ -210,9 +210,9 @@ function LiveScreen({ e }: { e: Engine }) {
                           <p className="break-words font-semibold text-pine">{p.name}</p>
                           {eta && <p className="text-xs text-ink-muted">You&apos;d arrive about <strong>{eta.etaClock}</strong>{d && <span className={`ml-2 rounded-full px-2 py-0.5 font-semibold ${d.tone === "late" ? "bg-clay-light text-clay-ink" : d.tone === "ok" ? "bg-teal-light text-teal-ink" : "bg-sky text-ink-muted"}`}>{d.text}</span>}</p>}
                           <div className="mt-1 flex flex-wrap items-center gap-x-4">
-                            <a href={googleMapsDirections(p, vehicle)} target="_blank" rel="noopener noreferrer" className="min-h-9 py-1.5 font-semibold text-teal-ink underline underline-offset-2">Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
-                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "done", `Marked ${p.name} done`)} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2 disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
-                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="min-h-9 py-1.5 text-ink-muted underline underline-offset-2 disabled:opacity-60">Skip</button>
+                            <a href={googleMapsDirections(p, vehicle)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
+                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "done", `Marked ${p.name} done`)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
+                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="tm-action min-h-11 py-1.5 disabled:opacity-60">Skip</button>
                           </div>
                           <PulseCard name={p.name} lat={p.lat} lng={p.lng} showTravelerPhotos />
                         </div>

@@ -41,7 +41,7 @@ export function AutopilotCard({ advice: a, photos, busy, onAccept, onKeep }: Pro
           {shown.map((o) => (
             <PlaceRow key={o.key} kind={o.kind} name={o.name} lat={o.lat} lng={o.lng} etaMin={o.etaMin} aheadKm={o.aheadKm} detourMin={o.detourMin} open={o.open} hours={o.hours} fetchedAt={o.fetchedAt} photo={photos[o.key]}>
               {a.action?.type === "insert_stop" && alts && (
-                <button type="button" disabled={busy} onClick={() => onAccept(a, o.key)} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2 disabled:opacity-60">Go here instead</button>
+                <button type="button" disabled={busy} onClick={() => onAccept(a, o.key)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60">Go here instead</button>
               )}
             </PlaceRow>
           ))}
@@ -51,8 +51,8 @@ export function AutopilotCard({ advice: a, photos, busy, onAccept, onKeep }: Pro
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {accept && <Button size="sm" onClick={() => onAccept(a)} loading={busy} loadingLabel="Working…">{accept}</Button>}
         <Button size="sm" variant="secondary" onClick={() => onKeep(a)} disabled={busy}>Keep my plan</Button>
-        {options.length > 1 && <button type="button" onClick={() => setAlts((v) => !v)} aria-expanded={alts} className="min-h-10 px-2 text-sm font-semibold text-pine underline underline-offset-2">{alts ? "Hide alternatives" : `Show ${options.length - 1} alternative${options.length > 2 ? "s" : ""}`}</button>}
-        {a.why && a.why.length > 0 && <button type="button" onClick={() => setWhy((v) => !v)} aria-expanded={why} className="min-h-10 px-2 text-sm font-semibold text-ink-muted underline underline-offset-2">{why ? "Hide why" : "Why?"}</button>}
+        {options.length > 1 && <button type="button" onClick={() => setAlts((v) => !v)} aria-expanded={alts} className="tm-action min-h-11 text-sm font-semibold">{alts ? "Hide alternatives" : `Show ${options.length - 1} alternative${options.length > 2 ? "s" : ""}`}</button>}
+        {a.why && a.why.length > 0 && <button type="button" onClick={() => setWhy((v) => !v)} aria-expanded={why} className="tm-action min-h-11 text-sm font-semibold">{why ? "Hide why" : "Why?"}</button>}
       </div>
 
       {why && a.why && (

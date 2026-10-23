@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!(await consumeQuota(supabase, "builder", 80))) return jsonError("You've used the trip builder a lot today. Please try again tomorrow.", 429);
 
   const today = await todayISO();
-  const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: input.engine ? [] : input.styles, todayISO: today, userId: user.id });
+  const r = await loadBuilder(supabase, id, { endMode: input.end_mode, styles: input.engine ? [] : input.styles, todayISO: today, userId: user.id, skip: input.skip });
   if (!r.ok) return jsonError(r.error, r.status);
   if (input.engine) {
     try {

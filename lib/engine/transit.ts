@@ -63,6 +63,7 @@ export function splitRoad(line: RoadLine, opts: { startName: string; endName: st
       driveMin: Math.round(cumMin[idx] - cumMin[pos] + detour.min), km: Math.round(cumKm[idx] - cumKm[pos] + detour.km),
       haltNote: !best ? "No town near the road here in our map data: plan this night yourself." : best.town.checkStays ? "A small town: check stays here." : null,
       daylightLimited: b.daylightLimited,
+      at: best ? { lat: best.town.lat, lng: best.town.lng } : pt(idx),
     });
     pos = idx; name = to; day++;
   }

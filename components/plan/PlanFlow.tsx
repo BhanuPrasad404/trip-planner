@@ -29,10 +29,15 @@ import { PlaceList } from "./PlaceList";
 import { QuestionCard, questionFor } from "./QuestionCard";
 import { SimilarTray } from "./SimilarTray";
 import { VoiceButton } from "./VoiceButton";
+import Link from "next/link";
+import { EXAMPLE_LINKS } from "@/lib/result/example-list";
+import { suggestStartDate } from "@/lib/intake/start-date";
+import { formatDate } from "@/lib/format";
+import { addDays, parseISODate } from "@/lib/dates";
 
-type Step = "start" | "words" | "understood" | "questions" | "ready";
+export type Step = "start" | "words" | "understood" | "questions" | "ready";
 type Mode = "paste" | "describe" | "manual";
-const STEPS: { id: Step; label: string }[] = [{ id: "start", label: "Start" }, { id: "understood", label: "Your places" }, { id: "questions", label: "A few questions" }, { id: "ready", label: "Ready" }];
+const STEPS: { id: Step; label: string }[] = [{ id: "start", label: "Start" }, { id: "understood", label: "Your places" }, { id: "questions", label: "A few questions" }, { id: "ready", label: "Save" }];
 const stepIndex = (s: Step) => (s === "words" ? 0 : STEPS.findIndex((x) => x.id === s));
 
 export const EXAMPLES = [
@@ -59,6 +64,7 @@ export function unbackedText(k: AnswerKey, v: unknown, thisMonth: number): strin
 }
 
 const thisMonthIndia = () => Number(dateOf(Date.now(), INDIA_UTC_OFFSET_MIN).slice(5, 7));
+const todayIndiaISO = () => dateOf(Date.now(), INDIA_UTC_OFFSET_MIN);
 const toPicked = (o: Option | null): PickedPlace | null => (o ? { name: o.name, address: o.area, lat: o.lat, lng: o.lng, origin: o.id.startsWith("gps") ? "gps" : "search" } : null);
 const fromPicked = (p: PickedPlace): Option => ({ id: `${p.origin === "gps" ? "gps" : "pick"}:${p.lat},${p.lng}`, name: p.name, lat: p.lat, lng: p.lng, kind: "place", area: p.address, state: null, source: "osm", km: null, calledAs: null });
 
@@ -72,23 +78,27 @@ async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Pr
   }
 }
 
-export function PlanFlow({ signedIn }: { signedIn: boolean }) {
+/** `initial`: start on a given step with a given draft (tests render the save step with it; the app never passes it). */
+export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: { draft: Draft; step: Step } }) {
   const router = useRouter();
   const online = useOnline();
-  const [step, setStep] = useState<Step>("start");
+  const [step, setStep] = useState<Step>(initial?.step ?? "start");
   const [mode, setMode] = useState<Mode>("describe");
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [draft, setDraft] = useState<Draft>(initial?.draft ?? emptyDraft);
   const [text, setText] = useState("");
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AnswerKey | null>(null);
   const [season, setSeason] = useState<{ key: string; climate: MonthClimate | null; inSeason: InSeason[] } | null>(null);
   const [name, setName] = useState("");
+  /** The save step's first day: undefined = our suggestion, null = "no dates yet". */
+  const [startDate, setStartDate] = useState<string | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const aiCtrl = useRef<AbortController | null>(null);
   const top = useRef<HTMLDivElement>(null);
   const thisMonth = useMemo(() => thisMonthIndia(), []);
+  const todayIndia = useMemo(() => todayIndiaISO(), []);
 
   // Coming back from sign-up: the draft was kept on this phone.
   useEffect(() => {
@@ -162,7 +172,7 @@ export function PlanFlow({ signedIn }: { signedIn: boolean }) {
     setSaveError(null);
     if (!start) { setSaveError("Add where you start first."); setStep("start"); return; }
     if (!signedIn) { saveDraft({ ...draft, text }); router.push(`/signup?next=${encodeURIComponent("/plan?resume=1")}`); return; }
-    const req = tripRequests(draft, eff, name);
+    const req = tripRequests(draft, eff, name, chosenStart);
     setSaving(true);
     const t = await postJson<{ id: string }>("/api/trips", req.trip);
     if (!t.ok) { setSaving(false); setSaveError(t.error); return; }
@@ -171,9 +181,12 @@ export function PlanFlow({ signedIn }: { signedIn: boolean }) {
       if (!p.ok) { setSaving(false); setSaveError(`The trip was saved, but its places weren't: ${p.error} You can add them on the trip&apos;s Plan page.`); router.push(`/trips/${t.data.id}/plan`); return; }
     }
     clearDraft();
-    router.push(`/trips/${t.data.id}/plan?tool=plan`);
+    router.push(`/trips/${t.data.id}/result`);
   }
 
+  const chosenStart = startDate === undefined ? suggestStartDate(todayIndia, eff.answers.month ?? null) : startDate;
+  const tripDays = eff.answers.days ?? 3;
+  const endText = chosenStart ? (() => { const a = parseISODate(chosenStart); return a ? `${formatDate(a, { weekday: "short", day: "numeric", month: "short" })} – ${formatDate(addDays(a, tripDays - 1), { weekday: "short", day: "numeric", month: "short" })}` : null; })() : null;
   const aiLine = draft.ai === "reading" ? null : draft.ai in AI_LINE ? AI_LINE[draft.ai as keyof typeof AI_LINE] : null;
   const unbacked = (draft.understanding?.unbacked ?? []).filter((u) => u.key !== "place" && u.key !== "startSaid" && eff.source[u.key as AnswerKey] !== "you");
   const conflictFor = (k: AnswerKey) => draft.understanding?.conflicts.find((c) => c.key === k && draft.chosen[k] === undefined) ?? null;
@@ -229,6 +242,15 @@ export function PlanFlow({ signedIn }: { signedIn: boolean }) {
             ))}
           </div>
           <div>
+            <p className="text-sm font-semibold text-ink">See a finished plan first</p>
+            <ul className="mt-2 grid gap-2">{EXAMPLE_LINKS.map((e) => (
+              <li key={e.slug}><Link href={`/plan/example/${e.slug}`} className="flex min-h-14 items-center gap-3 rounded-2xl border border-line bg-white px-4 py-2.5 hover:border-teal">
+                <Glyph name="pin" size={18} className="shrink-0 text-teal-ink" />
+                <span className="min-w-0"><span className="block font-semibold text-pine">{e.title}</span><span className="block text-sm text-ink-muted">{e.blurb}</span></span>
+              </Link></li>
+            ))}</ul>
+          </div>
+          <div>
             <p className="text-sm font-semibold text-ink">Or try an example</p>
             <ul className="mt-2 space-y-2">{EXAMPLES.map((e) => (
               <li key={e.text}><button type="button" onClick={() => { setText(e.text); setMode(e.lang === "Reel caption" ? "paste" : "describe"); setStep("words"); }} className="w-full rounded-xl border border-dashed border-line px-3.5 py-2.5 text-left text-sm hover:border-teal"><span className="mr-2 rounded-full bg-sky px-2 py-0.5 text-[11px] font-semibold text-ink-muted">{e.lang}</span><span className="whitespace-pre-line">{e.text}</span></button></li>
@@ -265,13 +287,13 @@ export function PlanFlow({ signedIn }: { signedIn: boolean }) {
           {aiLine && (
             <div role="status" className="rounded-xl border border-marigold/50 bg-marigold-light/60 px-3.5 py-2.5 text-sm text-[#7a4a00]">
               <p className="flex items-start gap-1.5"><Glyph name="warn" size={15} className="mt-0.5" />{aiLine}</p>
-              {draft.ai !== "off" && draft.ai !== "limit" && draft.text && <button type="button" onClick={() => void runAi(draft.text, startBody())} className="mt-1 min-h-10 font-semibold underline underline-offset-2">Try the AI again</button>}
+              {draft.ai !== "off" && draft.ai !== "limit" && draft.text && <button type="button" onClick={() => void runAi(draft.text, startBody())} className="tm-action mt-1 min-h-11 font-semibold">Try the AI again</button>}
             </div>
           )}
           {unbacked.length > 0 && (
             <div className="rounded-xl border border-line bg-white p-3 text-sm">
               <p className="font-semibold text-ink">The AI also suggested (not in your words, so not used):</p>
-              <ul className="mt-1 space-y-1">{unbacked.map((u) => <li key={`${u.key}-${String(u.value)}`} className="flex flex-wrap items-center gap-2 text-ink-muted">{unbackedText(u.key as AnswerKey, u.value, thisMonth)} <span className="text-xs">({u.why})</span> <button type="button" onClick={() => choose(u.key as AnswerKey, u.value)} className="min-h-9 font-semibold text-teal-ink underline underline-offset-2">Use it</button></li>)}</ul>
+              <ul className="mt-1 space-y-1">{unbacked.map((u) => <li key={`${u.key}-${String(u.value)}`} className="flex flex-wrap items-center gap-2 text-ink-muted">{unbackedText(u.key as AnswerKey, u.value, thisMonth)} <span className="text-xs">({u.why})</span> <button type="button" onClick={() => choose(u.key as AnswerKey, u.value)} className="tm-action min-h-11 font-semibold">Use it</button></li>)}</ul>
             </div>
           )}
           <PlaceList places={draft.places} near={start ? { lat: start.lat, lng: start.lng } : null} onChange={(places) => setDraft((d) => ({ ...d, places }))} />
@@ -298,22 +320,38 @@ export function PlanFlow({ signedIn }: { signedIn: boolean }) {
               {cardsNow.length ? "Next" : "Continue"}
             </Button>
           </div>
-          <button type="button" onClick={() => setStep("ready")} className="min-h-11 text-sm font-semibold text-teal-ink underline underline-offset-2">Skip the rest and use the defaults</button>
+          <button type="button" onClick={() => setStep("ready")} className="tm-action min-h-11 text-sm font-semibold">Skip the rest and use the defaults</button>
         </section>
       )}
 
       {step === "ready" && (
         <section aria-labelledby="h-ready" className="space-y-4">
-          <h1 id="h-ready" className="font-display text-2xl font-semibold text-pine">Ready to plan</h1>
+          <h1 id="h-ready" className="font-display text-2xl font-semibold text-pine">Save your trip</h1>
           <FitMeterBar meter={meter} roads={roads} />
           {Chips}
           <p className="text-sm text-ink-muted">{usablePlaces(draft).length} {usablePlaces(draft).length === 1 ? "place" : "places"}{draft.places.some((p) => p.status === "missing") ? ` (${draft.places.filter((p) => p.status === "missing").length} not found, left out)` : ""}. Dashed chips are our defaults: tap any chip to change it.</p>
           <TextField label="Trip name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder={tripRequests(draft, eff).trip.name} hint="Leave it empty to use the suggested name." />
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold text-ink">Dates</legend>
+            {chosenStart !== null ? (
+              <>
+                <label htmlFor="plan-start-date" className="block text-sm text-ink-muted">First day{startDate === undefined ? " (our suggestion: change it if you know your dates)" : ""}</label>
+                <input id="plan-start-date" type="date" min={todayIndia} value={chosenStart} onChange={(e) => setStartDate(e.target.value || null)} className="block min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base text-ink" />
+                {endText && <p className="text-sm text-ink-muted">{tripDays} {tripDays === 1 ? "day" : "days"}: {endText}</p>}
+                <button type="button" onClick={() => setStartDate(null)} className="tm-action min-h-11 text-sm font-semibold">No dates yet</button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-ink-muted">No dates yet: weather and opening days won&apos;t be checked until you add them.</p>
+                <button type="button" onClick={() => setStartDate(undefined)} className="tm-action min-h-11 text-sm font-semibold">Add dates</button>
+              </>
+            )}
+          </fieldset>
           <FormError message={saveError} />
           {!signedIn && <p className="rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted">Create a free account to save this trip. Your plan stays on this phone while you sign up, and opens here again afterwards.</p>}
           <div className="flex gap-3">
             <Button variant="ghost" onClick={() => setStep("questions")}>Back</Button>
-            <Button onClick={() => void planIt()} loading={saving} loadingLabel="Saving your trip…" disabled={!online} className="flex-1">{signedIn ? "Plan my trip" : "Sign up and plan my trip"}</Button>
+            <Button onClick={() => void planIt()} loading={saving} loadingLabel="Saving your trip…" disabled={!online} className="flex-1">{signedIn ? "Save and plan my trip" : "Sign up and save this trip"}</Button>
           </div>
           <p className="text-xs text-ink-muted">Once it&apos;s saved, you can ask your group for their pace, interests and things to avoid from the trip&apos;s Plan page.</p>
         </section>

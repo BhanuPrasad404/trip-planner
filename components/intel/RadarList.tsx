@@ -30,7 +30,7 @@ export function RadarList({ radar, photos, mapping, trafficConnected, onAdd, bus
           {radar.map((r) => (
             <PlaceRow key={r.key} kind={r.kind} name={r.name} lat={r.lat} lng={r.lng} etaMin={r.etaMin} aheadKm={r.aheadKm} detourMin={r.detourMin} open={r.open} note={r.note} hours={r.hours} fetchedAt={r.fetchedAt} photo={photos[r.key]}>
               {onAdd && (
-                <button type="button" disabled={busy} onClick={() => onAdd(r)} className="min-h-9 py-1.5 font-semibold text-pine underline underline-offset-2 disabled:opacity-60">
+                <button type="button" disabled={busy} onClick={() => onAdd(r)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60">
                   Add as next stop<span className="sr-only"> {KIND_META[r.kind].label}: {r.name}</span>
                 </button>
               )}

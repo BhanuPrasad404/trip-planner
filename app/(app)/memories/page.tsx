@@ -24,7 +24,7 @@ export default async function MemoriesPage() {
           <p className="mx-auto mt-2 max-w-md text-ink-muted">When a trip ends, its story — stops visited, plan vs reality and your photos — appears here. Nothing is made up: only what you did in the app.</p>
         </div>
       ) : (
-        <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{past.map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
+        <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{past.map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
       )}
     </main>
   );

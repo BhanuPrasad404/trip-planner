@@ -38,7 +38,7 @@ export function MediaStep({ items, dragging, busy, onFiles, onRemove, onMakeCove
             <p className="font-display text-2xl font-semibold text-pine">Show what it looks like</p>
             <p className="mx-auto mt-1.5 max-w-xs text-sm text-ink-muted">{dragging ? "Drop to add" : "Drag photos or a short video here, or pick them from your device."}</p>
           </div>
-          <div className="grid w-full max-w-md gap-2.5 sm:grid-cols-3">
+          <div className="grid grid-cols-1 w-full max-w-md gap-2.5 sm:grid-cols-3">
             {cameraSupport.photo ? (
               <button type="button" onClick={() => onCamera("photo")} className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl bg-teal px-3 text-sm font-semibold text-white shadow-sm active:scale-95 transition-transform"><CameraIcon size={24} />Take photo</button>
             ) : (

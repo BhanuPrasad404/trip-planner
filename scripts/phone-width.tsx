@@ -1,4 +1,4 @@
-// Phone-width check: renders real screens (Weather, Add a stop) with the app's built CSS (.next, so run `next build` first), opens them in
+// Phone-width check: renders real screens (Weather, Add a stop, the plan flow's start and save steps, Your plan) with the app's built CSS (.next, so run `next build` first), opens them in
 // headless Chrome at 360, 390 and 412 px, and lists every element that sticks out past the screen. Used by tests/phone-width.test.ts.
 // Run by hand: npx tsx scripts/phone-width.tsx <folder for the temporary html files>
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
@@ -14,6 +14,12 @@ import { NextHoursRow } from "@/components/weather/WeatherParts";
 import { ViewModeSwitch } from "@/components/weather/ViewModeSwitch";
 import { AddPlaceForm } from "@/components/AddPlaceForm";
 import { TripTabs } from "@/components/shell/TripTabs";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { PlanFlow } from "@/components/plan/PlanFlow";
+import { TripPlanner } from "@/components/TripPlanner";
+import { ComparePlans, DonePanel, ResultView, StopSheet } from "@/components/result/ResultView";
+import { EXAMPLES } from "@/lib/result/examples";
+import { exampleDraft } from "@/lib/result/example-draft";
 
 const ROOT = process.cwd().split(path.sep).join("/");
 const WIDTHS = [360, 390, 412];
@@ -29,6 +35,14 @@ const b = buildBoard({ nowMs: NOW, mode: { kind: "arrival" }, here: { ...HYD, la
 ] }, () => area, HORIZON);
 const board = { status: "ready", problem: null, refreshing: false, fetchedAt: NOW - 300_000, ...b } as never;
 const noop = () => {};
+// Screens that use the app router get a stand-in (nothing navigates in a static render).
+const router = { push: noop, replace: noop, refresh: noop, back: noop, forward: noop, prefetch: noop };
+const withRouter = (el: ReturnType<typeof h>) => h(AppRouterContext.Provider, { value: router as never }, el);
+const kochi = EXAMPLES.find((e) => e.slug === "kochi-munnar-alleppey")!;
+const firstStop = kochi.data.options[1].days.flatMap((d) => d.stops)[0];
+// The trip Plan page with one stop on Day 1 and one place just added to Ideas (the screen that broke on 23 Oct 2026).
+const TRIP = { id: "t1", owner_id: "u1", name: "Hyderabad weekend with friends", start_city: "Hyderabad", start_lat: 17.385, start_lng: 78.4867, dest_name: null, dest_lat: null, dest_lng: null, start_date: "2026-11-07", num_days: 3, end_mode: "start", invite_code: "abc", created_at: "2026-10-20T00:00:00Z" };
+const place = (id: string, name: string, day: number | null, extra: object = {}) => ({ id, trip_id: "t1", name, lat: 17.36, lng: 78.47, source_type: "search", source_url: null, season_tag_id: null, day_number: day, sequence_order: day ? 1 : null, arrival_time: day ? "10:00" : null, notes: null, category: "fort", status: "planned", status_at: null, address: "Golconda mandal, Hyderabad, Telangana, 500008, India", drive_minutes: day ? 25 : null, drive_km: day ? 9 : null, priority: "normal", added_by: "u1", created_at: "2026-10-20T00:00:00Z", season_tags: null, ...extra });
 
 export const pages: Record<string, string> = {
   weather: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl space-y-4 px-4 py-5 sm:px-6" },
@@ -42,6 +56,14 @@ export const pages: Record<string, string> = {
     ...Array.from({ length: 12 }, (_, i) => h("li", { key: i, className: "w-14 shrink-0" }, `${i}h`, h("span", { className: "sr-only" }, `hour ${i} details`)))))),
   addplace: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },
     h(AddPlaceForm, { tripId: "t", dayNumber: 1, near: HYD, onAdded: noop, onCancel: noop } as never))),
+  "planner-ideas": renderToStaticMarkup(withRouter(h(TripPlanner, { trip: TRIP, places: [place("p1", "Charminar", 1), place("p3", "https://maps.app.goo.gl/u7XkQ2vZpL9mN3bR8cTy", null, { address: "8C9F+XQ2,Golconda,Hyderabad,Telangana,500008,India" }), place("p2", "Sri Venkateswara Swamy Vari Devasthanam Chilkur Balaji Temple", null, { source_url: "https://www.instagram.com/reel/C1234567890abcdefghijklmnop/?utm_source=ig_web_copy_link&igshid=MzRlODBiNWFlZA==" })], members: [], today: "2026-10-23", siteUrl: "http://localhost", conditions: {}, userId: "u1", votes: {} } as never))),
+  "plan-start": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false }))),
+  "save-step": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "ready" } }))),
+  ...Object.fromEntries(EXAMPLES.map((e) => [`result-${e.slug}`, renderToStaticMarkup(withRouter(h(ResultView, { kind: "example", example: e, signedIn: false })))])),
+  "result-parts": renderToStaticMarkup(withRouter(h("main", { className: "mx-auto w-full max-w-2xl space-y-4 px-4" },
+    h(ComparePlans, { data: kochi.data, total: kochi.places.length }),
+    h(DonePanel, { tripId: "t", busy: false, onUndo: noop }),
+    h(StopSheet, { stop: { ...firstStop, name: "Eravikulam National Park and a very long name for a phone" }, must: false, place: { id: "p", name: "x", lat: 10, lng: 77 }, busy: false, onClose: noop, onMust: noop, onSkip: noop })))),
 };
 
 export const cssDir = `${ROOT}/.next/static/chunks`;

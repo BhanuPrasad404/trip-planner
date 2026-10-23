@@ -20,7 +20,7 @@ export function HudNotices({ shown, hiddenCount, onDismiss, onAction, onMore }: 
       {shown.map((n) => (
         <p key={n.id} role={n.severity === "critical" ? "alert" : "status"} className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow ${TONE[n.severity]}`}>
           <span className="min-w-0 flex-1">{n.text}</span>
-          {n.action && onAction && <button type="button" onClick={() => onAction(n.id, n.action!.id)} className="min-h-11 shrink-0 px-1 font-semibold underline underline-offset-2">{n.action.label}</button>}
+          {n.action && onAction && <button type="button" onClick={() => onAction(n.id, n.action!.id)} className="tm-action min-h-11 shrink-0 font-semibold">{n.action.label}</button>}
           {n.dismissible && <button type="button" onClick={() => onDismiss(n.id)} aria-label={`Dismiss: ${n.text}`} className="-my-1.5 -mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted"><Glyph name="close" size={16} /></button>}
         </p>
       ))}

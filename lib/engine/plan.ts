@@ -101,6 +101,7 @@ function runVariant(v: VariantId, sh: Shared): Run {
       days.push({
         day: days.length + 1, from: arrival.label, to: t ? t.name : Fname, driveMin: remMin + detour.min, km: Math.round(remKm + detour.km), daylightLimited: false,
         haltNote: !t ? "No town near here in our map data: plan this night yourself." : t.checkStays ? "A small town: check stays here." : null,
+        at: t ? { lat: t.lat, lng: t.lng } : Fpt,
       });
       arrival = t ? { lat: t.lat, lng: t.lng, label: t.name } : { ...Fpt, label: Fname };
       remMin = detour.min; remKm = detour.km; // from that town to the first place
@@ -165,14 +166,14 @@ function runVariant(v: VariantId, sh: Shared): Run {
       const b = budget(homeDay + tOut, altInput.places[L - 1], !!sh.hill[L]?.[0]);
       if (driveMin <= b.driveMin && alt.option.totals.places > core.option.totals.places) {
         core = alt;
-        transitBack = [{ day: tOut + homeDay, from: last.name, to: base.start.label, driveMin, km: Math.round(altInput.matrix.distances[L][0] / 1000), haltNote: null, daylightLimited: b.daylightLimited }];
+        transitBack = [{ day: tOut + homeDay, from: last.name, to: base.start.label, driveMin, km: Math.round(altInput.matrix.distances[L][0] / 1000), haltNote: null, daylightLimited: b.daylightLimited, at: { lat: base.start.lat, lng: base.start.lng } }];
       }
     }
   }
   if (backSplit) {
     const firstBack = tOut + Math.max(0, coreDays) + 1;
     transitBack = backSplit.days.map((d, i) => ({ ...d, day: firstBack + i }));
-    transitBack.push({ day: firstBack + backSplit.days.length, from: backSplit.arrival.name, to: base.start.label, driveMin: backSplit.remainingMin, km: backSplit.remainingKm, haltNote: null, daylightLimited: false });
+    transitBack.push({ day: firstBack + backSplit.days.length, from: backSplit.arrival.name, to: base.start.label, driveMin: backSplit.remainingMin, km: backSplit.remainingKm, haltNote: null, daylightLimited: false, at: { lat: base.start.lat, lng: base.start.lng } });
   }
 
   const option: PlanOption = core

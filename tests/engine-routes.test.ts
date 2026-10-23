@@ -31,7 +31,7 @@ const specs = [{ name: "Lonavala" }, { name: "Khandala" }, { name: "Mahabaleshwa
 
 function loaded(intake: unknown = { pace: "relaxed", night_driving: false }) {
   const input = makeInput(specs, { numDays: 2, startDateISO: "2026-12-12", endMode: "start" });
-  return { ok: true, input, result: buildTrip(input, []), signature: inputSignature(input), unscheduledIds: [], trip: { id: TRIP, intake } };
+  return { ok: true, input, result: buildTrip(input, []), signature: inputSignature(input), unscheduledIds: [], trip: { id: TRIP, intake }, skipped: [] as { id: string; name: string; lat: number; lng: number }[] };
 }
 
 beforeEach(() => { state.user = { id: UID }; state.upserts = []; state.load = loaded(); state.heightsFail = false; });
@@ -75,6 +75,21 @@ describe("Plan my trip with the engine", () => {
     const rows = state.upserts[0] as { id: string; day_number: number | null }[];
     expect(rows).toHaveLength(4);
     for (const r of rows) if (r.day_number !== null) expect(r.day_number).toBeGreaterThanOrEqual(1);
+  });
+  it("Skip this place: the list reaches the planner, and on Use this plan the skipped place goes back to Ideas", async () => {
+    const { loadBuilder } = await import("@/lib/server/builder");
+    const SKIP = "33333333-3333-3333-3333-333333333333";
+    await preview(json({ engine: true, end_mode: "start", skip: [SKIP] }), params);
+    expect(vi.mocked(loadBuilder).mock.calls.at(-1)![2]).toMatchObject({ skip: [SKIP] });
+    state.load = { ...loaded(), skipped: [{ id: SKIP, name: "Skipped Fort", lat: 18.5, lng: 73.8 }] };
+    const sig = (state.load as { signature: string }).signature;
+    const res = await applyPlan(json({ style: "balanced", end_mode: "start", signature: sig, engine: true, skip: [SKIP] }), params);
+    expect(res.status).toBe(200);
+    const row = (state.upserts[0] as { id: string; day_number: number | null; name: string }[]).find((r) => r.id === SKIP)!;
+    expect(row).toMatchObject({ day_number: null, name: "Skipped Fort" });
+  });
+  it("rejects a skip list that isn't place ids", async () => {
+    expect((await preview(json({ engine: true, skip: ["nope"] }), params)).status).toBe(400);
   });
   it("rejects a bad driving limit", async () => {
     expect((await preview(json({ engine: true, max_drive_hours: 40 }), params)).status).toBe(400);

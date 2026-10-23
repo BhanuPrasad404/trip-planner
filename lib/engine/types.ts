@@ -67,9 +67,11 @@ export type TransitDay = {
   haltNote: string | null;
   /** The day ends early because driving after dark was refused. */
   daylightLimited: boolean;
+  /** Where the day ends (the halt town, or the road point when no town is near), for the map. */
+  at?: { lat: number; lng: number };
 };
 
-export type NightHalt = { day: number; town: string; area: string; km: number; driveMin: number; pop: number; checkStays: boolean; atStop: boolean };
+export type NightHalt = { day: number; town: string; area: string; km: number; driveMin: number; pop: number; checkStays: boolean; atStop: boolean; /** The town, for the map. */ at?: { lat: number; lng: number } };
 
 export type Variant = {
   id: VariantId;

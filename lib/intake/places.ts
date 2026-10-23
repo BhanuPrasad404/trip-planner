@@ -32,6 +32,12 @@ export type ResolveDeps = {
 export const FAR_FROM_START_KM = 1200;
 /** The nearest of several same-name places is "clearly" the one when the next is at least this many times farther. */
 export const CLEAR_WINNER = 3;
+/**
+ * When only the START is known (no other places to show where the trip goes), being nearer the start settles a same-name choice only
+ * for a place within a day's drive: from Hyderabad, the Manali in Chennai (520 km) is not "clearly" the Manali meant over the one in
+ * Himachal (1,650 km). Beyond this, we ask.
+ */
+export const START_ONLY_CLEAR_KM = 250;
 /** Two points this close with the same name are one place (a cave and its entrance, a temple and its car park). */
 export const SAME_SPOT_KM = 5;
 const MAX_NAMES = 15;
@@ -135,7 +141,8 @@ export async function resolvePlaces(said: SaidPlace[], ctx: { start: { lat: numb
       const [best, next] = ranked;
       m.place = { ...best.o, km: best.km === null ? null : Math.round(best.km) };
       m.alternatives = [...ranked.slice(1).map((r) => ({ ...r.o, km: r.km === null ? null : Math.round(r.km) })), ...m.alternatives.filter((x) => !sameTier.includes(x))].slice(0, 4);
-      const clear = best.km !== null && next.km !== null && next.km >= Math.max(1, best.km) * CLEAR_WINNER;
+      const startOnly = a?.label !== "your other places";
+      const clear = best.km !== null && next.km !== null && next.km >= Math.max(1, best.km) * CLEAR_WINNER && (!startOnly || best.km <= START_ONLY_CLEAR_KM);
       if (!clear) { m.status = "check"; m.reason = `${sameTier.length} places are called “${m.place.name}”. Is it the one in ${m.place.area || "this area"}?`; continue; }
     }
     if (m.loose) { m.status = "check"; m.reason = `Closest match on the map: “${m.place.name}”. Is it what you meant by “${m.said}”?`; continue; }

@@ -15,7 +15,7 @@ export function LegalPage({ title, intro, sections, contact, other }: { title: s
 
         <nav aria-label="Contents" className="mt-6 rounded-2xl border border-line bg-sky p-4 text-sm">
           <p className="font-semibold text-pine">On this page</p>
-          <ol className="mt-2 grid gap-1 sm:grid-cols-2">
+          <ol className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
             {sections.map((s, i) => (
               <li key={s.id}><a href={`#${s.id}`} className="text-teal-ink underline underline-offset-2">{i + 1}. {s.title}</a></li>
             ))}

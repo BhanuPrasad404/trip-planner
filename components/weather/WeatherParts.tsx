@@ -151,7 +151,7 @@ export function PlaceWeatherCard({ place, alerts, nowMs, onSetDates }: { place: 
       {ok && <p className="mt-1 text-xs text-ink-muted">{stepText(ok)} · Open-Meteo</p>}
       {m && m.status !== "ok" && <p className="mt-1 text-sm text-ink-muted">{missingText(m, place.typical?.text ?? null)}</p>}
       {noDates && onSetDates && (
-        <button type="button" onClick={onSetDates} className="mt-1 min-h-11 text-left text-sm font-semibold text-teal-ink underline underline-offset-2">
+        <button type="button" onClick={onSetDates} className="tm-action mt-1 min-h-11 text-left text-sm font-semibold">
           No trip date set: add dates to see the weather at your arrival times
         </button>
       )}

@@ -45,7 +45,7 @@ export function PlaceList({ places, near, onChange }: { places: DraftPlace[]; ne
                   <button type="button" aria-pressed={p.must} onClick={() => update(p.key, { must: !p.must })} className={`inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-xs font-bold ${p.must ? "bg-marigold text-pine" : "border border-line text-ink-muted"}`}>
                     <Glyph name="star" size={13} />{p.must ? "Must see" : "Nice to have"}<span className="sr-only">: {p.place?.name ?? p.said}</span>
                   </button>
-                  <button type="button" onClick={() => onChange(places.filter((x) => x.key !== p.key))} className="min-h-10 px-2 text-xs font-semibold text-ink-muted underline underline-offset-2">Remove<span className="sr-only"> {p.place?.name ?? p.said}</span></button>
+                  <button type="button" onClick={() => onChange(places.filter((x) => x.key !== p.key))} className="tm-action min-h-11 text-xs font-semibold">Remove<span className="sr-only"> {p.place?.name ?? p.said}</span></button>
                 </div>
               </div>
               {p.status !== "sure" && (

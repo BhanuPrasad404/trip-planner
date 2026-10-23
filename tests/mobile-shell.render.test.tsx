@@ -112,7 +112,7 @@ describe("the scene behind the app", () => {
     expect(html).toContain("<img"); expect(html).toContain("/_next/image?url="); expect(html).toContain("trailmate-hills"); expect(html).toContain('alt=""');
     expect(html).not.toMatch(/src="https?:\/\//); expect(html).not.toContain("url(http");
   });
-  it("fades into the dark green the cards sit on, so text stays readable over any part of the photo", () => { expect(html).toContain("linear-gradient(180deg"); expect(html).toContain("#06201c 72%"); });
+  it("fades into the dark green the cards sit on, so text stays readable over any part of the photo", () => { expect(html).toContain("linear-gradient(180deg"); expect(html).toContain("#06201c 52%"); });
   it("has nothing that moves or filters (cheap to scroll over on a low-end phone)", () => { expect(html).not.toMatch(/<animate|<filter|feGaussianBlur|animation/); });
   it("is mounted once, for the whole app, before the page content", () => {
     const layout = readFileSync("app/layout.tsx", "utf8");

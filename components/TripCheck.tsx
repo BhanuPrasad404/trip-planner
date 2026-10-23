@@ -361,7 +361,7 @@ export function TripCheck({ tripId, trip, places, activeDay, today, roadLine = n
 
           <details className="rounded-xl border border-line">
             <summary className="flex min-h-11 cursor-pointer items-center px-3.5 text-sm font-semibold text-pine">Try a specific time{!tripDay ? " or date" : ""}</summary>
-            <div className="grid gap-3 border-t border-line px-3.5 pb-3.5 pt-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 border-t border-line px-3.5 pb-3.5 pt-3 sm:grid-cols-2">
               {!tripDay && (
                 <div>
                   <label htmlFor="check-date" className="text-sm font-semibold text-pine">Leave on</label>
@@ -383,7 +383,7 @@ export function TripCheck({ tripId, trip, places, activeDay, today, roadLine = n
           </details>
 
           <div>
-            <button type="button" aria-expanded={hoursOpen} onClick={() => setHoursOpen((o) => !o)} className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-teal-ink underline underline-offset-2">
+            <button type="button" aria-expanded={hoursOpen} onClick={() => setHoursOpen((o) => !o)} className="tm-action inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold">
               <Glyph name={hoursOpen ? "up" : "down"} size={14} />Opening hours for this day ({dayStops.filter((p) => hoursOf(p).opening_hours).length} of {dayStops.length} known)
             </button>
             {hoursOpen && (
@@ -601,7 +601,7 @@ function AdviceCard({ advice, passed }: { advice: ReturnType<typeof recommendDep
         </div>
       )}
       <details className="mt-3">
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">What this assumes</summary>
+        <summary className="tm-action flex min-h-11 cursor-pointer items-center text-sm font-semibold">What this assumes</summary>
         <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted">{advice.assumptions.map((x) => <li key={x}>{x}</li>)}<li>Opening hours don&apos;t guarantee entry: holidays, festivals and repairs can change them.</li></ul>
       </details>
     </div>

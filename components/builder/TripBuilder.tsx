@@ -225,7 +225,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
               <ul className="mb-3 space-y-1.5" aria-label="Things to know about this plan">
                 {option.warnings.slice(0, 2).map((w, i) => <li key={`${w.code}-${i}`} className={`flex gap-2 rounded-xl border px-3 py-2 text-sm ${sevStyle[w.severity]}`}><Glyph name={w.severity === "info" ? "info" : "warn"} size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}
                 {option.warnings.length > 2 && (
-                  <li><details><summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">{option.warnings.length - 2} more to know</summary>
+                  <li><details><summary className="tm-action flex min-h-11 cursor-pointer items-center text-sm font-semibold">{option.warnings.length - 2} more to know</summary>
                     <ul className="mt-1 space-y-1.5">{option.warnings.slice(2).map((w, i) => <li key={`${w.code}-x${i}`} className={`flex gap-2 rounded-xl border px-3 py-2 text-sm ${sevStyle[w.severity]}`}><Glyph name={w.severity === "info" ? "info" : "warn"} size={14} className="mt-0.5 shrink-0" />{w.message}</li>)}</ul></details></li>
                 )}
               </ul>
@@ -388,7 +388,7 @@ function Day({ d, halt = null }: { d: DayPlan; halt?: NightHalt | null }) {
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-pine">{s.name}</p>
                 <p className="text-xs text-ink-muted">{duration(s.driveMin)} drive · {s.fromPrev.km} km · {duration(s.visitMin)} there</p>
-                <details><summary className="flex min-h-9 cursor-pointer items-center text-xs font-semibold text-teal-ink underline underline-offset-2">Why here?</summary><ul className="mb-1 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{s.reasons.map((r) => <li key={r}>{r}</li>)}</ul></details>
+                <details><summary className="tm-action flex min-h-11 cursor-pointer items-center text-xs font-semibold">Why here?</summary><ul className="mb-1 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{s.reasons.map((r) => <li key={r}>{r}</li>)}</ul></details>
               </div>
             </li>
           ))}
@@ -417,8 +417,8 @@ export function DurationCard({ a, canEdit, busy, onChange }: { a: DurationAdvice
       <p className="font-semibold text-pine">{a.headline}</p>
       {a.detail && <p className="mt-1 text-sm text-ink-muted">{a.detail}</p>}
       <details className="mt-2">
-      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-teal-ink underline underline-offset-2">Days needed at each pace</summary>
-      <ul className="mt-1 grid gap-2 sm:grid-cols-3" aria-label="Days needed at each pace">
+      <summary className="tm-action flex min-h-11 cursor-pointer items-center text-sm font-semibold">Days needed at each pace</summary>
+      <ul className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Days needed at each pace">
         {a.paces.map((p) => (
           <li key={p.key} className="rounded-xl bg-white/80 px-3 py-2 text-sm">
             <p className="font-semibold text-pine">{p.label}</p>
@@ -435,7 +435,7 @@ export function DurationCard({ a, canEdit, busy, onChange }: { a: DurationAdvice
         </div>
       )}
       <details className="mt-3">
-        <summary className="min-h-8 cursor-pointer text-xs font-semibold text-ink-muted underline underline-offset-2">What this assumes{a.missing.length ? ` and what it could not check (${a.missing.length})` : ""}</summary>
+        <summary className="tm-action min-h-11 cursor-pointer text-xs font-semibold">What this assumes{a.missing.length ? ` and what it could not check (${a.missing.length})` : ""}</summary>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs text-ink-muted">{[...a.assumptions, ...a.missing].map((t) => <li key={t}>{t}</li>)}</ul>
       </details>
     </div>

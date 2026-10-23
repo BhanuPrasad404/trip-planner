@@ -26,7 +26,7 @@ const specs = [{ name: "Lonavala" }, { name: "Khandala" }, { name: "Mahabaleshwa
 
 function loaded(numDays = 2) {
   const input = makeInput(specs, { numDays });
-  return { ok: true, input, result: buildTrip(input, ["relaxed"]), signature: inputSignature(input), unscheduledIds: [] };
+  return { ok: true, input, result: buildTrip(input, ["relaxed"]), signature: inputSignature(input), unscheduledIds: [], skipped: [] };
 }
 
 beforeEach(() => { state.user = { id: UID }; state.quotaOk = true; state.upserts = []; state.upsertError = null; state.load = loaded(); });

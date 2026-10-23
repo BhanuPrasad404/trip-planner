@@ -34,7 +34,7 @@ export function LiveArrival({ live, vehicle = "car", failed, onClearFailed }: {
     <>
       {failed && (
         <p role="alert" className="mx-auto max-w-md rounded-xl border border-clay/40 bg-clay-light px-4 py-3 text-sm font-medium text-clay-ink">
-          {failed} <button type="button" onClick={onClearFailed} className="ml-1 min-h-8 font-semibold underline underline-offset-2">OK</button>
+          {failed} <button type="button" onClick={onClearFailed} className="tm-action ml-1 min-h-11 font-semibold">OK</button>
         </p>
       )}
       <ArrivalCard

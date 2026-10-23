@@ -67,10 +67,10 @@ export function ExploreCard({ item, photo, season, saved, onToggleSave, added, o
           )}
           {!season && <p className="text-xs text-ink-muted">We haven&apos;t researched the best months for this place yet, so it isn&apos;t marked in or out of season. Check the weather before you go.</p>}
           <p className="flex flex-wrap gap-x-4">
-            <a href={googleMapsDirections(item)} target="_blank" rel="noopener noreferrer" className="min-h-11 py-2 font-semibold text-teal-ink underline underline-offset-2">Directions<span className="sr-only"> to {item.name} (opens in a new tab)</span></a>
-            {item.website && <a href={item.website} target="_blank" rel="noopener noreferrer nofollow" className="min-h-11 py-2 font-semibold text-teal-ink underline underline-offset-2">Website<span className="sr-only"> (opens in a new tab)</span></a>}
-            {item.wikipedia && <a href={item.wikipedia} target="_blank" rel="noopener noreferrer" className="min-h-11 py-2 font-semibold text-teal-ink underline underline-offset-2">Wikipedia<span className="sr-only"> (opens in a new tab)</span></a>}
-            {item.wikidata && <a href={`https://www.wikidata.org/wiki/${item.wikidata}`} target="_blank" rel="noopener noreferrer" className="min-h-11 py-2 font-semibold text-teal-ink underline underline-offset-2">Wikidata<span className="sr-only"> (opens in a new tab)</span></a>}
+            <a href={googleMapsDirections(item)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-2 font-semibold">Directions<span className="sr-only"> to {item.name} (opens in a new tab)</span></a>
+            {item.website && <a href={item.website} target="_blank" rel="noopener noreferrer nofollow" className="tm-action min-h-11 py-2 font-semibold">Website<span className="sr-only"> (opens in a new tab)</span></a>}
+            {item.wikipedia && <a href={item.wikipedia} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-2 font-semibold">Wikipedia<span className="sr-only"> (opens in a new tab)</span></a>}
+            {item.wikidata && <a href={`https://www.wikidata.org/wiki/${item.wikidata}`} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-2 font-semibold">Wikidata<span className="sr-only"> (opens in a new tab)</span></a>}
           </p>
         </div>
       )}

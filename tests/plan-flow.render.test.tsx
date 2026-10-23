@@ -8,6 +8,8 @@ import { estimateMatrix } from "@/lib/providers/estimate";
 let online = true;
 vi.mock("@/lib/client/use-connectivity", () => ({ useOnline: () => online }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
+// The start step links to the finished examples; a plain link here (next/link prefetches with browser-only APIs).
+vi.mock("next/link", async () => { const { createElement } = await import("react"); return { default: ({ href, children, ...rest }: { href: string; children?: unknown }) => createElement("a", { href, ...rest }, children as never) }; });
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
 
@@ -119,29 +121,30 @@ describe("the guided flow — screens", () => {
     expect(textOf(r.root)).toMatch(/We'll assume:/);
     for (const c of cards) expect(c.findAll((n) => n.type === "button" && /^Skip/.test(textOf(n).trim()))).toHaveLength(1);
   });
-  it("a guest signs up at 'Plan my trip': the plan is kept on this phone and the sign-up comes back here", async () => {
+  it("a guest signs up at 'Save': the plan is kept on this phone and the sign-up comes back here", async () => {
     const r = await render(false);
     await toUnderstood(r);
     await click(r, "Continue");
     await click(r, "Skip the rest and use the defaults");
-    await click(r, "Sign up and plan my trip");
+    await click(r, "Sign up and save this trip");
     expect(push).toHaveBeenCalledWith("/signup?next=%2Fplan%3Fresume%3D1");
     expect(JSON.parse(store["tm:plan-draft:v1"]).draft.places.length).toBe(2);
     expect(fetchMock.mock.calls.some((c) => c[0] === "/api/trips")).toBe(false);
   });
-  it("signed in: creates the trip with what was understood, adds the found places, opens 'Plan my trip'", async () => {
+  it("signed in: saves the trip with what was understood and the confirmed first day, adds the found places, opens Your plan", async () => {
     const r = await render(true);
     await toUnderstood(r);
     await click(r, "Continue");
     await click(r, "Skip the rest and use the defaults");
-    await click(r, "Plan my trip");
+    await click(r, "Save and plan my trip");
     await flush(10);
     const trip = JSON.parse(String((fetchMock.mock.calls.find((c) => c[0] === "/api/trips")![1] as RequestInit).body));
     expect(trip).toMatchObject({ start_city: "Hyderabad", num_days: 4, end_mode: "start", intake: expect.objectContaining({ group: "friends", interests: ["beaches"] }) });
+    expect(trip.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/); // the suggested first day, shown in the save step to confirm or change
     const bulk = JSON.parse(String((fetchMock.mock.calls.find((c) => c[0] === "/api/places/bulk")![1] as RequestInit).body));
     expect(bulk.trip_id).toBe("trip-77");
     expect(bulk.places.map((p: { name: string }) => p.name)).toEqual(["Warangal Fort", "Kondapalli"]);
-    expect(push).toHaveBeenCalledWith("/trips/trip-77/plan?tool=plan");
+    expect(push).toHaveBeenCalledWith("/trips/trip-77/result");
   });
   it("offline: reading is not attempted and it says why", async () => {
     online = false;

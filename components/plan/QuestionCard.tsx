@@ -75,7 +75,7 @@ export function QuestionCard({ k, value, source, reason, thisMonth, conflict, on
       {q.note && <p className="mt-2 text-xs text-ink-muted">{q.note}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         {q.multi && <button type="button" onClick={() => onAnswer(picked)} className="min-h-11 rounded-xl bg-pine px-4 text-sm font-bold text-white">Done</button>}
-        <button type="button" onClick={onSkip} className="min-h-11 px-2 text-sm font-semibold text-ink-muted underline underline-offset-2">Skip{value !== undefined && source === "default" ? " (keep this)" : ""}</button>
+        <button type="button" onClick={onSkip} className="tm-action min-h-11 text-sm font-semibold">Skip{value !== undefined && source === "default" ? " (keep this)" : ""}</button>
       </div>
     </section>
   );

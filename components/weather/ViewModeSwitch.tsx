@@ -48,7 +48,7 @@ export function ViewModeSwitch({ mode, setMode, nowMs, horizonEnd }: { mode: Vie
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => setMode({ kind: "arrival" })} className="min-h-11 text-sm font-semibold text-teal-ink underline underline-offset-2">Back to arrival times</button>
+          <button type="button" onClick={() => setMode({ kind: "arrival" })} className="tm-action min-h-11 text-sm font-semibold">Back to arrival times</button>
         </div>
       )}
     </div>

@@ -56,7 +56,7 @@ export function GroupPanel({ tripId, onClose }: { tripId: string; onClose?: () =
     <section aria-labelledby="group-h" className="rounded-2xl border border-teal/30 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <h2 id="group-h" className="font-display text-xl font-semibold text-pine">Ask your group</h2>
-        {onClose && <button type="button" onClick={onClose} className="min-h-10 px-2 text-sm font-semibold text-ink-muted underline underline-offset-2">Close</button>}
+        {onClose && <button type="button" onClick={onClose} className="tm-action min-h-11 text-sm font-semibold">Close</button>}
       </div>
       <p className="mt-1 text-sm text-ink-muted">Friends pick their pace, what they enjoy and anything to avoid. No sign-up needed. They only see the trip&apos;s name.</p>
       <FormError message={error} />
@@ -101,7 +101,7 @@ export function GroupPanel({ tripId, onClose }: { tripId: string; onClose?: () =
               <ul className="divide-y divide-line">{data.answers.map((a) => (
                 <li key={a.id} className="flex items-start justify-between gap-3 py-2 text-sm">
                   <span><span className="font-semibold">{a.name}</span>{a.member ? "" : " (guest)"}<span className="block text-ink-muted">{[a.answers.pace ? PACE_LABEL[a.answers.pace] : null, ...(a.answers.interests ?? []).map((i) => INTEREST_LABEL[i]), ...(a.answers.avoid ?? []).map((x) => `no ${AVOID_LABEL[x]?.toLowerCase() ?? x}`)].filter(Boolean).join(" · ") || "No preferences"}</span></span>
-                  {data.owner && <button type="button" onClick={() => void remove(a.id)} disabled={busy} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-ink-muted underline underline-offset-2">Remove<span className="sr-only"> {a.name}&apos;s answer</span></button>}
+                  {data.owner && <button type="button" onClick={() => void remove(a.id)} disabled={busy} className="tm-action min-h-11 shrink-0 text-xs font-semibold">Remove<span className="sr-only"> {a.name}&apos;s answer</span></button>}
                 </li>
               ))}</ul>
             </details>

@@ -73,11 +73,11 @@ export default async function DashboardPage() {
       {upcoming.length + drafts.length > (focus && focus.state !== "active" ? 1 : 0) && (
         <section aria-labelledby="up-heading">
           <h2 id="up-heading" className="font-display text-xl font-semibold text-pine">Coming up</h2>
-          <ul className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[...upcoming, ...drafts].filter((t) => t.id !== focus?.id).slice(0, 3).map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
+          <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{[...upcoming, ...drafts].filter((t) => t.id !== focus?.id).slice(0, 3).map((t) => <TripCard key={t.id} trip={t} isOwner={t.owner_id === user.id} />)}</ul>
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <section aria-labelledby="mem-heading" className="rounded-2xl border border-line bg-white p-5">
           <div className="flex items-baseline justify-between"><h2 id="mem-heading" className="font-display text-lg font-semibold text-pine">Recent memories</h2><Link href="/memories" className="text-sm font-semibold text-teal-ink underline underline-offset-2">All</Link></div>
           {completed.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Finished trips appear here with what you actually did.</p> : (

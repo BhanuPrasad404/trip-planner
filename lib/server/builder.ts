@@ -23,7 +23,7 @@ export function hoursOf(p: Record<string, unknown>): { hours: string | null; hou
 import type { EndMode } from "@/lib/trip-builder/types";
 
 export type BuilderLoad =
-  | { ok: true; input: BuilderInput; result: BuilderResult; signature: string; unscheduledIds: string[]; /** The trip row (for the guided-flow answers in `intake`). */ trip: Row }
+  | { ok: true; input: BuilderInput; result: BuilderResult; signature: string; unscheduledIds: string[]; /** The trip row (for the guided-flow answers in `intake`). */ trip: Row; /** Places of this trip the traveller chose to skip (left out of the plan). */ skipped: { id: string; name: string; lat: number; lng: number }[] }
   | { ok: false; status: number; error: string };
 
 type Row = Record<string, unknown>;
@@ -41,7 +41,7 @@ export function inputSignature(input: BuilderInput): string {
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
-export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts: { endMode: EndMode; styles?: StyleId[]; todayISO: string; userId: string; utcOffsetMin?: number }): Promise<BuilderLoad> {
+export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts: { endMode: EndMode; styles?: StyleId[]; todayISO: string; userId: string; utcOffsetMin?: number; skip?: string[] }): Promise<BuilderLoad> {
   const { data: trip, error: tripError } = await supabase.from("trips").select("*").eq("id", tripId).maybeSingle();
   if (tripError) return { ok: false, status: 500, error: "Couldn't load the trip." };
   if (!trip) return { ok: false, status: 404, error: "Trip not found" };
@@ -53,7 +53,9 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
   if (all.some((p) => p.status === "done" || p.status === "skipped")) {
     return { ok: false, status: 409, error: "This trip is already under way. Use “Re-plan from now” on the Live page so finished stops stay as they are." };
   }
-  const places = all;
+  const skipSet = new Set(opts.skip ?? []);
+  const places = all.filter((p) => !skipSet.has(p.id as string));
+  const skipped = all.filter((p) => skipSet.has(p.id as string)).map((p) => ({ id: p.id as string, name: p.name as string, lat: p.lat as number, lng: p.lng as number }));
   if (places.length > MAX_BUILDER_PLACES) return { ok: false, status: 422, error: `The builder handles up to ${MAX_BUILDER_PLACES} places at a time. Move some back to a later trip.` };
 
   const end = opts.endMode === "point" && trip.dest_lat != null && trip.dest_lng != null ? { lat: trip.dest_lat as number, lng: trip.dest_lng as number, label: (trip.dest_name as string) ?? "Destination" } : null;
@@ -101,5 +103,5 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
   const matrix = await getMatrix([start, ...base, ...(end && endMode === "point" ? [end] : [])]);
   const input: BuilderInput = { places: base, start, end, endMode, numDays, startDateISO: startDate, utcOffsetMin: opts.utcOffsetMin ?? 330, matrix, evalHours: hoursStatusAt };
   const result = buildTrip(input, opts.styles);
-  return { ok: true, input, result, signature: inputSignature(input), unscheduledIds: places.filter((p) => p.day_number == null).map((p) => p.id as string), trip: trip as Row };
+  return { ok: true, input, result, signature: inputSignature(input), unscheduledIds: places.filter((p) => p.day_number == null).map((p) => p.id as string), trip: trip as Row, skipped };
 }

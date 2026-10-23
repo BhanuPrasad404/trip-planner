@@ -69,9 +69,9 @@ export function SavedSheet({ onClose, onAddToTrip, onUnsaved }: { onClose: () =>
                 <p className="line-clamp-2 text-sm text-ink-muted">{it.caption ?? (it.kind === "report" ? "Condition report" : it.placeName)}</p>
                 <p className="mt-0.5 text-xs text-ink-muted">{freshnessOf(it.createdAt, it.createdAt).label} · saved {freshnessOf(it.savedAt, it.savedAt).label.replace(" ago", "")} ago</p>
                 <div className="mt-1.5 flex flex-wrap gap-x-4">
-                  <button type="button" onClick={() => onAddToTrip(it)} className="min-h-9 text-sm font-semibold text-teal-ink underline underline-offset-2">Add to trip</button>
-                  <a href={googleMapsPlace(it.location)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center text-sm font-semibold text-teal-ink underline underline-offset-2">Open map<span className="sr-only"> for {it.destination.name} (opens in a new tab)</span></a>
-                  <button type="button" onClick={() => void unsave(it)} className="min-h-9 text-sm text-ink-muted underline underline-offset-2">Remove</button>
+                  <button type="button" onClick={() => onAddToTrip(it)} className="tm-action min-h-11 text-sm font-semibold">Add to trip</button>
+                  <a href={googleMapsPlace(it.location)} target="_blank" rel="noopener noreferrer" className="tm-action inline-flex min-h-11 items-center text-sm font-semibold">Open map<span className="sr-only"> for {it.destination.name} (opens in a new tab)</span></a>
+                  <button type="button" onClick={() => void unsave(it)} className="tm-action min-h-11 text-sm">Remove</button>
                 </div>
               </div>
             </li>

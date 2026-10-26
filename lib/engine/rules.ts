@@ -41,11 +41,23 @@ export const DEFAULT_MILEAGE_KM_PER_L: Record<"car" | "bike", number> = { car: 1
 /** Kids or elders: gentler days. */
 export const FAMILY_CAPACITY_SHARE = 0.85;
 export const FAMILY_MAX_DRIVE_MIN = 270;
+/** The daylight rule may pull a day's end earlier, but never to less than this many minutes after the day starts (5 hours). */
+export const MIN_DAY_WINDOW_MIN = 300;
+
+/** "Very early starts" to avoid: no day starts before this (minutes after midnight, 9:00). */
+export const AVOID_EARLY_START_MIN = 540;
+/** "Long walks or treks" to avoid: treks and activities count this much when something has to be left out. */
+export const AVOID_TREK_APPEAL = 0.4;
+export const AVOID_ACTIVITY_APPEAL = 0.7;
+
 /** An interest makes matching kinds of place this much more valuable when something has to be left out. */
 export const INTEREST_APPEAL = 1.4;
 
 /** "What if I had N days?" looks this many days past the trip's length. */
 export const WHAT_IF_EXTRA_DAYS = 5;
+
+/** A "fits in N days" suggestion is confirmed by running the full plan; at most this many day counts are tried per plan. */
+export const VERIFY_TRIES = 3;
 
 /** Weather: real forecast within this many days, "typical for this week" (6-year average) beyond. */
 export const FORECAST_DAYS = 16;

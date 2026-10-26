@@ -162,7 +162,7 @@ describe("a far-away area: Hyderabad → Manali", () => {
     expect(coreDays[0]).toBe(v.transitOut.length + 1);
     expect(v.transitBack[0].day).toBe(coreDays[coreDays.length - 1] + 1);
     expect(v.transitBack[v.transitBack.length - 1].to).toBe("Hyderabad");
-    const cap = transitCap("most", { pace: "balanced", maxDriveHours: null, nightDriving: false, group: null, interests: [], mode: "car" });
+    const cap = transitCap("most", { pace: "balanced", maxDriveHours: null, nightDriving: false, group: null, interests: [], mode: "car", avoid: [], stay: null });
     expect(cap).toBe(Math.round(STYLES[VARIANT_STYLE.most].maxDriveMin * LONG_TRANSFER_FACTOR));
     for (const t of [...v.transitOut, ...v.transitBack]) expect(t.driveMin).toBeLessThanOrEqual(cap);
     expect(v.totals.days).toBe(10);

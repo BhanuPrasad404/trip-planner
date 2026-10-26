@@ -1,6 +1,7 @@
 // The Phase 3 engine's inputs and outputs. The engine is PURE: every fact (road times, road lines, heights, weather, towns) is fetched
 // before and passed in, so the same input always gives the same plan, and tests drive every case without a network.
-import type { Group, Interest, Pace, TravelMode } from "@/lib/intake/types";
+import type { AvoidId } from "@/lib/intake/group";
+import type { Group, Interest, Pace, StayStyle, TravelMode } from "@/lib/intake/types";
 import type { BuilderInput, BuilderPlace, DayPlan, PlanOption, Warning } from "@/lib/trip-builder/types";
 
 export type VariantId = "relaxed" | "balanced" | "most";
@@ -15,8 +16,12 @@ export type Prefs = {
   group: Group | null;
   interests: Interest[];
   mode: TravelMode;
+  /** Things the traveller wants less of (long drives, very early starts, long walks): each one changes the plan (see core.styleFor). */
+  avoid: AvoidId[];
+  /** The kind of stay: it changes which town is picked for the night (see halts.pickTown). */
+  stay: StayStyle | null;
 };
-export const DEFAULT_PREFS: Prefs = { pace: "balanced", maxDriveHours: null, nightDriving: false, group: null, interests: [], mode: "car" };
+export const DEFAULT_PREFS: Prefs = { pace: "balanced", maxDriveHours: null, nightDriving: false, group: null, interests: [], mode: "car", avoid: [], stay: null };
 
 /** A real town (GeoNames), for night halts. */
 export type Town = { name: string; area: string; lat: number; lng: number; pop: number };
@@ -103,6 +108,8 @@ export type Labels = {
   halts: string;
   fuel: string;
   tolls: string;
+  /** What a bus/train traveller must know (we plan with car road times and have no timetables); "" for car and bike. */
+  travel: string;
 };
 
 export type WhatIf = { days: number; places: number; of: number; driveMin: number; km: number; fits: boolean };

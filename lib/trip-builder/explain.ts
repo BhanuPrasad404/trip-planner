@@ -144,7 +144,7 @@ export function planWarnings(ctx: Ctx, days: DayPlan[], numDays: number): Warnin
   if (ctx.input.matrix.source === "estimate") w.push({ code: "estimated_times", severity: "warn", message: "Driving times are estimates: the routing service was unavailable. Real roads may be slower." });
   else if ((ctx.input.matrix.estimatedPairs ?? 0) > 0) w.push({ code: "estimated_times", severity: "warn", message: `No road connection was found between ${ctx.input.matrix.estimatedPairs} pair${ctx.input.matrix.estimatedPairs === 1 ? "" : "s"} of your places (an island, a missing or closed road?). Those distances are straight-line estimates.` });
   const used = days.filter((d) => d.stops.length > 0).length;
-  if (used < numDays) w.push({ code: "empty_days", severity: "info", message: `${numDays - used} of your ${numDays} days have nothing planned. Add places, or choose Relaxed for more time at each stop.` });
+  if (used < numDays) w.push({ code: "empty_days", severity: "info", message: `${numDays - used} of your ${numDays} days ${numDays - used === 1 ? "has" : "have"} nothing planned. Add places to use ${numDays - used === 1 ? "it" : "them"}, or shorten the trip.` });
   return w;
 }
 

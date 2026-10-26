@@ -57,5 +57,5 @@ export function verdict(option: PlanOption, view: EngineView["variants"][number]
   if (placed === 0) return { tone: "bad", text: `Doesn't fit in ${numDays} ${numDays === 1 ? "day" : "days"}`, needDays: view?.needDays ?? null };
   if (view && !view.feasible) return { tone: "bad", text: "Doesn't fit as asked", needDays: view.needDays };
   if (left > 0) return { tone: "warn", text: `${left} ${left === 1 ? "place" : "places"} left out`, needDays: view?.needDays ?? null };
-  return { tone: "ok", text: `All ${placed} ${placed === 1 ? "place fits" : "places fit"}`, needDays: null };
+  return { tone: "ok", text: placed === 1 ? "Your place fits" : `All ${placed} places fit`, needDays: null };
 }

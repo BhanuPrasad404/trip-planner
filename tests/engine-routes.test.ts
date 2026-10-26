@@ -110,9 +110,13 @@ describe("server helpers", () => {
     expect(refDate(null, null, "2026-10-22")).toBe("2026-10-22");
   });
   it("prefs from the saved answers, overrides win, junk ignored", () => {
-    expect(prefsFrom({ pace: "packed", group: "family_kids", max_drive_hours: 5, night_driving: true, interests: ["temples", 3], mode: "bike" })).toEqual({ pace: "packed", group: "family_kids", maxDriveHours: 5, nightDriving: true, interests: ["temples"], mode: "bike" });
+    expect(prefsFrom({ pace: "packed", group: "family_kids", max_drive_hours: 5, night_driving: true, interests: ["temples", 3], mode: "bike" })).toEqual({ pace: "packed", group: "family_kids", maxDriveHours: 5, nightDriving: true, interests: ["temples"], mode: "bike", avoid: [], stay: null });
     expect(prefsFrom(null)).toMatchObject({ pace: "balanced", nightDriving: false, group: null, mode: "car" });
     expect(prefsFrom({ pace: "warp", night_driving: true }, { night_driving: false })).toMatchObject({ pace: "balanced", nightDriving: false });
+    // what to avoid and the kind of stay now reach the planner (labels from the screen and the traveller's own words both work)
+    expect(prefsFrom({ avoid: ["Long drives", "no treks please", "Crowded places", 7], stay: "homestay" })).toMatchObject({ avoid: ["long_drives", "long_walks", "crowds"], stay: "homestay" });
+    expect(prefsFrom({ stay: "castle" }).stay).toBeNull();
+    expect(prefsFrom({ night_driving: true, avoid: ["Driving at night"] }).nightDriving).toBe(false); // an explicit "avoid" beats a stored yes
   });
   it("reads an OSRM road line with per-stretch times, merging short stretches", () => {
     const coords = Array.from({ length: 11 }, (_, i) => [78 + i * 0.001, 17]);

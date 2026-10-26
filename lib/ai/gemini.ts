@@ -43,7 +43,20 @@ const part = (b: ContentBlock) => (b.type === "text" ? { text: b.text } : { inli
  */
 export const thinkingOffFor = (model: string) => /gemini-2\.5-flash/.test(model);
 
-export function buildGeminiRequest(args: { system: string; content: ContentBlock[]; tool: ToolSpec; maxTokens: number; model?: string }) {
+/**
+ * How to ask the model NOT to think (a form fill needs no reasoning, and thinking is what makes the call slow). Models differ and the
+ * "-latest" names move, so we try the ways in turn and remember the one the model accepts:
+ *   budget0 (2.5 Flash family) → minimal / low (Gemini 3 "thinking level") → none (models that always think, e.g. Pro).
+ * A model that rejects a setting answers HTTP 400 with the word "thinking" in the message: that is the cue to try the next one.
+ */
+export type ThinkingMode = "budget0" | "minimal" | "low" | "none";
+export const THINKING_CHAIN: ThinkingMode[] = ["budget0", "minimal", "low", "none"];
+export const thinkingConfigFor = (m: ThinkingMode): Record<string, unknown> | null => (m === "budget0" ? { thinkingBudget: 0 } : m === "minimal" ? { thinkingLevel: "minimal" } : m === "low" ? { thinkingLevel: "low" } : null);
+/** First setting to try for a model: every Flash model is a form-filler candidate; others (Pro) always think. */
+export const startThinking = (model: string): ThinkingMode => (/flash/i.test(model) ? "budget0" : "none");
+const learnedThinking = new Map<string, ThinkingMode>();
+
+export function buildGeminiRequest(args: { system: string; content: ContentBlock[]; tool: ToolSpec; maxTokens: number; model?: string; thinking?: ThinkingMode }) {
   return {
     systemInstruction: { parts: [{ text: args.system }] },
     contents: [{ role: "user", parts: args.content.map(part) }],
@@ -51,6 +64,10 @@ export function buildGeminiRequest(args: { system: string; content: ContentBlock
     // Force the model to answer through our one tool: structured output, never free text.
     toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: [args.tool.name] } },
     generationConfig: (() => {
+      if (args.thinking) {
+        const cfg = thinkingConfigFor(args.thinking);
+        return { maxOutputTokens: Math.max(args.maxTokens, cfg ? 2048 : 8192), temperature: 0, ...(cfg ? { thinkingConfig: cfg } : {}) };
+      }
       const off = thinkingOffFor(args.model ?? GEMINI_DEFAULT_MODEL);
       // Where thinking cannot be switched off (newer/Pro models) it shares this limit, so leave plenty of room for the answer.
       return { maxOutputTokens: Math.max(args.maxTokens, off ? 2048 : 8192), temperature: 0, ...(off ? { thinkingConfig: { thinkingBudget: 0 } } : {}) };
@@ -89,15 +106,17 @@ const RETRY_SAME_MODEL = new Set([500, 503, 504]);
 const TRY_OTHER_MODEL = new Set([404, 429, 500, 503, 504]);
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-async function askOnce(model: string, apiKey: string, args: Parameters<typeof buildGeminiRequest>[0]): Promise<unknown> {
+type AskArgs = Omit<Parameters<typeof buildGeminiRequest>[0], "model" | "thinking"> & { signal?: AbortSignal };
+
+async function askOnce(model: string, apiKey: string, args: AskArgs, thinking: ThinkingMode): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       // The key goes in a header, never in the URL (URLs end up in logs).
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(buildGeminiRequest({ ...args, model })),
-      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify(buildGeminiRequest({ system: args.system, content: args.content, tool: args.tool, maxTokens: args.maxTokens, model, thinking })),
+      signal: args.signal ? AbortSignal.any([AbortSignal.timeout(30_000), args.signal]) : AbortSignal.timeout(30_000),
     });
   } catch (err) {
     throw new AiRequestError(`AI request failed: ${err instanceof Error ? err.message : "network error"}`, 503);
@@ -112,18 +131,34 @@ async function askOnce(model: string, apiKey: string, args: Parameters<typeof bu
   return parseGeminiResponse(await res.json(), args.tool.name);
 }
 
-export const callGemini: ToolCaller = async ({ system, content, tool, maxTokens = 1500 }) => {
+/** One request, trying the "don't think" settings in turn when the model rejects one (HTTP 400 mentioning thinking). */
+async function askWithThinking(model: string, apiKey: string, args: AskArgs): Promise<unknown> {
+  let i = Math.max(0, THINKING_CHAIN.indexOf(learnedThinking.get(model) ?? startThinking(model)));
+  for (;;) {
+    try {
+      const out = await askOnce(model, apiKey, args, THINKING_CHAIN[i]);
+      learnedThinking.set(model, THINKING_CHAIN[i]);
+      return out;
+    } catch (e) {
+      if (e instanceof AiRequestError && e.status === 400 && /thinking/i.test(e.message) && i < THINKING_CHAIN.length - 1) { i++; continue; }
+      throw e;
+    }
+  }
+}
+
+export const callGemini: ToolCaller = async ({ system, content, tool, maxTokens = 1500, signal }) => {
   const apiKey = geminiApiKey();
   if (!apiKey) throw new AiNotConfiguredError("GEMINI_API_KEY");
   const primary = (process.env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL).trim();
   const fallback = (process.env.GEMINI_FALLBACK_MODEL || GEMINI_FALLBACK_MODEL).trim();
-  const args = { system, content, tool, maxTokens };
+  const args: AskArgs = { system, content, tool, maxTokens, signal };
 
   let last: AiRequestError | null = null;
   for (const model of primary === fallback ? [primary] : [primary, fallback]) {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      if (signal?.aborted) throw last ?? new AiRequestError("AI request stopped: the wait was over", 503);
       try {
-        return await askOnce(model, apiKey, args);
+        return await askWithThinking(model, apiKey, args);
       } catch (e) {
         if (!(e instanceof AiRequestError)) throw e;
         last = e;

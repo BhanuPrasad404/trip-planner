@@ -91,7 +91,8 @@ function runVariant(v: VariantId, sh: Shared, verifying = false): Run {
     if (!prefs.nightDriving) {
       const set = sunsetAt(at, input.refDateISO, day, base.utcOffsetMin);
       if (set !== null) {
-        const avail = set - (hill ? 60 : 0) - dayStart - TRANSIT_BREAK_MIN;
+        const start = day === 1 && base.firstDayStartMin != null ? Math.max(dayStart, base.firstDayStartMin) : dayStart;
+        const avail = set - (hill ? 60 : 0) - start - TRANSIT_BREAK_MIN;
         if (avail < driveMin) { driveMin = Math.max(60, avail); daylightLimited = true; }
       }
     }
@@ -159,6 +160,8 @@ function runVariant(v: VariantId, sh: Shared, verifying = false): Run {
     }
     coreInput = {
       ...base, start, end, endMode, numDays: Math.max(1, coreDays),
+      // A late start belongs to the trip's first day: to the places only when no drive day comes before them.
+      firstDayStartMin: tOut ? null : base.firstDayStartMin ?? null,
       startDateISO: base.startDateISO && tOut ? addDays(base.startDateISO, tOut) : base.startDateISO,
       places: tOut ? base.places.map((p) => ({ ...p, fit: p.fit?.slice(tOut), fitNote: p.fitNote?.slice(tOut) })) : base.places,
       matrix: { ...sh.matrix, durations, distances },

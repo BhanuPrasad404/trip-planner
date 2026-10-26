@@ -6,6 +6,9 @@
 // Anything that fails is labelled ("estimated", "not checked") instead of guessed. The engine itself is pure (lib/engine).
 import { AsyncCache } from "@/lib/cache";
 import { parseAvoid } from "@/lib/engine/avoid";
+import { markSettlements, SETTLEMENT_KINDS, SETTLEMENT_MATCH_KM } from "@/lib/engine/settlement";
+import { clockText, sunsetAt } from "@/lib/engine/daylight";
+
 import { DEFAULT_PREFS, type EngineInput, type EnginePlan, type EngineView, type Prefs, type RoadLine, type TownFinder } from "@/lib/engine/types";
 
 import { firstReached, planTrip } from "@/lib/engine/plan";
@@ -118,14 +121,37 @@ export function prefsFrom(intake: unknown, over: { night_driving?: boolean; max_
   };
 }
 
+/**
+ * A day 1 that starts late: kept when enough of the day is left to see something (until sunset, or until the day's end when driving after
+ * dark is fine); otherwise day 1 is planned from its usual start and the traveller is told why.
+ */
+export const MIN_LATE_START_WINDOW_MIN = 180;
+export function lateStart(base: BuilderInput, prefs: Prefs, todayISO: string): { ignore: boolean; note: string | null } {
+  const first = base.firstDayStartMin;
+  if (first == null) return { ignore: false, note: null };
+  const set = sunsetAt(base.start, base.startDateISO ?? todayISO, 1, base.utcOffsetMin);
+  const end = prefs.nightDriving || set === null ? STYLES.balanced.dayEndMin : set;
+  if (end - first < MIN_LATE_START_WINDOW_MIN) {
+    return { ignore: true, note: `Starting at ${clockText(first)} leaves less than 3 hours ${prefs.nightDriving ? "of the day" : "of daylight"} on Day 1, so Day 1 is planned from its usual start. Start the next day instead${prefs.nightDriving ? "" : ", or allow driving after dark"}.` };
+  }
+  return { ignore: false, note: `Day 1 starts at ${clockText(first)}, so it holds only the rest of that day${prefs.nightDriving ? "" : ` (until sunset, about ${set !== null ? clockText(set) : "evening"})`}.` };
+}
+
 export type EngineRun = { plan: EnginePlan; view: EngineView; input: EngineInput };
 
 /** Fetch the facts and plan. `base` is the builder's input (places, matrix with RAW routing times, dates, ends, weather fit). */
-export async function runEngine(base: BuilderInput, opts: { intake: unknown; todayISO: string; nightDriving?: boolean; maxDriveHours?: number; checkTolls?: boolean }): Promise<EngineRun> {
+export async function runEngine(input0: BuilderInput, opts: { intake: unknown; todayISO: string; nightDriving?: boolean; maxDriveHours?: number; checkTolls?: boolean }): Promise<EngineRun> {
   const prefs = prefsFrom(opts.intake, { night_driving: opts.nightDriving, max_drive_hours: opts.maxDriveHours });
-  const n = base.places.length;
+  const n = input0.places.length;
   const month = (opts.intake as { month?: number } | null)?.month ?? null;
   const ix = await loadGeoIndex().catch(() => null);
+  // Towns and cities are timed as what they are (a town is a stop, a city is many sights), not as a one-hour monument.
+  const marked = ix
+    ? markSettlements(input0.places, (lat, lng) => nearestTo(ix, lat, lng, [...SETTLEMENT_KINDS], SETTLEMENT_MATCH_KM, 4).map((r) => ({ name: r.hit.name, kind: r.kind, pop: r.pop, km: r.km })))
+    : { places: input0.places, notes: [] as string[] };
+  let base: BuilderInput = { ...input0, places: marked.places };
+  const startNote = lateStart(base, prefs, opts.todayISO);
+  if (startNote.ignore) base = { ...base, firstDayStartMin: null };
   const towns = townFinderFrom(ix);
   const points = [base.start, ...base.places, ...(base.endMode === "point" && base.end ? [base.end] : [])];
   const heights = points.length <= 100 ? await elevationProvider().elevations(points).catch(() => null) : null;
@@ -152,6 +178,7 @@ export async function runEngine(base: BuilderInput, opts: { intake: unknown; tod
     weather: weatherMode(base.startDateISO, base.numDays, opts.todayISO), states, mileage: defaultMileage(prefs.mode), tolls,
   };
   const plan = planTrip(input);
+  plan.notes.unshift(...marked.notes, ...(startNote.note ? [startNote.note] : []));
   return { plan, input, view: toView(plan, input) };
 }
 

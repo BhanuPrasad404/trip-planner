@@ -11,6 +11,8 @@ export type Trip = {
   dest_lat: number | null;
   dest_lng: number | null;
   start_date: string | null; // "YYYY-MM-DD"
+  /** When day 1 starts if later than the plan's usual start ("15:30:00"); null = usual start. Older rows may not have it yet. */
+  start_time?: string | null;
   num_days: number;
   /** How the trip ends (lib/trip/end.ts). null/absent = created before this existed: the old behaviour. */
   end_mode?: "start" | "place" | "open" | null;

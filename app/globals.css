@@ -35,6 +35,17 @@
   --tm-map-halt-text: #1c2430;
   /* The dimmed page behind a sheet or dialog. */
   --tm-scrim: rgba(11, 61, 58, 0.45);
+
+  /* Opening screen (components/ui/AppLoader.tsx): a road into the hills at dawn. */
+  --tm-load-sky-top: #fbe3b8;
+  --tm-load-sky-bottom: #eaf4f1;
+  --tm-load-sun: #e8a33d;
+  --tm-load-hill-far: #6aa99b;
+  --tm-load-hill-near: #1c7c6d;
+  --tm-load-road: #0b3d3a;
+  --tm-load-line: #f5f0e4;
+  --tm-load-ring: #d8e3e0;
+  --tm-load-shadow: rgba(11, 61, 58, 0.18);
 }
 
 /* A stand-alone action that used to be an underlined text link ("Show more", "Search more", "Cancel"): a clear pill button built from
@@ -167,6 +178,13 @@ body {
 .tm-mark-trail { animation: tm-trail 1.1s linear infinite; }
 .tm-mark-pin { transform-box: fill-box; transform-origin: center; animation: tm-breathe 1.1s ease-in-out infinite; }
 .tm-mark-pin + .tm-mark-pin { animation-delay: 0.55s; }
+/* Opening screen: the sun rises once, the name settles in, and only the road's centre line keeps moving (towards you, like driving). */
+@keyframes tm-sunrise { from { transform: translateY(34px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+@keyframes tm-roadline { to { stroke-dashoffset: -14; } }
+.tm-roadload-sun { animation: tm-sunrise 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.tm-roadload-line { animation: tm-roadline 0.8s linear infinite; }
+.tm-roadload-name { animation: tm-rise 0.6s 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .tm-roadload-sun, .tm-roadload-line, .tm-roadload-name { animation: none; } }
 /* Skeletons: a soft light sweep over a quiet block (still, not animated, for people who prefer less motion). */
 @keyframes tm-shimmer { 100% { transform: translateX(100%); } }
 .tm-skeleton { position: relative; overflow: hidden; background: rgba(216, 227, 224, 0.7); }
@@ -233,6 +251,17 @@ body {
     --tm-glass-strong: rgba(5, 28, 25, 0.96);
     --tm-glass-edge: rgba(255, 255, 255, 0.16);
     --tm-cream: #f5f0e4;
+
+    /* opening screen: the same road at dusk */
+    --tm-load-sky-top: #1d5a4f;
+    --tm-load-sky-bottom: #0b2f29;
+    --tm-load-sun: #f2b450;
+    --tm-load-hill-far: #12483f;
+    --tm-load-hill-near: #082c26;
+    --tm-load-road: #03130f;
+    --tm-load-line: #f2c14e;
+    --tm-load-ring: rgba(255, 255, 255, 0.16);
+    --tm-load-shadow: rgba(0, 0, 0, 0.45);
   }
   /* Headings may sit straight on the photo: a soft shadow keeps them readable over any bright part of it. */
   :is(h1, h2, h3) { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); }

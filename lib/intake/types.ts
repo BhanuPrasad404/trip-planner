@@ -35,6 +35,10 @@ export type TripAnswers = {
   interests?: Interest[];
   stay?: StayStyle;
   avoid?: string[];
+  /** The first day, when the traveller said it ("tomorrow", "this Saturday", "14 Nov"): "YYYY-MM-DD". */
+  startDate?: string;
+  /** When they leave on the first day, when said ("6 am", "after lunch"): "HH:MM", 24-hour. */
+  startTime?: string;
 };
 export type AnswerKey = keyof TripAnswers;
 

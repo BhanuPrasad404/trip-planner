@@ -22,6 +22,8 @@ export type BuilderPlace = {
   fit?: (number | null)[];
   /** Short plain-English weather note per day, shown in explanations (e.g. "31°C, ~2 mm rain"). */
   fitNote?: (string | null)[];
+  /** The place is a town or a city, not one sight (lib/engine/settlement.ts): it is timed as that. */
+  settlement?: "city" | "town" | null;
 };
 
 export type EndMode = "free" | "start" | "point";
@@ -37,6 +39,11 @@ export type BuilderInput = {
   startDateISO: string | null;
   /** Minutes the destination's clock is ahead of UTC (IST = 330). */
   utcOffsetMin: number;
+  /**
+   * The trip begins later than the style's usual start on day 1 (minutes after local midnight): e.g. "start today at 3:30 PM". Day 1 then
+   * starts then and holds only what is left of that day; every other day is unchanged. Null/absent = day 1 starts as usual.
+   */
+  firstDayStartMin?: number | null;
   /** Road driving matrix over [start, ...places (input order), end?]. Seconds and metres. */
   matrix: { durations: number[][]; distances: number[][]; source: string; /** Pairs with no road found (filled by estimate). */ estimatedPairs?: number };
   /**

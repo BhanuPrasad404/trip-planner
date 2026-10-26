@@ -25,6 +25,11 @@ import { DayCard } from "./DayCard";
 import { FreeDayCard } from "./FreeDayCard";
 import { TripClockBanner } from "./TripClockBanner";
 import { tripClock } from "@/lib/result/trip-clock";
+import { startOptions, type StartOption } from "@/lib/result/start-options";
+import { sunsetAt, clockText } from "@/lib/engine/daylight";
+import { STYLES } from "@/lib/trip-builder/config";
+import { dateOf, INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
+import { startMinOf } from "@/lib/result/start-time";
 import { freeDays } from "@/lib/result/free-days";
 import { dayColorVar, type MapDay, type MapPin } from "./map-parts";
 
@@ -37,6 +42,8 @@ export type TripResultProps = {
   numDays: number;
   /** First day of the trip (YYYY-MM-DD), or null when the trip has no dates. */
   startDate: string | null;
+  /** Day 1's start when the traveller chose a later one ("15:30:00"), or null. */
+  startTime?: string | null;
   canEdit: boolean;
   endMode: EndMode;
   start: { lat: number; lng: number; label: string };
@@ -157,10 +164,10 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
     router.refresh();
     await load();
   }
-  async function startTomorrow(startISO: string) {
+  async function startAt(startISO: string, startTime: string | null) {
     if (props.kind !== "trip") return;
     setBusy(true); setError(null);
-    const r = await call<object>(`/api/trips/${props.tripId}`, { start_date: startISO }, "PATCH");
+    const r = await call<object>(`/api/trips/${props.tripId}`, { start_date: startISO, start_time: startTime }, "PATCH");
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     router.refresh();
@@ -212,6 +219,15 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
     const w = first.todayDay ? option.days.find((d) => d.day === first.todayDay && d.stops.length > 0) : null;
     return tripClock({ startDateISO: startDate, numDays, nowMs, todayWindow: w ? { startMin: w.startMin, endMin: w.endMin } : null });
   })();
+  // The real choices for when to start, from the clock, today's sunset at the start and the traveller's own rule about night driving.
+  const starts: StartOption[] = (() => {
+    if (!clock?.action || nowMs === null || !option || !data) return [];
+    const st = STYLES[option.style as keyof typeof STYLES] ?? STYLES.balanced;
+    const today = dateOf(nowMs, INDIA_UTC_OFFSET_MIN);
+    const from = props.kind === "trip" ? props.start : data.start;
+    return startOptions({ nowMs, usualStartMin: st.dayStartMin, dayEndMin: st.dayEndMin, sunsetMin: sunsetAt(from, today, 1, INDIA_UTC_OFFSET_MIN), nightDriving: data.engine.nightDriving });
+  })();
+  const chosenStart = props.kind === "trip" ? startMinOf(props.startTime ?? null) : null;
   const groups = data ? data.options.filter((o) => !data.engine.sameAs[data.engine.variants.find((x) => x.style === o.style)?.id ?? "relaxed"]) : [];
   const sameNote = data ? Object.entries(data.engine.sameAs).map(([a, b]) => `${data.engine.variants.find((x) => x.id === a)?.label} gives the same plan as ${data.engine.variants.find((x) => x.id === b)?.label}.`) : [];
   const leftOut = option ? [...option.removed.map((r) => ({ id: r.placeId, name: r.name, reason: r.reason })), ...skip.map((id) => ({ id, name: places.find((p) => p.id === id)?.name ?? "A place", reason: "You chose to skip it." }))] : [];
@@ -241,7 +257,18 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
         <div className={`mt-4 space-y-4 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
           {loading && <p role="status" className="flex items-center gap-2 text-sm text-ink-muted"><Spinner size={14} />Updating the plan…</p>}
 
-          {clock && <TripClockBanner clock={clock} canEdit={isTrip && props.canEdit} busy={busy || loading} onStartTomorrow={(iso) => void startTomorrow(iso)} />}
+          {clock && <TripClockBanner clock={clock} options={starts} canEdit={isTrip && props.canEdit} busy={busy || loading} onPick={(o) => void startAt(o.startISO, o.startTime)} />}
+          {chosenStart !== null && clock?.state !== "after" && (
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink-muted">
+              <span>Day 1 starts at <strong className="text-pine">{clockText(chosenStart)}</strong>, the time you chose.</span>
+              {isTrip && props.canEdit && startDate && <button type="button" disabled={busy || loading} onClick={() => void startAt(startDate, null)} className="tm-action min-h-11 font-semibold">Use the usual start</button>}
+            </p>
+          )}
+          {data.engine.notes.length > 0 && (
+            <ul className="space-y-1.5 rounded-xl border border-line bg-white px-3.5 py-3 text-sm text-ink-muted">
+              {data.engine.notes.map((n) => <li key={n} className="flex items-start gap-2"><Glyph name="info" size={15} className="mt-0.5 shrink-0 text-pine" />{n}</li>)}
+            </ul>
+          )}
 
           {/* The three plans. Identical ones are shown once, with a note. */}
           <div>

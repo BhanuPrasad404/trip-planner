@@ -22,6 +22,8 @@ export const READ_TOOL: ToolSpec = {
     type: "object",
     properties: {
       days: field({ type: "integer" }, "Number of trip days (weekend = 2)"),
+      start_date: field({ type: "string", description: "YYYY-MM-DD" }, "The day the trip starts, only if a day or date is said (today, tomorrow, this Saturday, 14 Nov). Work it out from today's date given above the trip."),
+      start_time: field({ type: "string", description: "HH:MM, 24-hour" }, "When they leave on the first day, only if said (6 am = 06:00, after lunch = 14:00, evening = 17:00, night = 21:00)."),
       month: field({ type: "integer", minimum: 1, maximum: 12 }, "Travel month 1-12, only if a month is named or 'next month'/'this month' is said"),
       start_place: field({ type: "string", description: "Standard English spelling" }, "Where they start from"),
       end_place: field({ type: "string", description: "Standard English spelling" }, "Where the trip ends, only if one way"),
@@ -76,6 +78,8 @@ const fieldSchema =<T extends z.ZodTypeAny>(v: T) => z.object({ value: v, eviden
 const aiSchema = z.object({
   days: fieldSchema(z.number().int().min(1).max(30)),
   month: fieldSchema(z.number().int().min(1).max(12)),
+  start_date: fieldSchema(z.string().trim().max(10)),
+  start_time: fieldSchema(z.string().trim().max(5)),
   start_place: fieldSchema(z.string().trim().min(2).max(80)),
   end_place: fieldSchema(z.string().trim().min(2).max(80)),
   return_to_start: fieldSchema(z.boolean()),
@@ -94,7 +98,10 @@ const aiSchema = z.object({
 export type AiReading = { answers: { [K in AnswerKey]?: Known<NonNullable<TripAnswers[K]>> }; places: SaidPlace[]; unbacked: Unbacked[] };
 
 /** Keep only what the text backs. Pure: the AI's raw answer in, checked answers out. */
-export function checkAiReading(text: string, raw: unknown, opts: { todayMonth: number }): AiReading {
+const plusDays = (iso: string, k: number) => { const [y, m, d] = iso.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + k)).toISOString().slice(0, 10); };
+
+/** `todayISO`: the traveller's today (India), so "tomorrow" can be checked; without it a said date is not used. */
+export function checkAiReading(text: string, raw: unknown, opts: { todayMonth: number; todayISO?: string }): AiReading {
   const parsed = aiSchema.safeParse(raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {});
   const out: AiReading = { answers: {}, places: [], unbacked: [] };
   if (!parsed.success) return out;
@@ -108,6 +115,15 @@ export function checkAiReading(text: string, raw: unknown, opts: { todayMonth: n
   keep("days", r.days?.value, r.days?.evidence, (o) => o.answers.days?.value === r.days?.value);
   keep("month", r.month?.value, r.month?.evidence, (o) => o.answers.month?.value === r.month?.value);
   keep("groupSize", r.group_size?.value, r.group_size?.evidence, (o) => o.answers.groupSize?.value === r.group_size?.value);
+  // When they leave: a real date from today to about a year ahead, and a real clock time, each backed by their own words.
+  if (r.start_date) {
+    const d = r.start_date.value, ok = opts.todayISO !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d && d >= opts.todayISO && d <= plusDays(opts.todayISO, 400);
+    if (ok) keep("startDate", d, r.start_date.evidence); else out.unbacked.push({ key: "startDate", value: d, why: "That date isn't one we can plan from." });
+  }
+  if (r.start_time) {
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(r.start_time.value)) keep("startTime", r.start_time.value, r.start_time.evidence);
+    else out.unbacked.push({ key: "startTime", value: r.start_time.value, why: "That isn't a clock time." });
+  }
   keep("maxDriveHours", r.max_drive_hours?.value, r.max_drive_hours?.evidence, (o) => o.answers.maxDriveHours?.value === r.max_drive_hours?.value);
   // A start needs a "from" in the traveller's words ("Hyderabad nundi", "दिल्ली से", "ಬೆಂಗಳೂರಿನಿಂದ", "from Pune", "Chennai to …"): the AI read
   // "Srisailam velli ravali" (go to Srisailam and come back) as starting at Srisailam.
@@ -137,9 +153,9 @@ export class AiSlowError extends Error {}
 export const AI_READ_TIMEOUT_MS = 22_000;
 
 /** Ask the AI, but never wait longer than `timeoutMs`: the traveller already has the instant reading. When time is up the request is stopped, not left running. */
-export async function aiReadTrip(text: string, llm: ToolCaller, opts: { todayMonth: number; timeoutMs?: number }): Promise<AiReading> {
+export async function aiReadTrip(text: string, llm: ToolCaller, opts: { todayMonth: number; todayISO?: string; timeoutMs?: number }): Promise<AiReading> {
   const stop = new AbortController();
-  const call = llm({ system: READ_SYSTEM, content: [{ type: "text", text: `<trip>\n${text.slice(0, 4000)}\n</trip>` }], tool: READ_TOOL, maxTokens: 1500, signal: stop.signal });
+  const call = llm({ system: READ_SYSTEM, content: [{ type: "text", text: `${opts.todayISO ? `Today is ${opts.todayISO} (${new Date(`${opts.todayISO}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", timeZone: "UTC" })}).\n` : ""}<trip>\n${text.slice(0, 4000)}\n</trip>` }], tool: READ_TOOL, maxTokens: 1500, signal: stop.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const slow = new Promise<never>((_, reject) => { timer = setTimeout(() => { stop.abort(); reject(new AiSlowError("The AI took too long")); }, opts.timeoutMs ?? AI_READ_TIMEOUT_MS); });
   try {

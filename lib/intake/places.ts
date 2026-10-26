@@ -158,7 +158,15 @@ export async function resolvePlaces(said: SaidPlace[], ctx: { start: { lat: numb
       m.reason = farFromOthers ? `${kmText(Math.round(distanceKm(a!, m.place)))} from your other places. Is it the right one?` : `${kmText(Math.round(distanceKm(start!, m.place)))} from ${start!.name}. Is it the right one?`;
     }
   }
+  // A town or a city is not one sight: say so where the traveller sees it, and what the plan will do with it (lib/engine/settlement.ts).
+  for (const m of found) if (m.place && m.status === "sure" && !m.reason && SETTLEMENT_NOTE[m.place.kind as keyof typeof SETTLEMENT_NOTE]) m.reason = SETTLEMENT_NOTE[m.place.kind as keyof typeof SETTLEMENT_NOTE](m.place.name);
   return found.map((x) => { const { tier: _t, loose: _l, sameName: _s, ...m } = x as typeof x & { sameName?: number }; void _t; void _l; void _s; return m; });
 }
+
+const SETTLEMENT_NOTE = {
+  city: (n: string) => `${n} is a city, not one sight. Add the places you want to see there (a beach, a temple, a viewpoint…); otherwise we keep a couple of hours for the city itself.`,
+  town: (n: string) => `${n} is a town, not a sight: we plan it as a short stop (a break, or where you stay). Add the places you want to see there.`,
+  village: (n: string) => `${n} is a village, not a sight: we plan it as a short stop. Add the places you want to see there.`,
+} as const;
 
 function med(xs: number[]): number { const s = [...xs].sort((a, b) => a - b); const k = Math.floor(s.length / 2); return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; }

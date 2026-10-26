@@ -9,7 +9,6 @@ export function partitionDays(ctx: Ctx, order: number[], numDays: number, cluste
   const m = order.length;
   if (m === 0) return [];
   const K = Math.min(Math.max(1, numDays), m);
-  const cap = ctx.style.capacityMin;
   const ret = returnNode(ctx);
 
   // prefix sums over the route: leg into each stop, visit+buffer at each stop
@@ -21,11 +20,13 @@ export function partitionDays(ctx: Ctx, order: number[], numDays: number, cluste
   }
   const returnLeg = ret !== null ? ctx.driveMin(order[m - 1], ret) : 0;
 
-  const dayCost = (i: number, j: number): number | null => {
+  // Day k can hold ctx.dayCapacity(k): the same every day, except a day 1 that starts late.
+  const dayCost = (i: number, j: number, k: number): number | null => {
     const drive = leg[j] - leg[i - 1] + (j === m ? returnLeg : 0);
     const load = drive + vb[j] - vb[i - 1];
-    if (!dayFits(ctx, drive, load, i === j).ok) return null;
-    return (load / cap) ** 2;
+    const cap = ctx.dayCapacity(k);
+    if (!dayFits(ctx, drive, load, i === j, cap).ok) return null;
+    return (load / Math.max(1, cap)) ** 2;
   };
   const cut = (j: number) => {
     const a = clusterOf.get(order[j - 1]), b = clusterOf.get(order[j]);
@@ -40,7 +41,7 @@ export function partitionDays(ctx: Ctx, order: number[], numDays: number, cluste
     for (let j = k; j <= m; j++) {
       for (let i = k; i <= j; i++) {
         if (f[k - 1][i - 1] === INF) continue;
-        const c = dayCost(i, j);
+        const c = dayCost(i, j, k);
         if (c === null) continue;
         const total = f[k - 1][i - 1] + c + (j < m ? cut(j) : 0);
         if (total < f[k][j] - 1e-9) { f[k][j] = total; from[k][j] = i; }

@@ -13,11 +13,12 @@ export const returnNode = (ctx: Ctx): number | null => (ctx.input.endMode === "s
 
 export type DayLoad = { drive: number; visit: number; buffer: number; load: number; ok: boolean; longTransfer: boolean };
 
-export function dayFits(ctx: Ctx, drive: number, load: number, single: boolean): { ok: boolean; longTransfer: boolean } {
+/** `cap`: what this day can hold (ctx.dayCapacity(day)); the style's usual day when not given. */
+export function dayFits(ctx: Ctx, drive: number, load: number, single: boolean, cap = ctx.style.capacityMin): { ok: boolean; longTransfer: boolean } {
   const s = ctx.style;
-  if (drive <= s.maxDriveMin && load <= s.capacityMin) return { ok: true, longTransfer: false };
+  if (drive <= s.maxDriveMin && load <= cap) return { ok: true, longTransfer: false };
   // A single far stop cannot be split by an overnight stop in the middle of nowhere: allow a bounded long transfer day.
-  if (single && drive <= s.maxDriveMin * LONG_TRANSFER_FACTOR && load <= s.capacityMin * 1.3) return { ok: true, longTransfer: true };
+  if (single && drive <= s.maxDriveMin * LONG_TRANSFER_FACTOR && load <= cap * 1.3) return { ok: true, longTransfer: true };
   return { ok: false, longTransfer: false };
 }
 
@@ -31,7 +32,7 @@ export function dayLoads(ctx: Ctx, days: number[][]): DayLoad[] {
     if (d === days.length - 1 && ret !== null && stops.length) drive += ctx.driveMin(prev, ret);
     const buffer = stops.length * ctx.bufferMin;
     const load = drive + visit + buffer;
-    const f = dayFits(ctx, drive, load, stops.length === 1);
+    const f = dayFits(ctx, drive, load, stops.length === 1, ctx.dayCapacity(d + 1));
     return { drive, visit, buffer, load, ok: f.ok, longTransfer: f.longTransfer };
   });
 }

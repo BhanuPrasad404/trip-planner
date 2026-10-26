@@ -20,7 +20,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const supabase = await createClient();
   const authP = supabase.auth.getUser();
   // Promise.resolve(...) STARTS the read now; a query builder is lazy and would otherwise wait until it is awaited.
-  const tripP = Promise.resolve(supabase.from("trips").select("id, owner_id, num_days").eq("id", id).maybeSingle());
+  const tripP = Promise.resolve(supabase.from("trips").select("*").eq("id", id).maybeSingle());
   const parsed = await parseBody(req, updateTripSchema);
   const { data: { user } } = await authP;
   if (!user) return jsonError("Please sign in", 401);
@@ -47,6 +47,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const patch = {
     ...(input.start_date !== undefined ? { start_date: input.start_date } : {}),
     ...(input.num_days !== undefined ? { num_days: input.num_days } : {}),
+    // A start time belongs to the first day it was chosen for: a new date without a new time goes back to the usual start.
+    // (Only touched when the trip has one, so this route keeps working before the start_time column is added.)
+    ...(input.start_time !== undefined ? { start_time: input.start_time } : input.start_date !== undefined && (trip as { start_time?: string | null }).start_time ? { start_time: null } : {}),
   };
   const { data: updated, error } = await supabase.from("trips").update(patch).eq("id", id).select("id");
   if (error) return dbError(error, "trip patch: update");

@@ -8,8 +8,8 @@ import { scheduleDay } from "./schedule";
 import type { DayPlan, Intensity, PlannedStop, Warning } from "./types";
 import type { ClusterMap } from "./clusters";
 
-export function intensityOf(ctx: Ctx, drive: number, load: number): Intensity {
-  const share = load / ctx.style.capacityMin;
+export function intensityOf(ctx: Ctx, drive: number, load: number, cap = ctx.style.capacityMin): Intensity {
+  const share = load / Math.max(1, cap);
   if (share > INTENSITY.heavy + 1e-9) return "overloaded";
   if (share > INTENSITY.moderate || drive > ctx.style.maxDriveMin * 0.85) return "heavy";
   if (share > INTENSITY.comfortable) return "moderate";
@@ -79,7 +79,7 @@ export function assembleDays(ctx: Ctx, days: number[][], clusters: ClusterMap): 
         const best = Math.max(...all.filter((x): x is number => x !== null));
         reasons.push(`Weather fit ${fit}/100 on Day ${day}${note ? ` (${note})` : ""}${fit >= best && all.filter((x) => x !== null).length > 1 ? " — the best day of your trip for this place" : ""}`);
       }
-      if (t.flags.includes("golden_ok") && timed.startMin > ctx.style.dayStartMin) reasons.push(`The day starts at ${hhmm(timed.startMin)} (not ${hhmm(ctx.style.dayStartMin)}) so you reach this in the golden hour`);
+      if (t.flags.includes("golden_ok") && timed.startMin > ctx.dayStart(day)) reasons.push(`The day starts at ${hhmm(timed.startMin)} (not ${hhmm(ctx.dayStart(day))}) so you reach this in the golden hour`);
       if (ctx.priority(idx) === "must") reasons.push("Marked must-do: kept no matter what");
       else if (ctx.priority(idx) !== "normal") reasons.push(`Priority: ${PRIORITY_LABEL[ctx.priority(idx)]}`);
 
@@ -94,7 +94,7 @@ export function assembleDays(ctx: Ctx, days: number[][], clusters: ClusterMap): 
     if (nextStop !== undefined && order.length) {
       const last = order[order.length - 1];
       const add = ctx.driveMin(last, nextStop) + ctx.visitMin(nextStop) + ctx.bufferMin;
-      const reasonsToStop = load + add > ctx.style.capacityMin
+      const reasonsToStop = load + add > ctx.dayCapacity(day)
         ? `adding ${ctx.point(nextStop).name} (${duration(ctx.driveMin(last, nextStop))} driving + ${duration(ctx.visitMin(nextStop) + ctx.bufferMin)} there) would make the day ${duration(load + add)}, over the ${duration(ctx.style.capacityMin)} limit`
         : `the next stretch would put you on the road after ${hhmm(ctx.style.dayEndMin)} or leave the days uneven`;
       whyEnds = `Day ${day} ends here because ${reasonsToStop}.`;
@@ -102,7 +102,7 @@ export function assembleDays(ctx: Ctx, days: number[][], clusters: ClusterMap): 
 
     out.push({
       day, date: dateOf(ctx, day), stops, driveMin: drive, driveKm: Math.round(km * 10) / 10, visitMin: timed.visitMin, bufferMin: timed.bufferMin, loadMin: load,
-      capacityMin: ctx.style.capacityMin, intensity: intensityOf(ctx, drive, load), startMin: timed.startMin, endMin,
+      capacityMin: ctx.dayCapacity(day), intensity: intensityOf(ctx, drive, load, ctx.dayCapacity(day)), startMin: timed.startMin, endMin,
       overnightNear: nextStop !== undefined && order.length ? ctx.point(order[order.length - 1]).name : null, whyEnds, returnLeg, longTransfer: loads[d].longTransfer,
     });
     if (order.length) prev = order[order.length - 1];
@@ -115,9 +115,9 @@ export function planWarnings(ctx: Ctx, days: DayPlan[], numDays: number): Warnin
   const w: Warning[] = [];
   const s = ctx.style;
   for (const d of days) {
-    if (d.loadMin > s.capacityMin + 1e-9 && !d.longTransfer) w.push({ code: "over_capacity", severity: "risk", day: d.day, message: `Day ${d.day} is ${duration(d.loadMin)} of driving and sightseeing — over the ${duration(s.capacityMin)} a ${s.label.toLowerCase()} day can hold.` });
+    if (d.loadMin > d.capacityMin + 1e-9 && !d.longTransfer) w.push({ code: "over_capacity", severity: "risk", day: d.day, message: `Day ${d.day} is ${duration(d.loadMin)} of driving and sightseeing — over the ${duration(d.capacityMin)} a ${s.label.toLowerCase()} day can hold.` });
     else if (d.driveMin > s.maxDriveMin * 0.8) w.push({ code: "too_much_driving", severity: "warn", day: d.day, message: `Day ${d.day} has ${duration(d.driveMin)} of driving (${Math.round(d.driveKm)} km).` });
-    else if (d.stops.length > 0 && s.capacityMin - d.loadMin < 30) w.push({ code: "tight_day", severity: "info", day: d.day, message: `Day ${d.day} is tight: only ${duration(Math.max(0, s.capacityMin - d.loadMin))} spare for delays.` });
+    else if (d.stops.length > 0 && d.capacityMin - d.loadMin < 30) w.push({ code: "tight_day", severity: "info", day: d.day, message: `Day ${d.day} is tight: only ${duration(Math.max(0, d.capacityMin - d.loadMin))} spare for delays.` });
     if (d.driveMin > 180 && d.driveMin / Math.max(1, d.loadMin) > 0.65) w.push({ code: "mostly_driving", severity: "info", day: d.day, message: `Day ${d.day} is mostly in the car: ${duration(d.driveMin)} driving for ${duration(d.visitMin)} at places.` });
     if (d.longTransfer) w.push({ code: "long_transfer", severity: "warn", day: d.day, message: `Day ${d.day} is mainly one long transfer (${duration(d.driveMin)}). There is no better place to break it in your list.` });
     for (const st of d.stops) {

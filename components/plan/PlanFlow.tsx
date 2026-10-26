@@ -30,6 +30,7 @@ import { QuestionCard, questionFor } from "./QuestionCard";
 import { SimilarTray } from "./SimilarTray";
 import { VoiceButton } from "./VoiceButton";
 import Link from "next/link";
+import { clock12 } from "@/lib/travel/clock";
 import { EXAMPLE_LINKS } from "@/lib/result/example-list";
 import { suggestStartDate } from "@/lib/intake/start-date";
 import { formatDate } from "@/lib/format";
@@ -55,7 +56,7 @@ const AI_LINE: Record<Exclude<AiState, "idle" | "ok" | "reading">, string> = {
   offline: "You're offline, so the AI couldn't read this. We used what we could read ourselves.",
 };
 
-const UNBACKED_LABEL: Partial<Record<AnswerKey, string>> = { days: "Days", month: "Month", groupSize: "People", maxDriveHours: "Most driving a day", group: "Who's going", mode: "Travel", pace: "Pace", nightDriving: "Night driving", endMode: "How it ends", stay: "Stay", endSaid: "Ends at" };
+const UNBACKED_LABEL: Partial<Record<AnswerKey, string>> = { days: "Days", month: "Month", groupSize: "People", maxDriveHours: "Most driving a day", group: "Who's going", mode: "Travel", pace: "Pace", nightDriving: "Night driving", endMode: "How it ends", stay: "Stay", endSaid: "Ends at", startDate: "Starts on", startTime: "Leaving at" };
 /** "Month: June" — the AI's unbacked reading, in words, using the same labels as the question cards. */
 export function unbackedText(k: AnswerKey, v: unknown, thisMonth: number): string {
   const q = questionFor(k, thisMonth);
@@ -184,7 +185,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
     router.push(`/trips/${t.data.id}/result`);
   }
 
-  const chosenStart = startDate === undefined ? suggestStartDate(todayIndia, eff.answers.month ?? null) : startDate;
+  const chosenStart = startDate === undefined ? (eff.answers.startDate && eff.answers.startDate >= todayIndia ? eff.answers.startDate : suggestStartDate(todayIndia, eff.answers.month ?? null)) : startDate;
   const tripDays = eff.answers.days ?? 3;
   const endText = chosenStart ? (() => { const a = parseISODate(chosenStart); return a ? `${formatDate(a, { weekday: "short", day: "numeric", month: "short" })} – ${formatDate(addDays(a, tripDays - 1), { weekday: "short", day: "numeric", month: "short" })}` : null; })() : null;
   const aiLine = draft.ai === "reading" ? null : draft.ai in AI_LINE ? AI_LINE[draft.ai as keyof typeof AI_LINE] : null;
@@ -337,7 +338,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
               <>
                 <label htmlFor="plan-start-date" className="block text-sm text-ink-muted">First day{startDate === undefined ? " (our suggestion: change it if you know your dates)" : ""}</label>
                 <input id="plan-start-date" type="date" min={todayIndia} value={chosenStart} onChange={(e) => setStartDate(e.target.value || null)} className="block min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base text-ink" />
-                {endText && <p className="text-sm text-ink-muted">{tripDays} {tripDays === 1 ? "day" : "days"}: {endText}</p>}
+                {endText && <p className="text-sm text-ink-muted">{tripDays} {tripDays === 1 ? "day" : "days"}: {endText}{eff.answers.startTime && (!eff.answers.startDate || eff.answers.startDate === chosenStart) ? ` · leaving ${clock12(eff.answers.startTime)} on day 1` : ""}</p>}
                 <button type="button" onClick={() => setStartDate(null)} className="tm-action min-h-11 text-sm font-semibold">No dates yet</button>
               </>
             ) : (

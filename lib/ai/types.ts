@@ -18,4 +18,4 @@ export type ContentBlock =
 export type ToolSpec = { name: string; description: string; input_schema: Record<string, unknown> };
 
 /** "Read this and answer by calling this ONE tool": structured output, never free-form text to parse. */
-export type ToolCaller = (args: { system: string; content: ContentBlock[]; tool: ToolSpec; maxTokens?: number }) => Promise<unknown>;
+export type ToolCaller = (args: { system: string; content: ContentBlock[]; tool: ToolSpec; maxTokens?: number; /** Stop waiting (and stop retrying) when this fires. */ signal?: AbortSignal }) => Promise<unknown>;

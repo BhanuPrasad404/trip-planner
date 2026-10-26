@@ -3,7 +3,7 @@
 import type { ToolCaller } from "@/lib/ai/types";
 import { AiNotConfiguredError, AiRequestError } from "@/lib/ai/types";
 import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
-import { AiSlowError, aiReadTrip, type AiReading } from "./ai-read";
+import { AI_READ_TIMEOUT_MS, AiSlowError, aiReadTrip, type AiReading } from "./ai-read";
 import { mergeReadings } from "./merge";
 import { resolvePlaces, resolveStart, type Option, type PlaceMatch, type ResolveDeps } from "./places";
 import { readTrip } from "./read";
@@ -34,7 +34,7 @@ export async function readWithAi(text: string, chosenStart: Start, deps: Resolve
   if (!(await deps.allowAi())) return none("limit");
   let reading: AiReading;
   try {
-    reading = await aiReadTrip(text, deps.llm, { todayMonth: indiaMonth(now), timeoutMs: deps.timeoutMs ?? 12_000 });
+    reading = await aiReadTrip(text, deps.llm, { todayMonth: indiaMonth(now), timeoutMs: deps.timeoutMs ?? AI_READ_TIMEOUT_MS });
   } catch (e) {
     if (e instanceof AiSlowError) return none("slow");
     if (e instanceof AiNotConfiguredError) return none("off");

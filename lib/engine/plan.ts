@@ -10,15 +10,15 @@
 import { STYLES, LONG_TRANSFER_FACTOR } from "@/lib/trip-builder/config";
 import { duration } from "@/lib/trip-builder/model";
 import { pathCost } from "@/lib/trip-builder/tour";
-import type { BuilderInput, PlanOption, Warning } from "@/lib/trip-builder/types";
-import { planCore, styleFor, VARIANT_STYLE, type CoreResult } from "./core";
+import type { BuilderInput, PlanOption, RemovedStop, Warning } from "@/lib/trip-builder/types";
+import { dayStartFor, planCore, styleFor, subInput, VARIANT_STYLE, type CoreResult } from "./core";
 import { clockText, sunsetAt } from "./daylight";
 import { fuelLabel, litres } from "./fuel";
 import { haltDrive, pickTown } from "./halts";
 import { distanceKm } from "@/lib/geo";
 import { lineWithMargin, withMargin } from "./margin";
 import { permitNotes, PERMIT_CHECK } from "./permits";
-import { FAMILY_MAX_DRIVE_MIN, MARGIN_LABEL, TRANSIT_BREAK_MIN, WHAT_IF_EXTRA_DAYS } from "./rules";
+import { FAMILY_MAX_DRIVE_MIN, MARGIN_LABEL, TRANSIT_BREAK_MIN, VERIFY_TRIES, WHAT_IF_EXTRA_DAYS } from "./rules";
 import { splitRoad, type Budget } from "./transit";
 import { VARIANTS, VARIANT_LABEL, type EngineInput, type EnginePlan, type Labels, type Prefs, type RoadLine, type TransitDay, type Variant, type VariantId } from "./types";
 import { whatIfDays } from "./whatif";
@@ -36,7 +36,7 @@ export function firstReached(durations: number[][], n: number): number | null {
 export function transitCap(v: VariantId, prefs: Prefs): number {
   const st = STYLES[VARIANT_STYLE[v]];
   let cap = prefs.maxDriveHours ? Math.round(prefs.maxDriveHours * 60) : Math.round(st.maxDriveMin * LONG_TRANSFER_FACTOR);
-  if (prefs.group === "family_kids" || prefs.group === "family_elders") cap = Math.min(cap, Math.round(FAMILY_MAX_DRIVE_MIN * LONG_TRANSFER_FACTOR));
+  if (prefs.group === "family_kids" || prefs.group === "family_elders" || prefs.avoid.includes("long_drives")) cap = Math.min(cap, Math.round(FAMILY_MAX_DRIVE_MIN * LONG_TRANSFER_FACTOR));
   return cap;
 }
 
@@ -60,21 +60,38 @@ const addDays = (iso: string, k: number) => { const [y, m, d] = iso.split("-").m
 
 type Shared = { input: EngineInput; matrix: BuilderInput["matrix"]; hill: boolean[][]; F: number | null };
 
+/** The facts every variant shares for one set of places: the road margin, the hill table, the place reached first. */
+function sharedOf(input: EngineInput): Shared {
+  const { matrix, hill } = withMargin(input.base.matrix, input.heights);
+  return { input, matrix, hill, F: firstReached(matrix.durations, input.base.places.length) };
+}
+
+/** The same trip with only some of its places (the road table, heights and states cut to match). */
+function restrictInput(input: EngineInput, ids: Set<string>): EngineInput {
+  const base = input.base;
+  const idx = base.places.map((p, i) => (ids.has(p.id) ? i : -1)).filter((i) => i >= 0);
+  const h = input.heights;
+  const hasEnd = !!h && h.length === base.places.length + 2;
+  return { ...input, base: subInput(base, idx.map((i) => base.places[i])), heights: h ? [h[0], ...idx.map((i) => h[i + 1]), ...(hasEnd ? [h[h.length - 1]] : [])] : null, states: idx.map((i) => input.states[i] ?? null) };
+}
+
 type Run = { variant: Variant; core: CoreResult | null; coreInput: BuilderInput | null; direction: string | null };
 
-function runVariant(v: VariantId, sh: Shared): Run {
+/** `verifying`: this run only checks whether a plan fits (used to confirm a "fits in N days" suggestion), so it skips the what-if table and suggestions. */
+function runVariant(v: VariantId, sh: Shared, verifying = false): Run {
   const { input } = sh;
   const base = input.base;
   const prefs = input.prefs;
   const st = STYLES[VARIANT_STYLE[v]];
   const n = base.places.length;
   const cap = transitCap(v, prefs);
+  const dayStart = dayStartFor(v, prefs);
   const budget: Budget = (day, at, hill) => {
     let driveMin = cap, daylightLimited = false;
     if (!prefs.nightDriving) {
       const set = sunsetAt(at, input.refDateISO, day, base.utcOffsetMin);
       if (set !== null) {
-        const avail = set - (hill ? 60 : 0) - st.dayStartMin - TRANSIT_BREAK_MIN;
+        const avail = set - (hill ? 60 : 0) - dayStart - TRANSIT_BREAK_MIN;
         if (avail < driveMin) { driveMin = Math.max(60, avail); daylightLimited = true; }
       }
     }
@@ -151,20 +168,23 @@ function runVariant(v: VariantId, sh: Shared): Run {
 
   // 2c. The drive home, after the last day among the places.
   let transitBack: TransitDay[] = [];
-  // A round trip whose places don't all fit: the builder must drive home on the day of the last visit, so a far cluster (Kochi → Munnar)
-  // can never fit at a gentle pace. Try a DRIVE-HOME DAY instead: the places get one day fewer, and the last day is only the drive home
-  // (when it fits a day's driving and daylight). Kept only when it fits more places.
-  if (core && coreInput && !backSplit && base.endMode === "start" && coreDays >= 2 && core.option.removed.length > 0) {
+  // A round trip: the builder must drive home on the day of the last visit. When that day breaks a rule (too much driving, after dark,
+  // a closed place) or places had to be left out, try a DRIVE-HOME DAY instead: the places get one day fewer, and the drive home is
+  // its own day right after the last day with places (so spare days come after it, never in the middle). Kept only when it is better:
+  // more places, or a plan that breaks no rule where the first one did.
+  const brokenRule = (c: CoreResult) => !c.daylightOk || !c.option.feasible || c.warnings.some((w) => w.code === "closed_at_arrival");
+  if (core && coreInput && !backSplit && base.endMode === "start" && coreDays >= 2 && (core.option.removed.length > 0 || brokenRule(core))) {
     const altInput: BuilderInput = { ...coreInput, endMode: "free", end: null, numDays: coreDays - 1 };
     const alt = planCore({ input: altInput, hill: sh.hill, variant: v, prefs, sunset: (p, d) => sunsetAt(p, input.refDateISO, d + tOut, base.utcOffsetMin), towns: input.towns, lastIsTripEnd: false });
     const last = alt.option.days.flatMap((d) => d.stops).at(-1);
     const L = last ? altInput.places.findIndex((p) => p.id === last.placeId) + 1 : 0;
-    // Only when the drive home follows straight on from the last day with places (no empty days left before it).
-    if (last && L && last.day === altInput.numDays) {
-      const homeDay = coreDays; // counted inside this part of the trip
+    if (last && L) {
+      const homeDay = last.day + 1; // counted inside this part of the trip: the day right after the last visit
       const driveMin = Math.round(altInput.matrix.durations[L][0] / 60);
       const b = budget(homeDay + tOut, altInput.places[L - 1], !!sh.hill[L]?.[0]);
-      if (driveMin <= b.driveMin && alt.option.totals.places > core.option.totals.places) {
+      const morePlaces = alt.option.totals.places > core.option.totals.places;
+      const cleaner = brokenRule(core) && !brokenRule(alt) && alt.option.totals.places >= core.option.totals.places;
+      if (driveMin <= b.driveMin && (morePlaces || cleaner)) {
         core = alt;
         transitBack = [{ day: tOut + homeDay, from: last.name, to: base.start.label, driveMin, km: Math.round(altInput.matrix.distances[L][0] / 1000), haltNote: null, daylightLimited: b.daylightLimited, at: { lat: base.start.lat, lng: base.start.lng } }];
       }
@@ -186,7 +206,8 @@ function runVariant(v: VariantId, sh: Shared): Run {
   const km = option.totals.km + transit.reduce((s, d) => s + d.km, 0) + halts.reduce((s, h) => s + h.km, 0);
   const driveMin = option.totals.driveMin + transit.reduce((s, d) => s + d.driveMin, 0) + halts.reduce((s, h) => s + h.driveMin, 0);
   const days = Math.max(base.numDays, tOut + tBack + Math.max(0, coreDays));
-  const feasible = coreDays >= 1 && !!core && option.feasible && core.daylightOk && !core.warnings.some((w) => w.code === "closed_at_arrival");
+  // "Fits" means: a day is left for the places, no rule is broken, and the plan really keeps places (an empty plan never "fits").
+  const feasible = coreDays >= 1 && !!core && option.feasible && core.daylightOk && !core.warnings.some((w) => w.code === "closed_at_arrival") && (n === 0 || option.totals.places > 0);
 
   // 4. What if I had N days? (same rules, quick)
   const finish = !prefs.nightDriving ? earliestFinish(input, base) : null;
@@ -195,9 +216,18 @@ function runVariant(v: VariantId, sh: Shared): Run {
   // Fixed drive days only (a drive-home day is worked out again for each N inside the estimate).
   const fixed = [...transitOut, ...(backSplit ? transitBack : [])];
   const transitDrive = fixed.reduce((s, d) => s + d.driveMin, 0), transitKm = fixed.reduce((s, d) => s + d.km, 0);
-  const whatIf = n ? whatIfDays(wiInput, sty.id, sty.override, { transitDays: tOut + tBack, transitDriveMin: transitDrive, transitKm, fromDays: 1, toDays: base.numDays + WHAT_IF_EXTRA_DAYS, homeDayCapMin: backSplit ? null : cap }) : [];
+  const whatIf = n && !verifying ? whatIfDays(wiInput, sty.id, sty.override, { transitDays: tOut + tBack, transitDriveMin: transitDrive, transitKm, fromDays: 1, toDays: base.numDays + WHAT_IF_EXTRA_DAYS, homeDayCapMin: backSplit ? null : cap }) : [];
   const allFit = feasible && option.removed.length === 0;
-  const needDays = allFit ? null : whatIf.find((w) => w.days > base.numDays && w.fits)?.days ?? null;
+  // "Everything fits in N days" is only said after the REAL plan was run with N days and really fits. The quick table above is only a
+  // list of days worth trying: it skips rules the full plan checks (daylight, the traveller's driving limit, closed days, the drive home).
+  let needDays: number | null = null;
+  if (!allFit && !verifying) {
+    const tries = whatIf.filter((w) => w.days > base.numDays && w.fits).slice(0, VERIFY_TRIES);
+    for (const w of tries) {
+      const r = runVariant(v, { ...sh, input: { ...input, base: { ...base, numDays: w.days } } }, true).variant;
+      if (r.feasible && r.option.removed.length === 0) { needDays = w.days; break; }
+    }
+  }
 
   const variant: Variant = {
     id: v, label: VARIANT_LABEL[v], option: { ...option, label: VARIANT_LABEL[v] }, transitOut, transitBack, halts, feasible,
@@ -246,6 +276,87 @@ function tradeoffs(vs: Variant[], total: number) {
   }
 }
 
+// ── Keeping the three plans honest with each other ────────────────────────────────────────────────────────────────────────────────
+// The three plans are built separately, so on their own they can contradict each other ("Most places" keeping fewer places than
+// "Relaxed"). A plan that is valid under a stricter plan's limits is also valid under a looser plan's limits (later end, longer driving
+// day, shorter visits), so: Relaxed ≤ Balanced ≤ Most places in places kept, and Relaxed never drives more than Balanced for the same
+// places. When the separate runs break that, the looser plan is built again with the stricter plan's places as must-keeps (the planner
+// treats those as constraints), or, failing that, it simply takes the stricter plan. Both are real, valid plans.
+
+/** The drive-repair tries every place in turn: only for trips small enough for that to stay fast. */
+const MAX_REPAIR_PLACES = 12;
+const keptCount = (r: Run) => r.variant.option.totals.places;
+const keptIds = (r: Run) => new Set(r.variant.option.days.flatMap((d) => d.stops.map((s) => s.placeId)));
+const withMust = (sh: Shared, ids: Set<string>): Shared => ({ ...sh, input: { ...sh.input, base: { ...sh.input.base, places: sh.input.base.places.map((p) => (ids.has(p.id) ? { ...p, priority: "must" as const } : p)) } } });
+
+/** A new run for `old`'s plan (its what-if table is kept; "needs N days" is cleared when everything now fits). */
+function replaceRun(old: Run, fresh: Run): Run {
+  const everything = fresh.variant.feasible && fresh.variant.option.removed.length === 0;
+  return { ...fresh, variant: { ...fresh.variant, whatIf: old.variant.whatIf, needDays: everything ? null : old.variant.needDays } };
+}
+
+/** The stricter plan, shown as the looser plan's own (same days and stops; the wording names the right plan). */
+function adoptPlan(from: Run, into: Run): Run {
+  const as = into.variant.id, label = VARIANT_LABEL[as], st = STYLES[VARIANT_STYLE[as]];
+  const was = `${from.variant.label} plan`, now = `${label} plan`;
+  const re = (t: string) => t.split(was).join(now);
+  const o = from.variant.option;
+  const option: PlanOption = { ...o, style: st.id, label, tagline: st.tagline, warnings: o.warnings.map((w) => ({ ...w, message: re(w.message) })), removed: o.removed.map((r) => ({ ...r, reason: re(r.reason) })) };
+  const everything = from.variant.feasible && o.removed.length === 0;
+  return { ...from, variant: { ...from.variant, id: as, label, option, whatIf: into.variant.whatIf, needDays: everything ? null : into.variant.needDays } };
+}
+
+export function repairOrdering(runs: Run[], sh: Shared): void {
+  for (let i = 1; i < runs.length; i++) {
+    const tight = runs[i - 1], loose = runs[i];
+    const worse = keptCount(loose) < keptCount(tight) || (!loose.variant.feasible && tight.variant.feasible);
+    if (!worse) continue;
+    const fresh = runVariant(loose.variant.id, withMust(sh, keptIds(tight)), true);
+    if (fresh.variant.feasible && keptCount(fresh) >= keptCount(tight)) { runs[i] = replaceRun(loose, fresh); continue; }
+    if (tight.variant.feasible) runs[i] = adoptPlan(tight, loose);
+  }
+  // Relaxed promises "less driving": with the same number of places it must not drive more than Balanced.
+  const relaxed = runs[0], balanced = runs[1];
+  if (!relaxed || !balanced || keptCount(relaxed) !== keptCount(balanced) || relaxed.variant.totals.driveMin <= balanced.variant.totals.driveMin + 1) return;
+  const target = balanced.variant.totals.driveMin;
+  const lighter = (c: Run) => c.variant.feasible && c.variant.totals.driveMin < runs[0].variant.totals.driveMin;
+  // Planned on ONLY these places (the planner would otherwise add a far one back); the others are listed as left out, with the reason.
+  const only = (ids: Set<string>): Run => {
+    const r = runVariant(relaxed.variant.id, sharedOf(restrictInput(sh.input, ids)), true);
+    const out: RemovedStop[] = sh.input.base.places.filter((p) => !ids.has(p.id)).map((p) => ({ placeId: p.id, name: p.name, savedMin: 0, savedDriveMin: 0, reason: "Left out so the Relaxed plan fits your days and drives no more than the Balanced plan." }));
+    return { ...r, variant: { ...r.variant, option: { ...r.variant.option, removed: [...r.variant.option.removed, ...out] } } };
+  };
+  // 1) Balanced's own places at the Relaxed pace.
+  let set = keptIds(balanced);
+  const same = only(set);
+  if (keptCount(same) >= keptCount(balanced) && lighter(same)) { runs[0] = replaceRun(relaxed, same); return; }
+  // 2) "Fewer places, less driving": leave out the place whose loss saves the most driving, until the driving is no more than Balanced's.
+  if (sh.input.base.places.length > MAX_REPAIR_PLACES) return;
+  const mine = new Set(sh.input.base.places.filter((p) => p.priority === "must").map((p) => p.id));
+  for (let round = 0; round < 3; round++) {
+    let best: { id: string; run: Run } | null = null;
+    for (const id of set) {
+      if (mine.has(id)) continue;
+      const rest = new Set(set); rest.delete(id);
+      const c = only(rest);
+      if (c.variant.feasible && (!best || c.variant.totals.driveMin < best.run.variant.totals.driveMin)) best = { id, run: c };
+    }
+    if (!best) return;
+    if (best.run.variant.totals.driveMin <= target && lighter(best.run)) { runs[0] = replaceRun(relaxed, best.run); return; }
+    set = new Set(set); set.delete(best.id);
+  }
+}
+
+/** The "what if N days?" row for the trip's own length is the plan itself; days below it never promise more, days above it never less. */
+export function syncWhatIf(v: Variant, numDays: number, of: number): void {
+  const kept = v.option.totals.places;
+  v.whatIf = v.whatIf.map((w) => {
+    if (w.days === numDays) return { ...w, places: kept, fits: v.feasible && kept === of, driveMin: Math.round(v.totals.driveMin), km: Math.round(v.totals.km) };
+    const places = w.days < numDays ? Math.min(w.places, kept) : Math.max(w.places, kept);
+    return { ...w, places, fits: places === of };
+  });
+}
+
 const transitKey = (t: TransitDay[]) => t.map((d) => `${d.day}|${d.from}|${d.to}|${d.driveMin}`).join(";");
 const sameDays = (a: Variant, b: Variant) =>
   transitKey(a.transitOut) === transitKey(b.transitOut) && transitKey(a.transitBack) === transitKey(b.transitBack) &&
@@ -254,11 +365,12 @@ const sameDays = (a: Variant, b: Variant) =>
 export function planTrip(input: EngineInput): EnginePlan {
   const base = input.base;
   const n = base.places.length;
-  const { matrix, hill } = withMargin(base.matrix, input.heights);
-  const F = firstReached(matrix.durations, n);
-  const sh: Shared = { input, matrix, hill, F };
+  const sh = sharedOf(input);
+  const { matrix, F } = sh;
   const runs = VARIANTS.map((v) => runVariant(v, sh));
+  repairOrdering(runs, sh);
   const variants = runs.map((r) => r.variant);
+  for (const v of variants) syncWhatIf(v, base.numDays, n);
   tradeoffs(variants, n);
 
   const sameAs: EnginePlan["sameAs"] = {};
@@ -270,7 +382,7 @@ export function planTrip(input: EngineInput): EnginePlan {
   const pv = variants.find((v) => v.id === paceVariant)!;
   if (!pv.feasible) {
     const alt = (["balanced", "most", "relaxed"] as VariantId[]).map((id) => variants.find((v) => v.id === id)!).find((v) => v.feasible);
-    if (alt) { recommended = alt.id; notes.push(`At your chosen pace (${pv.label}) your must-sees don't all fit; ${alt.label} fits them.`); }
+    if (alt) { recommended = alt.id; notes.push(base.places.some((p) => p.priority === "must") ? `At your chosen pace (${pv.label}) your must-sees don't all fit; ${alt.label} fits them.` : `At your chosen pace (${pv.label}) your places don't fit these days; ${alt.label} fits.`); }
   }
 
   const warnings: Warning[] = [];
@@ -303,5 +415,5 @@ function labelsFor(input: EngineInput, matrix: BuilderInput["matrix"]): Labels {
     : `No driving after dark: every drive is planned to end by sunset${set !== null ? ` (from about ${clockText(set)})` : ""}, an hour earlier on hill roads${base.startDateISO ? "" : `. Sunset is worked out for ${month} because the trip has no dates yet`}.`;
   const tolls = input.tolls === null ? "Tolls weren't checked." : input.tolls.checked ? `${input.tolls.count} toll plaza${input.tolls.count === 1 ? "" : "s"} found along the main roads (OpenStreetMap). Fees aren't known.` : "Tolls couldn't be checked right now.";
   const margin = input.heights === null ? `${MARGIN_LABEL} Heights couldn't be checked this time, so hill roads only got the +15%.` : MARGIN_LABEL;
-  return { roads, roadsText, margin, weather, hours, daylight, halts: "Night halts are real towns (GeoNames). We have no hotel data: check stays before you go.", fuel: fuelLabel(input.prefs.mode, input.mileage), tolls };
+  return { roads, roadsText, margin, weather, hours, daylight, halts: "Night halts are real towns (GeoNames). We have no hotel data: check stays before you go.", fuel: fuelLabel(input.prefs.mode, input.mileage), tolls, travel: input.prefs.mode === "bus" || input.prefs.mode === "train" ? `You chose ${input.prefs.mode}: this plan uses road times for a car between places. We have no ${input.prefs.mode} timetables, so check them yourself and allow extra time.` : "" };
 }

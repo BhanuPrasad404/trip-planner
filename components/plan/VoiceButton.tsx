@@ -1,12 +1,12 @@
 "use client";
 
 // Optional voice input: say the trip instead of typing it, in English, Telugu, Hindi, Tamil, Kannada or Marathi. It uses the browser's
-// own speech recognition, so it is shown only where the browser has it, and the screen says plainly where the audio goes.
+// own speech recognition (this app records nothing), so the screen says plainly where the audio goes, shows the words as they are heard,
+// keeps listening through pauses until you tap stop, and says exactly why when it can't work.
 import { useEffect, useRef, useState } from "react";
 import { Glyph } from "@/components/ui/Glyph";
-
-type Rec = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null };
-type RecCtor = new () => Rec;
+import { recorderSupported, recordingToText, startRecording } from "@/lib/client/voice-record";
+import { startVoice, type RecCtor } from "@/lib/client/voice-session";
 
 export const VOICE_LANGS = [
   { code: "en-IN", label: "English" }, { code: "te-IN", label: "తెలుగు" }, { code: "hi-IN", label: "हिन्दी" },
@@ -20,42 +20,78 @@ export function speechRecognition(): RecCtor | null {
 }
 
 export function VoiceButton({ onText }: { onText: (text: string) => void }) {
-  const [supported, setSupported] = useState(false);
+  // null = not checked yet (server render), so the first paint matches on server and phone.
+  const [supported, setSupported] = useState<boolean | null>(null);
   const [lang, setLang] = useState<string>("en-IN");
-  const [state, setState] = useState<"idle" | "listening" | "error">("idle");
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const rec = useRef<Rec | null>(null);
-  useEffect(() => { queueMicrotask(() => setSupported(!!speechRecognition())); }, []);
-  useEffect(() => () => rec.current?.stop(), []);
-  if (!supported) return null;
-
-  function toggle() {
-    if (state === "listening") { rec.current?.stop(); return; }
-    const Ctor = speechRecognition();
-    if (!Ctor) return;
-    const r = new Ctor();
-    r.lang = lang; r.interimResults = false; r.continuous = false;
-    r.onresult = (e) => { const t = Array.from(e.results).map((x) => x[0]?.transcript ?? "").join(" ").trim(); if (t) onText(t); };
-    r.onerror = (e) => { setState("error"); setError(e.error === "not-allowed" ? "The microphone is blocked for this site. Allow it in the browser's site settings, or type instead." : e.error === "no-speech" ? "We didn't hear anything. Try again, a little closer to the phone." : "Voice input didn't work this time. You can type instead."); };
-    r.onend = () => setState((s) => (s === "listening" ? "idle" : s));
-    rec.current = r;
-    setError(null); setState("listening");
-    try { r.start(); } catch { setState("error"); setError("Voice input didn't start. You can type instead."); }
+  // The backup: record here, and the server turns the recording into words (when the browser's own recogniser is missing or fails).
+  const [canRecord, setCanRecord] = useState(false);
+  const [recording, setRecording] = useState<number | null>(null);
+  const [converting, setConverting] = useState(false);
+  const session = useRef<{ stop: () => void } | null>(null);
+  useEffect(() => { queueMicrotask(() => { setSupported(!!speechRecognition()); setCanRecord(recorderSupported()); }); }, []);
+  useEffect(() => () => session.current?.stop(), []);
+  if (supported === null) return null;
+  if (!supported && !canRecord) {
+    return <p className="flex items-start gap-1.5 rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted"><Glyph name="info" size={15} className="mt-0.5" />Voice input isn&apos;t available in this browser. Chrome on Android or desktop has it, or you can type.</p>;
   }
 
+  async function toggleRecord() {
+    if (recording !== null) { session.current?.stop(); return; }
+    if (typeof window !== "undefined" && window.isSecureContext === false) { setError("Voice input only works on the secure (https) site, not on a plain http address. You can type instead."); return; }
+    setError(null); setHeard(""); setRecording(0);
+    session.current = await startRecording({
+      onTick: setRecording,
+      onError: (m) => { setRecording(null); setError(m); },
+      onDone: async (blob) => {
+        setRecording(null); setConverting(true);
+        const r = await recordingToText(blob, lang);
+        setConverting(false);
+        if ("error" in r) setError(r.error); else if (r.text) onText(r.text);
+      },
+    });
+  }
+
+  function toggle() {
+    if (listening) { session.current?.stop(); return; }
+    const Ctor = speechRecognition();
+    if (!Ctor) return;
+    if (typeof window !== "undefined" && window.isSecureContext === false) { setError("Voice input only works on the secure (https) site, not on a plain http address. You can type instead."); return; }
+    setError(null); setHeard("");
+    session.current = startVoice(Ctor, lang, {
+      onFinal: (t) => onText(t),
+      onInterim: setHeard,
+      onListening: setListening,
+      onError: (message, code) => { setError(message); if (typeof console !== "undefined") console.warn("[voice]", code); },
+    });
+  }
+
+  const recordLabel = converting ? "Turning your voice into text…" : recording !== null ? `Recording ${Math.floor(recording / 60)}:${String(recording % 60).padStart(2, "0")} · tap to stop` : "Record, then convert to text";
   return (
     <div className="rounded-xl border border-line bg-sky/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={toggle} aria-pressed={state === "listening"} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold ${state === "listening" ? "bg-clay text-white" : "bg-pine text-white"}`}>
-          <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${state === "listening" ? "animate-pulse bg-white" : "bg-marigold"}`} />
-          {state === "listening" ? "Listening… tap to stop" : "Say it instead"}
-        </button>
+        {supported && (
+          <button type="button" onClick={toggle} disabled={recording !== null || converting} aria-pressed={listening} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${listening ? "bg-clay text-white" : "bg-pine text-white"}`}>
+            <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${listening ? "animate-pulse bg-white" : "bg-marigold"}`} />
+            {listening ? "Listening… tap to stop" : "Say it instead"}
+          </button>
+        )}
+        {canRecord && (!supported || error !== null || recording !== null || converting) && (
+          <button type="button" onClick={() => void toggleRecord()} disabled={listening || converting} aria-pressed={recording !== null} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${recording !== null ? "bg-clay text-white" : supported ? "border-2 border-pine bg-white text-pine" : "bg-pine text-white"}`}>
+            <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${recording !== null ? "animate-pulse bg-white" : "bg-marigold"}`} />
+            {supported && recording === null && !converting ? "Not working? Record instead" : recordLabel}
+          </button>
+        )}
         <label className="sr-only" htmlFor="voice-lang">Language you will speak</label>
-        <select id="voice-lang" value={lang} onChange={(e) => setLang(e.target.value)} className="min-h-12 rounded-xl border border-line bg-white px-3 text-base">
+        <select id="voice-lang" value={lang} disabled={listening || recording !== null || converting} onChange={(e) => setLang(e.target.value)} className="min-h-12 rounded-xl border border-line bg-white px-3 text-base disabled:opacity-60">
           {VOICE_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
       </div>
-      <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted"><Glyph name="info" size={13} className="mt-0.5" />Your browser turns speech into text. On Chrome for Android the audio is sent to Google to do that. Nothing is sent until you tap.</p>
+      {listening && <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-ink">{heard ? <>{heard}</> : <span className="text-ink-muted">Speak now. Pauses are fine; tap stop when you are done.</span>}</p>}
+      {recording !== null && <p role="status" aria-live="polite" className="mt-2 text-sm text-ink-muted">Speak now. Pauses are fine; tap stop when you are done.</p>}
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted"><Glyph name="info" size={13} className="mt-0.5" />{supported ? "Your browser turns speech into text. On Chrome the audio is sent to Google to do that." : "Your recording is sent to our speech service to turn it into text, and is not kept."} Nothing is sent until you tap{canRecord && supported ? "; \"Record instead\" sends a short recording to our speech service, and it is not kept" : ""}.</p>
       {error && <p role="alert" className="mt-1.5 text-sm font-medium text-clay-ink">{error}</p>}
     </div>
   );

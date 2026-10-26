@@ -22,9 +22,9 @@ describe("the guided flow's draft", () => {
   });
   it("asks only what's missing, in order, at most 3 — and skipping moves on", () => {
     let d = draftFrom("4 rojulu Hyderabad nundi, friends tho beaches");
-    expect(questionsToAsk(d, effectiveAnswers(d, defaultsFor(d)))).toEqual(["month", "mode", "pace"]);
+    expect(questionsToAsk(d, effectiveAnswers(d, defaultsFor(d)))).toEqual(["month", "pace", "nightDriving"]);
     d = { ...d, skipped: ["month"], chosen: { mode: "bike" } };
-    expect(questionsToAsk(d, effectiveAnswers(d, defaultsFor(d)))).toEqual(["pace", "nightDriving", "stay"]);
+    expect(questionsToAsk(d, effectiveAnswers(d, defaultsFor(d)))).toEqual(["pace", "nightDriving", "avoid"]);
   });
   it("a tap always wins over what was read", () => {
     const d = { ...draftFrom("4 days from Hyderabad, friends"), chosen: { days: 6 } };

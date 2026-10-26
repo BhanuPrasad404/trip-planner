@@ -22,6 +22,10 @@ import { duration, type PlannedStop, type PlanOption } from "@/lib/trip-builder"
 import type { EndMode } from "@/lib/trip-builder/types";
 import type { PlaceWithSeason } from "@/lib/types";
 import { DayCard } from "./DayCard";
+import { FreeDayCard } from "./FreeDayCard";
+import { TripClockBanner } from "./TripClockBanner";
+import { tripClock } from "@/lib/result/trip-clock";
+import { freeDays } from "@/lib/result/free-days";
 import { dayColorVar, type MapDay, type MapPin } from "./map-parts";
 
 const ResultMap = dynamic(() => import("./ResultMap"), { ssr: false, loading: () => <div aria-hidden="true" className="h-44 w-full rounded-2xl bg-sky" /> });
@@ -31,6 +35,8 @@ export type TripResultProps = {
   tripId: string;
   tripName: string;
   numDays: number;
+  /** First day of the trip (YYYY-MM-DD), or null when the trip has no dates. */
+  startDate: string | null;
   canEdit: boolean;
   endMode: EndMode;
   start: { lat: number; lng: number; label: string };
@@ -66,6 +72,9 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
   const [done, setDone] = useState<{ snapshot: ReturnType<typeof snapshotPlaces> } | null>(null);
   const [lines, setLines] = useState<Record<string, [number, number][]>>({});
   const [straight, setStraight] = useState(false);
+  // The clock is read after the page is on screen (never during the server render), so the first paint matches.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => { queueMicrotask(() => setNowMs(Date.now())); }, []);
 
   const numDays = isTrip ? props.numDays : props.example.days;
   const title = isTrip ? props.tripName : props.example.title;
@@ -148,6 +157,15 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
     router.refresh();
     await load();
   }
+  async function startTomorrow(startISO: string) {
+    if (props.kind !== "trip") return;
+    setBusy(true); setError(null);
+    const r = await call<object>(`/api/trips/${props.tripId}`, { start_date: startISO }, "PATCH");
+    setBusy(false);
+    if (!r.ok) { setError(r.error); return; }
+    router.refresh();
+    await load();
+  }
   async function addPlace(p: PickedPlace | null) {
     if (!p || props.kind !== "trip") return;
     setBusy(true);
@@ -186,6 +204,14 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
 
   const back = isTrip ? `/trips/${props.tripId}/plan` : "/plan";
   const v = option ? verdict(option, view, numDays) : null;
+  // Only a saved trip has dates; today's day is looked up in the chosen plan so the banner can say when it starts and ends.
+  const startDate = props.kind === "trip" ? props.startDate : null;
+  const clock = (() => {
+    if (nowMs === null || !option) return null;
+    const first = tripClock({ startDateISO: startDate, numDays, nowMs });
+    const w = first.todayDay ? option.days.find((d) => d.day === first.todayDay && d.stops.length > 0) : null;
+    return tripClock({ startDateISO: startDate, numDays, nowMs, todayWindow: w ? { startMin: w.startMin, endMin: w.endMin } : null });
+  })();
   const groups = data ? data.options.filter((o) => !data.engine.sameAs[data.engine.variants.find((x) => x.style === o.style)?.id ?? "relaxed"]) : [];
   const sameNote = data ? Object.entries(data.engine.sameAs).map(([a, b]) => `${data.engine.variants.find((x) => x.id === a)?.label} gives the same plan as ${data.engine.variants.find((x) => x.id === b)?.label}.`) : [];
   const leftOut = option ? [...option.removed.map((r) => ({ id: r.placeId, name: r.name, reason: r.reason })), ...skip.map((id) => ({ id, name: places.find((p) => p.id === id)?.name ?? "A place", reason: "You chose to skip it." }))] : [];
@@ -214,6 +240,8 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
       {data && option && v && (
         <div className={`mt-4 space-y-4 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
           {loading && <p role="status" className="flex items-center gap-2 text-sm text-ink-muted"><Spinner size={14} />Updating the plan…</p>}
+
+          {clock && <TripClockBanner clock={clock} canEdit={isTrip && props.canEdit} busy={busy || loading} onStartTomorrow={(iso) => void startTomorrow(iso)} />}
 
           {/* The three plans. Identical ones are shown once, with a note. */}
           <div>
@@ -244,7 +272,7 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
               {view?.tradeoff && <p className="text-sm text-ink-muted">{duration(view.totals.driveMin)} driving in all · {view.totals.km.toLocaleString("en-IN")} km</p>}
             </div>
           </div>
-          {v.needDays && isTrip && props.canEdit && <Button variant="secondary" className="w-full" disabled={busy || loading} onClick={() => void moreDays(v.needDays!)}>Use {v.needDays} days</Button>}
+          {v.needDays && isTrip && props.canEdit && clock?.state !== "after" && <Button variant="secondary" className="w-full" disabled={busy || loading} onClick={() => void moreDays(v.needDays!)}>Use {v.needDays} days</Button>}
 
           {/* Map: a small strip; tap for full screen. */}
           <div>
@@ -260,7 +288,10 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
               ...(view?.transitOut ?? []).map((t) => ({ day: t.day, el: <TransitDayCard key={`o${t.day}`} t={t} kind="out" /> })),
               ...option.days.map((d) => ({ day: d.day, el: <DayCard key={d.day} d={d} numbers={numbers} halt={view?.halts.find((h) => h.day === d.day) ?? null} mustIds={mustIds} onStop={isTrip ? setSheet : undefined} /> })),
               ...(view?.transitBack ?? []).map((t) => ({ day: t.day, el: <TransitDayCard key={`b${t.day}`} t={t} kind="back" /> })),
-            ].sort((a, b) => a.day - b.day).map((x) => x.el)}
+              ...freeDays([...(view?.transitOut ?? []).map((t) => t.day), ...option.days.map((d) => d.day), ...(view?.transitBack ?? []).map((t) => t.day)], view?.totals.days ?? numDays).map((f) => ({ day: f.day, el: <FreeDayCard key={`f${f.day}`} f={f} /> })),
+            ].sort((a, b) => a.day - b.day).map((x) => (clock && x.day <= clock.doneDays
+              ? <div key={`done${x.day}`} className="opacity-60"><p className="mb-1 px-1 text-xs font-bold uppercase tracking-wide text-ink-muted">Day {x.day} · done</p>{x.el}</div>
+              : x.el))}
           </section>
 
           {leftOut.length > 0 && (
@@ -289,7 +320,7 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
 
           <details className="rounded-2xl border border-line bg-white">
             <summary className="flex min-h-12 cursor-pointer items-center px-4 text-sm font-semibold text-pine">What if I had more or fewer days?</summary>
-            <div className="border-t border-line p-3">{view && <WhatIfStepper key={option.style} v={view} numDays={numDays} canEdit={isTrip && props.canEdit} busy={busy || loading} onPlan={(d) => void moreDays(d)} />}</div>
+            <div className="border-t border-line p-3">{view && <WhatIfStepper key={`${option.style}:${numDays}`} v={view} numDays={numDays} canEdit={isTrip && props.canEdit} busy={busy || loading} onPlan={(d) => void moreDays(d)} />}</div>
           </details>
           <details className="rounded-2xl border border-line bg-white">
             <summary className="flex min-h-12 cursor-pointer items-center px-4 text-sm font-semibold text-pine">Fuel and tolls</summary>
@@ -352,7 +383,7 @@ export function ComparePlans({ data, total }: { data: ResultData; total: number 
         <tr><th scope="row" className="py-1.5 font-normal text-ink-muted">Days</th>{data.engine.variants.map((v) => <td key={v.id}>{v.totals.days}</td>)}</tr>
         <tr><th scope="row" className="py-1.5 font-normal text-ink-muted">Driving</th>{data.engine.variants.map((v) => <td key={v.id}>{duration(v.totals.driveMin)}</td>)}</tr>
         <tr><th scope="row" className="py-1.5 font-normal text-ink-muted">Longest day</th>{data.engine.variants.map((v) => { const o = data.options.find((x) => x.style === v.style); const m = Math.max(0, ...(o?.days.map((d) => d.driveMin) ?? []), ...v.transitOut.map((t) => t.driveMin), ...v.transitBack.map((t) => t.driveMin)); return <td key={v.id}>{duration(m)}</td>; })}</tr>
-        <tr><th scope="row" className="py-1.5 font-normal text-ink-muted">Fits</th>{data.engine.variants.map((v) => <td key={v.id}>{v.feasible ? "Yes" : "No"}</td>)}</tr>
+        <tr><th scope="row" className="py-1.5 font-normal text-ink-muted">Fits</th>{data.engine.variants.map((v) => <td key={v.id}>{!v.feasible ? "No" : v.totals.places >= total ? "Yes" : "Some left out"}</td>)}</tr>
       </tbody>
     </table>
   );

@@ -26,8 +26,9 @@ export type Draft = {
 
 export const emptyDraft = (): Draft => ({ text: "", start: { place: null, from: null }, understanding: null, chosen: {}, skipped: [], places: [], ai: "idle" });
 
-/** The order questions are asked in (the approved order: when, how long, who, how, pace & driving, interests, stay, avoid). */
-export const QUESTION_ORDER: AnswerKey[] = ["month", "days", "group", "mode", "pace", "nightDriving", "interests", "stay", "avoid"];
+// The order questions are asked in. Asked in the order of how much the answer changes the plan: when, how long, who (kids and elders change every day), pace, night driving,
+// what to avoid, then what they enjoy; the stay and the travel mode change least, so they come last.
+export const QUESTION_ORDER: AnswerKey[] = ["month", "days", "group", "pace", "nightDriving", "avoid", "interests", "stay", "mode"];
 export const MAX_QUESTIONS = 3;
 
 const placeKey = (p: PlaceMatch) => (p.place ? `${p.place.lat.toFixed(3)},${p.place.lng.toFixed(3)}` : `said:${p.said.toLowerCase()}`);
@@ -87,7 +88,9 @@ export function effectiveAnswers(d: Draft, defaults: Suggestion[]): Effective {
 /** What to ask next: conflicts first, then missing answers in order (defaults count as missing until confirmed or skipped). At most 3. */
 export function questionsToAsk(d: Draft, eff: Effective): AnswerKey[] {
   const conflicted = (d.understanding?.conflicts ?? []).map((c) => c.key).filter((k) => d.chosen[k] === undefined);
-  const missing = QUESTION_ORDER.filter((k) => (eff.source[k] === undefined || eff.source[k] === "default") && !d.skipped.includes(k) && !conflicted.includes(k));
+  // A one-day trip has no night to sleep somewhere, so the kind of stay is not asked.
+  const relevant = (k: AnswerKey) => !(k === "stay" && (eff.answers.days ?? 3) < 2);
+  const missing = QUESTION_ORDER.filter((k) => relevant(k) && (eff.source[k] === undefined || eff.source[k] === "default") && !d.skipped.includes(k) && !conflicted.includes(k));
   return [...new Set([...conflicted, ...missing])].slice(0, MAX_QUESTIONS);
 }
 
@@ -121,7 +124,7 @@ export function tripRequests(d: Draft, eff: Effective, name?: string, startDate:
   const start = d.start.place;
   const places = usablePlaces(d).filter((p) => p.place!.kind !== "state");
   const end = a.endMode === "place" ? places[places.length - 1]?.place ?? null : null;
-  const autoName = `${start ? `${start.name} · ` : ""}${places.slice(0, 2).map((p) => p.place!.name).join(", ")}${places.length > 2 ? ` +${places.length - 2}` : ""} · ${a.days ?? 3} days`.slice(0, 80);
+  const autoName = `${start ? `${start.name} · ` : ""}${places.slice(0, 2).map((p) => p.place!.name).join(", ")}${places.length > 2 ? ` +${places.length - 2}` : ""} · ${a.days ?? 3} ${(a.days ?? 3) === 1 ? "day" : "days"}`.slice(0, 80);
   const intake = Object.fromEntries(Object.entries({
     group: a.group, group_size: a.groupSize, mode: a.mode, pace: a.pace, max_drive_hours: a.maxDriveHours, night_driving: a.nightDriving,
     interests: a.interests?.length ? a.interests : undefined, stay: a.stay, avoid: a.avoid?.length ? a.avoid.slice(0, 8) : undefined, month: a.month,

@@ -12,7 +12,7 @@ import { intakeReadSchema } from "@/lib/validation/schemas";
 export const maxDuration = 30;
 
 // The AI half of reading a trip description — signed in or not, limited per visitor. The AI only READS: every answer must quote the
-// traveller's own words and is checked against them (lib/intake/ai-read.ts). We never wait more than 12 seconds: the screen already
+// traveller's own words and is checked against them (lib/intake/ai-read.ts). We never wait more than about 22 seconds (the AI call is stopped then): the screen already
 // shows the instant reading, and says plainly when the AI didn't answer. Nothing is stored; the text goes to the AI provider only.
 export async function POST(req: NextRequest) {
   const visitor = await identify(req);
@@ -28,5 +28,6 @@ export async function POST(req: NextRequest) {
     allow: () => allowCall(visitor, "map"),
   });
   if (answer.status === "failed") console.error("[intake/ai] the AI request failed");
+  if (answer.status === "slow") console.warn("[intake/ai] the AI did not answer in time");
   return rememberVisitor(NextResponse.json(answer, { headers: { "Cache-Control": "private, no-store" } }), visitor);
 }

@@ -5,6 +5,7 @@
 //   • toll plazas along that road (OpenStreetMap via Overpass), with a short time limit; fees are never guessed.
 // Anything that fails is labelled ("estimated", "not checked") instead of guessed. The engine itself is pure (lib/engine).
 import { AsyncCache } from "@/lib/cache";
+import { parseAvoid } from "@/lib/engine/avoid";
 import { DEFAULT_PREFS, type EngineInput, type EnginePlan, type EngineView, type Prefs, type RoadLine, type TownFinder } from "@/lib/engine/types";
 
 import { firstReached, planTrip } from "@/lib/engine/plan";
@@ -107,10 +108,13 @@ export function prefsFrom(intake: unknown, over: { night_driving?: boolean; max_
   return {
     pace: pick(i.pace, ["relaxed", "balanced", "packed"] as const, DEFAULT_PREFS.pace),
     maxDriveHours: over.max_drive_hours ?? (typeof i.max_drive_hours === "number" ? i.max_drive_hours : null),
-    nightDriving: over.night_driving ?? (typeof i.night_driving === "boolean" ? i.night_driving : false),
+    // "Avoid driving at night" is an explicit answer: it wins over a stored yes.
+    nightDriving: parseAvoid(i.avoid).includes("night_driving") ? false : over.night_driving ?? (typeof i.night_driving === "boolean" ? i.night_driving : false),
     group: pick<Prefs["group"]>(i.group, ["solo", "couple", "friends", "family", "family_kids", "family_elders"], null),
     interests: Array.isArray(i.interests) ? (i.interests.filter((x) => typeof x === "string") as Prefs["interests"]) : [],
     mode: pick(i.mode, ["car", "bike", "bus", "train"] as const, "car"),
+    avoid: parseAvoid(i.avoid),
+    stay: pick<Prefs["stay"]>(i.stay, ["hotel", "homestay", "hostel", "camping", "resort"], null),
   };
 }
 

@@ -133,11 +133,15 @@ export function checkAiReading(text: string, raw: unknown, opts: { todayMonth: n
 
 export class AiSlowError extends Error {}
 
-/** Ask the AI, but never wait longer than `timeoutMs`: the traveller already has the instant reading. */
+/** How long the traveller's screen waits for the AI. The instant reading is already shown, so this is a background wait. */
+export const AI_READ_TIMEOUT_MS = 22_000;
+
+/** Ask the AI, but never wait longer than `timeoutMs`: the traveller already has the instant reading. When time is up the request is stopped, not left running. */
 export async function aiReadTrip(text: string, llm: ToolCaller, opts: { todayMonth: number; timeoutMs?: number }): Promise<AiReading> {
-  const call = llm({ system: READ_SYSTEM, content: [{ type: "text", text: `<trip>\n${text.slice(0, 4000)}\n</trip>` }], tool: READ_TOOL, maxTokens: 1500 });
+  const stop = new AbortController();
+  const call = llm({ system: READ_SYSTEM, content: [{ type: "text", text: `<trip>\n${text.slice(0, 4000)}\n</trip>` }], tool: READ_TOOL, maxTokens: 1500, signal: stop.signal });
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const slow = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new AiSlowError("The AI took too long")), opts.timeoutMs ?? 12_000); });
+  const slow = new Promise<never>((_, reject) => { timer = setTimeout(() => { stop.abort(); reject(new AiSlowError("The AI took too long")); }, opts.timeoutMs ?? AI_READ_TIMEOUT_MS); });
   try {
     return checkAiReading(text, await Promise.race([call, slow]), opts);
   } finally {

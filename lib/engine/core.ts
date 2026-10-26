@@ -14,7 +14,7 @@ import { buildPlan } from "@/lib/trip-builder/plan";
 import type { BuilderInput, PlanOption, RemovedStop, Warning } from "@/lib/trip-builder/types";
 import { clockText } from "./daylight";
 import { haltFor } from "./halts";
-import { FAMILY_CAPACITY_SHARE, FAMILY_MAX_DRIVE_MIN, HILL_DARK_BUFFER_MIN, INTEREST_APPEAL } from "./rules";
+import { AVOID_ACTIVITY_APPEAL, AVOID_EARLY_START_MIN, MIN_DAY_WINDOW_MIN, AVOID_TREK_APPEAL, FAMILY_CAPACITY_SHARE, FAMILY_MAX_DRIVE_MIN, HILL_DARK_BUFFER_MIN, INTEREST_APPEAL } from "./rules";
 import { VARIANT_LABEL, type NightHalt, type Prefs, type TownFinder, type VariantId } from "./types";
 
 export const VARIANT_STYLE: Record<VariantId, StyleId> = { relaxed: "relaxed", balanced: "balanced", most: "explorer" };
@@ -24,6 +24,12 @@ const INTEREST_CATEGORIES: Record<string, PlaceCategory[]> = {
   adventure: ["trek", "activity", "waterfall"], photography: ["viewpoint", "beach", "lake", "fort"], food: ["food"], offbeat: [], shopping: [],
 };
 
+/** When the day starts for this variant: its own start, or not before 9:00 when the traveller wants no very early starts. */
+export function dayStartFor(v: VariantId, prefs: Prefs): number {
+  const base = STYLES[VARIANT_STYLE[v]];
+  return prefs.avoid.includes("early_starts") ? Math.max(base.dayStartMin, AVOID_EARLY_START_MIN) : base.dayStartMin;
+}
+
 /** The variant's numbers with the traveller's limits laid over them. `finishBy` = latest arrival (minutes) when night driving is refused. */
 export function styleFor(v: VariantId, prefs: Prefs, finishBy: number | null): { id: StyleId; override: Partial<Omit<StyleConfig, "id">> } {
   const id = VARIANT_STYLE[v];
@@ -32,13 +38,18 @@ export function styleFor(v: VariantId, prefs: Prefs, finishBy: number | null): {
   if (prefs.maxDriveHours) maxDrive = Math.min(maxDrive, Math.round(prefs.maxDriveHours * 60));
   const family = prefs.group === "family_kids" || prefs.group === "family_elders";
   if (family) maxDrive = Math.min(maxDrive, FAMILY_MAX_DRIVE_MIN);
+  // "No long drives": the same gentle daily driving as with kids or elders.
+  if (prefs.avoid.includes("long_drives")) maxDrive = Math.min(maxDrive, FAMILY_MAX_DRIVE_MIN);
+  const dayStart = dayStartFor(v, prefs);
   const dayEnd = finishBy !== null && !prefs.nightDriving ? Math.min(base.dayEndMin, finishBy) : base.dayEndMin;
   // An earlier finish (sunset) only matters when it leaves less clock time than the day's fatigue limit.
-  let capacity = Math.min(base.capacityMin, dayEnd - base.dayStartMin - base.mealMin);
+  let capacity = Math.min(base.capacityMin, dayEnd - dayStart - base.mealMin);
   if (family) capacity = Math.round(capacity * FAMILY_CAPACITY_SHARE);
   const appeal: Partial<Record<PlaceCategory, number>> = { ...base.appeal };
   for (const i of prefs.interests) for (const c of INTEREST_CATEGORIES[i] ?? []) appeal[c] = Math.max(appeal[c] ?? 1, INTEREST_APPEAL);
-  return { id, override: { maxDriveMin: maxDrive, dayEndMin: dayEnd, capacityMin: Math.max(120, capacity), appeal, ...(family ? { visitFactor: base.visitFactor * 1.1 } : {}) } };
+  // "No long walks or treks": treks and activities are the first to go when something has to be left out.
+  if (prefs.avoid.includes("long_walks")) { appeal.trek = Math.min(appeal.trek ?? 1, AVOID_TREK_APPEAL); appeal.activity = Math.min(appeal.activity ?? 1, AVOID_ACTIVITY_APPEAL); }
+  return { id, override: { maxDriveMin: maxDrive, dayStartMin: dayStart, dayEndMin: dayEnd, capacityMin: Math.max(120, capacity), appeal, ...(family ? { visitFactor: base.visitFactor * 1.1 } : {}) } };
 }
 
 export type CoreResult = {
@@ -111,10 +122,10 @@ export function planCore(a: CoreArgs): CoreResult {
     }
     if (late.length && finishBy !== null && pulls < PULLS) {
       // Pull the day's end earlier by exactly the overshoot (this also stops a golden-hour late start from pushing the drive home into
-      // the dark), and plan again.
-      finishBy -= Math.ceil(Math.max(...late.map((l) => l.arrive - l.limit))) + 5;
-      pulls++;
-      continue;
+      // the dark), and plan again. Never so early that the day has less than MIN_DAY_WINDOW_MIN left: past that, a late place is left
+      // out instead (below), so no plan ever says "the day ends at 11 AM".
+      const next = finishBy - (Math.ceil(Math.max(...late.map((l) => l.arrive - l.limit))) + 5);
+      if (next >= dayStartFor(a.variant, prefs) + MIN_DAY_WINDOW_MIN) { finishBy = next; pulls++; continue; }
     }
     // Still late: leave out the LATEST place that may be left out, one at a time, and start again from the real sunset.
     const dropLate = late.filter((l) => l.placeId && !mustOf(l.placeId)).sort((x, y) => y.arrive - x.arrive)[0];
@@ -128,7 +139,7 @@ export function planCore(a: CoreArgs): CoreResult {
     for (const t of tooLong) warnings.push({ code: "too_much_driving", severity: "risk", day: t.d.day, message: `Day ${t.d.day} has ${duration(t.d.driveMin)} of driving to keep your must-sees, more than your ${duration(cap!)} a day. Allow more days or relax a must-see.` });
     // The builder words things by its style name and by the days IT was given; say them the traveller's way.
     const label = VARIANT_LABEL[a.variant];
-    const reword = (s: string) => s.replace(/^Dropped to fit \d+ days? at an? [\w ]+? pace:/, `Left out so the ${label} plan fits your days:`).replace(/at an? (relaxed|balanced|explorer) pace/g, `in the ${label} plan`);
+    const reword = (s: string) => s.replace(/^Dropped to fit \d+ days? at an? [\w ]+? pace:/, `Left out so the ${label} plan fits your days:`).replace(/at an? (relaxed|balanced|explorer) pace/g, `in the ${label} plan`).replace(/an? (relaxed|balanced|explorer) day can hold/g, `day in the ${label} plan can hold`);
     option.removed = option.removed.map((r) => ({ ...r, reason: reword(r.reason) }));
     option.warnings = option.warnings.map((w) => ({ ...w, message: reword(w.message) }));
     for (const c of closed) warnings.push({ code: "closed_at_arrival", severity: "risk", day: c.day, placeId: c.s.placeId, message: `${c.s.name} is a must-see but its listed hours say it is closed on Day ${c.day}. Move it to another day or check the hours.` });
@@ -199,7 +210,7 @@ function haltsFor(option: PlanOption, a: CoreArgs): NightHalt[] {
     const s = d.stops[d.stops.length - 1];
     const p = a.input.places.find((x) => x.id === s.placeId);
     if (!p) continue;
-    const h = haltFor(d.day, { name: s.name, lat: p.lat, lng: p.lng }, a.towns);
+    const h = haltFor(d.day, { name: s.name, lat: p.lat, lng: p.lng }, a.towns, a.prefs.stay);
     if (h) out.push(h);
   }
   return out;

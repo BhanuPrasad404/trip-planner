@@ -18,13 +18,13 @@ export function questionFor(key: AnswerKey, thisMonth: number): { title: string;
     case "month": return { title: "When are you going?", options: Array.from({ length: 12 }, (_, i) => ((thisMonth - 1 + i) % 12) + 1).map((m) => ({ value: m, label: MONTHS[m - 1] })) };
     case "days": return { title: "How many days?", options: [1, 2, 3, 4, 5, 6, 7, 8, 10, 14].map((n) => ({ value: n, label: `${n} ${n === 1 ? "day" : "days"}` })) };
     case "group": return { title: "Who's going?", options: GROUPS.map((g) => ({ value: g, label: GROUP_LABEL[g] })) };
-    case "mode": return { title: "How are you travelling?", options: TRAVEL_MODES.map((m) => ({ value: m, label: MODE_LABEL[m] })), note: "By bus or train we plan around the towns you stay in; check the bus and train times yourself — we don't have timetables." };
+    case "mode": return { title: "How are you travelling?", options: TRAVEL_MODES.map((m) => ({ value: m, label: MODE_LABEL[m] })), note: "By bus or train we still plan with car road times between places. We have no bus or train timetables, so check them yourself." };
     case "pace": return { title: "What pace?", options: PACES.map((p) => ({ value: p, label: PACE_LABEL[p], hint: paceRules(PACE_STYLE[p]).lines[1] })) };
     case "maxDriveHours": return { title: "Most driving in a day?", options: [3, 4, 5, 6, 8].map((h) => ({ value: h, label: `${h} hours` })) };
     case "nightDriving": return { title: "Driving after dark?", options: [{ value: false, label: "No, finish before dark" }, { value: true, label: "Yes, that's fine" }] };
     case "interests": return { title: "What do you enjoy?", multi: true, options: INTERESTS.map((i) => ({ value: i, label: INTEREST_LABEL[i] })) };
     case "stay": return { title: "Where do you like to stay?", options: STAY_STYLES.map((s) => ({ value: s, label: STAY_LABEL[s] })), note: "We show what's on the map near your overnight towns; we don't have prices." };
-    case "avoid": return { title: "Anything to avoid?", multi: true, options: Object.values(AVOID_LABEL).map((l) => ({ value: l, label: l })) };
+    case "avoid": return { title: "Anything to avoid?", multi: true, options: Object.entries(AVOID_LABEL).filter(([id]) => id !== "crowds").map(([, l]) => ({ value: l, label: l })), note: "Long drives, very early starts and long walks change your plan. Driving at night is already off unless you allow it." };
     case "endMode": return { title: "How does the trip end?", options: [{ value: "start", label: "Return to start" }, { value: "place", label: "End at the last place" }, { value: "open", label: "Open-ended" }] };
     default: return null;
   }

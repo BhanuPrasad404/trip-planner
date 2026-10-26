@@ -94,7 +94,7 @@ export function FuelCard({ km, defaultMileage }: { km: number; defaultMileage: n
 /** Everything the plan rests on, said plainly: what is measured, what is estimated, what wasn't checked. */
 export function PlanLabels({ e }: { e: EngineView }) {
   const L = e.labels;
-  const lines = [L.roadsText, L.margin, L.weather, L.hours, L.daylight, L.halts, L.tolls].filter(Boolean);
+  const lines = [L.travel, L.roadsText, L.margin, L.weather, L.hours, L.daylight, L.halts, L.tolls].filter(Boolean);
   return (
     <details className="rounded-xl border border-line" open={L.roads !== "routed" || e.permits.length > 0}>
       <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-3.5 text-sm font-semibold text-pine">

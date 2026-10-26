@@ -23,7 +23,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   const endMode = builderEndMode(t);
   return (
     <main id="main" className="flex-1">
-      <ResultView kind="trip" tripId={t.id} tripName={t.name} numDays={t.num_days} startDate={t.start_date ?? null} canEdit={b.userId === t.owner_id} endMode={endMode}
+      <ResultView kind="trip" tripId={t.id} tripName={t.name} numDays={t.num_days} startDate={t.start_date ?? null} startTime={t.start_time ?? null} canEdit={b.userId === t.owner_id} endMode={endMode}
         start={{ lat: t.start_lat, lng: t.start_lng, label: t.start_city ?? "Start" }} end={endMode === "point" ? tripEndPoint(t) : null} places={b.places} />
     </main>
   );

@@ -64,7 +64,7 @@ function addBackSuggestions(ctx: Ctx, days: number[][], removed: RemovedStop[], 
         const loads = dayLoads(ctx, trial);
         const extraDrive = loads.reduce((s, l) => s + l.drive, 0) - base.reduce((s, l) => s + l.drive, 0);
         const fits = loads.every((l) => l.ok);
-        const spare = ctx.style.capacityMin - loads[d].load;
+        const spare = ctx.dayCapacity(d + 1) - loads[d].load;
         if (!best || (fits && !best.fits) || (fits === best.fits && (extraDrive < best.extraDrive - 1e-6 || (Math.abs(extraDrive - best.extraDrive) < 1e-6 && d + 1 < best.day)))) best = { day: d + 1, extraDrive, spare, fits };
       }
     }
@@ -138,7 +138,7 @@ export function buildPlan(input: BuilderInput, styleId: StyleId, shared?: { clus
   const dayPlans: DayPlan[] = assembleDays(ctx, days, clusters);
   const warnings = planWarnings(ctx, dayPlans, D);
   if (!feasible) {
-    const over = dayPlans.reduce((s, d) => s + Math.max(0, d.loadMin - style.capacityMin), 0);
+    const over = dayPlans.reduce((s, d) => s + Math.max(0, d.loadMin - d.capacityMin), 0);
     warnings.unshift({ code: "over_capacity", severity: "risk", message: `Your must-do places alone need about ${duration(over)} more than ${D} day${D === 1 ? "" : "s"} allow at a ${style.label.toLowerCase()} pace. Add a day, or relax a must-do.` });
   }
 

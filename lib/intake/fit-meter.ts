@@ -2,6 +2,7 @@
 // (lib/trip-builder/brief.ts: real road times, visit times, day limits, dropping what can't fit, must-sees never dropped) every time an
 // answer changes. Pure and fast (a few ms for a normal trip), so it runs on the phone; the road times are fetched once per set of places.
 // It checks driving and time only — opening hours, weather and night driving are checked when the trip is planned, and it says so.
+import { SETTLEMENT_VISIT_MIN } from "@/lib/engine/settlement";
 import type { PlaceCategory } from "@/lib/categories";
 import { evaluateBrief, type BriefConstraints, type BriefFit } from "@/lib/trip-builder/brief";
 import type { PlaceHit } from "@/lib/places/types";
@@ -28,6 +29,15 @@ export type Meter = {
   leftOut: { name: string; reason: string }[];
   estimated: boolean;
 };
+
+/**
+ * A town or city written as a "place" is not a monument: the same time the planner gives it (lib/engine/settlement.ts), so this meter
+ * and the plan agree. A city is many sights; a town or village is a short stop. Null for every other kind (its category decides).
+ */
+export function settlementMinutes(p: { name: string; kind: PlaceHit["kind"] }): number | null {
+  if (categoryFor(p) !== "other") return null;
+  return p.kind === "city" ? SETTLEMENT_VISIT_MIN.city : p.kind === "town" || p.kind === "village" ? SETTLEMENT_VISIT_MIN.town : null;
+}
 
 /** Which kind of place, for its typical visit time. From the name first ("…Falls"), then the map's kind. */
 export function categoryFor(p: { name: string; kind: PlaceHit["kind"] }): PlaceCategory {
@@ -69,7 +79,7 @@ export function fitMeter(input: { answers: TripAnswers; start: { lat: number; ln
     returnToStart: answers.endMode === "start", mustSee: places.filter((p) => p.must).map((p) => p.name),
   };
   const fit: BriefFit = evaluateBrief({
-    candidates: places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: categoryFor(p), confidence: 1, must: p.must })),
+    candidates: places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: categoryFor(p), confidence: 1, must: p.must, visitMin: settlementMinutes(p) })),
     start: { lat: start.lat, lng: start.lng, label: start.name },
     numDays: answers.days, startDateISO: input.startDateISO ?? null, utcOffsetMin: 330, constraints, matrix,
   });

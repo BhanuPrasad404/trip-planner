@@ -18,10 +18,13 @@ function need(ctx: Ctx, nodes: number[]) {
   return { order, driveMin, km, visitMin, bufferMin, neededMin: driveMin + visitMin + bufferMin };
 }
 
+/** What `numDays` days can hold in all (a day 1 that starts late holds less). */
+const capacityOf = (ctx: Ctx, numDays: number) => Array.from({ length: Math.max(0, numDays) }, (_, i) => ctx.dayCapacity(i + 1)).reduce((a, b) => a + b, 0);
+
 export function realityFor(ctx: Ctx, numDays: number): Reality {
   const nodes = ctx.places.map((_, i) => i + 1);
   const r = need(ctx, nodes);
-  const availableMin = numDays * ctx.style.capacityMin;
+  const availableMin = capacityOf(ctx, numDays);
   const overMin = Math.round(r.neededMin - availableMin);
   const status: Reality["status"] = r.neededMin <= availableMin * 0.9 ? "fits" : r.neededMin <= availableMin ? "tight" : "over";
   const places = nodes.length;
@@ -40,7 +43,7 @@ export function realityFor(ctx: Ctx, numDays: number): Reality {
 export function removeSuggestions(ctx: Ctx, numDays: number, max = 3): RemoveSuggestion[] {
   const all = ctx.places.map((_, i) => i + 1);
   const full = need(ctx, all);
-  const available = numDays * ctx.style.capacityMin;
+  const available = capacityOf(ctx, numDays);
   const rows = all
     .filter((i) => ctx.priority(i) !== "must")
     .map((i) => {

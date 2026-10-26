@@ -1,5 +1,6 @@
 // Loads everything the Smart Trip Builder needs for one trip (places, votes, road matrix, weather) and runs the pure planner.
 // Used by both the preview route and the apply route, so the traveller applies EXACTLY what they were shown (checked by signature).
+import { startMinOf } from "@/lib/result/start-time";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeCategory } from "@/lib/categories";
@@ -32,10 +33,12 @@ const tagOf = (p: Row) => {
   return Array.isArray(t) ? t[0] : t ?? undefined;
 };
 
+export { startMinOf };
+
 /** Stable fingerprint of the INPUT (not the answer): places, dates, ends. If anything changes, an old preview must not be applied. */
 export function inputSignature(input: BuilderInput): string {
   const stable = {
-    v: BUILDER_VERSION, n: input.numDays, d: input.startDateISO, e: input.endMode, s: [input.start.lat, input.start.lng], x: input.end ? [input.end.lat, input.end.lng] : null,
+    v: BUILDER_VERSION, n: input.numDays, d: input.startDateISO, t: input.firstDayStartMin ?? null, e: input.endMode, s: [input.start.lat, input.start.lng], x: input.end ? [input.end.lat, input.end.lng] : null,
     p: input.places.map((p) => [p.id, p.lat, p.lng, p.category, p.priority, p.visitMin ?? null, p.hours ?? null, p.hoursSource ?? null, p.hoursConfirmed ?? false, p.vote ?? 0]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   };
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
@@ -101,7 +104,7 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
 
   const start = { lat: trip.start_lat as number, lng: trip.start_lng as number, label: (trip.start_city as string) ?? "Start" };
   const matrix = await getMatrix([start, ...base, ...(end && endMode === "point" ? [end] : [])]);
-  const input: BuilderInput = { places: base, start, end, endMode, numDays, startDateISO: startDate, utcOffsetMin: opts.utcOffsetMin ?? 330, matrix, evalHours: hoursStatusAt };
+  const input: BuilderInput = { places: base, start, end, endMode, numDays, startDateISO: startDate, utcOffsetMin: opts.utcOffsetMin ?? 330, matrix, evalHours: hoursStatusAt, firstDayStartMin: startMinOf(trip.start_time) };
   const result = buildTrip(input, opts.styles);
   return { ok: true, input, result, signature: inputSignature(input), unscheduledIds: places.filter((p) => p.day_number == null).map((p) => p.id as string), trip: trip as Row, skipped };
 }

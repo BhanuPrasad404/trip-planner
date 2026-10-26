@@ -5,9 +5,9 @@ import { dbError, jsonError, parseBody } from "@/lib/api";
 import { createTripSchema } from "@/lib/validation/schemas";
 
 /** Which newer column the database doesn't have yet (migration not applied): PostgREST says PGRST204, Postgres says 42703. */
-const missingColumn = (e: { code?: string; message?: string } | null): "end_mode" | "intake" | null => {
+const missingColumn = (e: { code?: string; message?: string } | null): "end_mode" | "intake" | "start_time" | null => {
   if (!e || (e.code !== "PGRST204" && e.code !== "42703")) return null;
-  return /end_mode/.test(e.message ?? "") ? "end_mode" : /intake/.test(e.message ?? "") ? "intake" : null;
+  return /end_mode/.test(e.message ?? "") ? "end_mode" : /intake/.test(e.message ?? "") ? "intake" : /start_time/.test(e.message ?? "") ? "start_time" : null;
 };
 
 // Create a trip. The owner is added as the first member by the `on_trip_created`
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   let { data: trip, error } = await insert(row);
   // Until migrations 20261024000000 / 20261025000000 are applied the trip is still created, without the newer fields, and behaves like an
   // old trip: "return to start" is NOT remembered (it acts as open) and the guided-flow answers are not saved. The migrations fix that.
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const col = missingColumn(error);
     if (!col || !(col in row)) break;
     const { [col]: _dropped, ...rest } = row;

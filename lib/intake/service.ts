@@ -34,7 +34,7 @@ export async function readWithAi(text: string, chosenStart: Start, deps: Resolve
   if (!(await deps.allowAi())) return none("limit");
   let reading: AiReading;
   try {
-    reading = await aiReadTrip(text, deps.llm, { todayMonth: indiaMonth(now), timeoutMs: deps.timeoutMs ?? AI_READ_TIMEOUT_MS });
+    reading = await aiReadTrip(text, deps.llm, { todayMonth: indiaMonth(now), todayISO: dateOf(now, INDIA_UTC_OFFSET_MIN), timeoutMs: deps.timeoutMs ?? AI_READ_TIMEOUT_MS });
   } catch (e) {
     if (e instanceof AiSlowError) return none("slow");
     if (e instanceof AiNotConfiguredError) return none("off");

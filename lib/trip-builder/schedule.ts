@@ -14,7 +14,7 @@ export const MAX_GOLDEN_SHIFT_MIN = 180;
 /** `tailMin` = driving still to come after the last stop (the drive home on the last day): a golden-hour late start must leave room for it. */
 export function scheduleDay(ctx: Ctx, day: number, order: number[], prev: number, shift = 0, tailMin = 0): TimedDay {
   const s = ctx.style;
-  let t = s.dayStartMin + shift, from = prev;
+  let t = ctx.dayStart(day) + shift, from = prev;
   let earlyBy = 0; // how much earlier than the golden hour the first golden stop is reached
   const stops: TimedDay["stops"] = [];
   let driveMin = 0, driveKm = 0, visitMin = 0, bufferMin = 0, penalty = 0;
@@ -67,7 +67,7 @@ export function scheduleDay(ctx: Ctx, day: number, order: number[], prev: number
     const want = Math.min(earlyBy, MAX_GOLDEN_SHIFT_MIN, slack);
     if (want >= 15) return scheduleDay(ctx, day, order, prev, Math.floor(want / 5) * 5, tailMin);
   }
-  return { stops, startMin: s.dayStartMin + shift, endMin: t, driveMin, driveKm, visitMin, bufferMin, penalty };
+  return { stops, startMin: ctx.dayStart(day) + shift, endMin: t, driveMin, driveKm, visitMin, bufferMin, penalty };
 }
 
 function* permutations<T>(a: T[]): Generator<T[]> {

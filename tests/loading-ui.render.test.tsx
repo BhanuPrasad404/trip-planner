@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/ui/Button";
 import { Spinner, LoadingMark } from "@/components/ui/Spinner";
+import { AppLoader } from "@/components/ui/AppLoader";
+import { readFileSync } from "node:fs";
 import { CardGridSkeleton, FeedSkeleton, MapSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import RootLoading from "@/app/loading";
 import AppLoading from "@/app/(app)/loading";
@@ -90,7 +92,32 @@ describe("every route has an instant loading screen with exactly one announcemen
       const h = html(el());
       expect(h).toContain('aria-busy="true"');
       expect((h.match(/role="status"/g) ?? []).length).toBe(1);
-      expect(h).toMatch(/tm-skeleton|tm-mark-trail/);
+      expect(h).toMatch(/tm-skeleton|tm-mark-trail|tm-roadload/);
     });
   }
+});
+
+describe("the opening screen (AppLoader)", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../components/ui/AppLoader.tsx", import.meta.url), "utf8");
+  it("is announced once, with a label, and the drawing is hidden from screen readers", () => {
+    const h = html(<AppLoader label="Loading Trailmate" />);
+    expect((h.match(/role="status"/g) ?? []).length).toBe(1);
+    expect(h).toContain("Loading Trailmate"); expect(h).toContain('aria-hidden="true"');
+  });
+  it("uses only theme colours (no fixed colour values), so each theme can repaint it", () => {
+    expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+    for (const t of ["sky-top", "sky-bottom", "sun", "hill-far", "hill-near", "road", "line", "ring", "shadow"]) {
+      expect((css.match(new RegExp(`--tm-load-${t}:`, "g")) ?? []).length, t).toBe(2); // the light theme and the phone theme
+    }
+  });
+  it("moves only when motion is welcome: every animated part is still for reduced motion", () => {
+    for (const c of ["tm-roadload-sun", "tm-roadload-line", "tm-roadload-name"]) {
+      expect(css).toMatch(new RegExp(`\\.${c} \\{ animation:`));
+      expect(css).toMatch(new RegExp(`prefers-reduced-motion: reduce\\) \\{[^}]*\\.${c}`));
+    }
+  });
+  it("is the root loading screen", () => {
+    expect(html(<RootLoading />)).toContain("tm-roadload");
+  });
 });

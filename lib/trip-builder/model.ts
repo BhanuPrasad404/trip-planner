@@ -32,6 +32,10 @@ export type Ctx = {
   sunsetMin: (matrixIdx: number, day: number) => number | null;
   open: (matrixIdx: number, day: number, minute: number) => { state: "open" | "closed" | "unknown"; at?: string };
   fit: (matrixIdx: number, day: number) => number | null;
+  /** When day `day` starts (minutes after midnight): the style's start, or later on day 1 when the trip begins later that day. */
+  dayStart: (day: number) => number;
+  /** Most driving + sightseeing + buffers day `day` can hold: day 1 holds less when it starts late. */
+  dayCapacity: (day: number) => number;
 };
 
 const ceil5 = (n: number) => Math.max(5, Math.round(n / 5) * 5);
@@ -72,8 +76,15 @@ export function makeCtx(input: BuilderInput, style: StyleConfig = STYLES.balance
     return s;
   };
 
+  // Day 1 starting late (the trip begins later today): only the rest of that day is there to use, and after 2 PM lunch is already behind.
+  const late = input.firstDayStartMin != null ? Math.max(0, Math.round(input.firstDayStartMin) - style.dayStartMin) : 0;
+  const start1 = style.dayStartMin + late;
+  const cap1 = late ? Math.max(0, Math.min(style.capacityMin, style.dayEndMin - start1 - (start1 >= 14 * 60 ? 0 : style.mealMin))) : style.capacityMin;
+
   return {
     input, style, places: input.places, endIdx,
+    dayStart: (d) => (d === 1 ? start1 : style.dayStartMin),
+    dayCapacity: (d) => (d === 1 ? cap1 : style.capacityMin),
     dur, km,
     driveMin: (a, b) => dur(a, b) * (1 + style.driveBufferShare),
     visitMin: (i) => {

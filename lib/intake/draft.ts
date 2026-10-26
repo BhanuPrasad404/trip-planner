@@ -136,6 +136,8 @@ export function tripRequests(d: Draft, eff: Effective, name?: string, startDate:
       end_mode: a.endMode === "place" && !end ? "open" : a.endMode ?? "start",
       dest_name: end?.name ?? null, dest_lat: end?.lat ?? null, dest_lng: end?.lng ?? null,
       start_date: startDate, num_days: a.days ?? 3, intake,
+      // "Leaving at 6 AM": kept only for the day it was said for (a different start date means a different first day).
+      ...(a.startTime && startDate && (!a.startDate || a.startDate === startDate) ? { start_time: a.startTime } : {}),
     },
     places: places.slice(0, 20).map((p) => ({
       name: p.place!.name, lat: p.place!.lat, lng: p.place!.lng,

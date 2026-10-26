@@ -40,6 +40,8 @@ export const createTripSchema = z.object({
     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date").nullish().transform((v) => v ?? null)
   ),
   num_days: z.number().int().min(1, "At least 1 day").max(MAX_TRIP_DAYS, `Max ${MAX_TRIP_DAYS} days`),
+  /** When day 1 starts if the traveller said ("06:00"); absent = the plan's usual start. */
+  start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 06:00").optional(),
   /** How the trip ends (lib/trip/end.ts). Absent = the old form: the destination, if any, is the end. */
   end_mode: z.enum(["start", "place", "open"]).optional(),
   /** What the traveller told us in the guided flow (lib/intake). Absent for the old form. */
@@ -443,5 +445,7 @@ export const updateTripSchema = z
       .nullable()
       .optional(),
     num_days: z.number().int("Use a whole number of days").min(1, "At least 1 day").max(MAX_TRIP_DAYS, `Max ${MAX_TRIP_DAYS} days`).optional(),
+    /** When day 1 starts ("15:30"), or null for the usual start. Changing the date without it resets it (a time belongs to one date). */
+    start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 15:30").nullable().optional(),
   })
-  .refine((v) => v.start_date !== undefined || v.num_days !== undefined, { message: "Nothing to change" });
+  .refine((v) => v.start_date !== undefined || v.num_days !== undefined || v.start_time !== undefined, { message: "Nothing to change" });

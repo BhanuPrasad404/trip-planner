@@ -3,6 +3,7 @@ import { freshnessOf } from "@/lib/social/freshness";
 import { haversineM } from "@/lib/geo";
 import { CONDITION_IDS, CROWD_LEVELS, VIBE_IDS, type CrowdLevel } from "./experience";
 import type { FeedCandidate, PostKind } from "./types";
+import type { BadgeDTO } from "@/lib/social/standing";
 
 /** One row of feed_items()/feed_candidates(). */
 export type FeedRow = {
@@ -47,7 +48,8 @@ export type FeedItemDTO = {
   caption: string | null;
   placeName: string;
   destination: { id: string; name: string; slug: string };
-  author: { username: string; displayName: string | null };
+  /** `badge`: what the author earned by helping other travelers (absent when they have not yet, or it could not be read). */
+  author: { username: string; displayName: string | null; badge?: BadgeDTO | null; /** The viewer follows this traveler (accepted). */ followed?: boolean };
   media: MediaDTO[];
   counts: { likes: number; comments: number; saves: number; helpful: number; tripAdds: number };
   me: { liked: boolean; saved: boolean; helped: boolean };
@@ -61,13 +63,13 @@ export type FeedItemDTO = {
   createdAt: string;
 };
 
-export function toItem(c: FeedCandidate, media: MediaDTO[], opts: { now: Date; viewerId: string; position: { lat: number; lng: number } | null }): FeedItemDTO {
+export function toItem(c: FeedCandidate, media: MediaDTO[], opts: { now: Date; viewerId: string; position: { lat: number; lng: number } | null; badge?: BadgeDTO | null }): FeedItemDTO {
   const f = freshnessOf(c.createdAt, c.capturedAt, opts.now);
   const canComment = c.commentsAllowed === "everyone" || (c.commentsAllowed === "followers" && (c.followed || c.authorId === opts.viewerId));
   return {
     id: c.id, kind: c.kind, caption: c.caption, placeName: c.placeName,
     destination: { id: c.destinationId, name: c.destinationName, slug: c.destinationSlug },
-    author: { username: c.username, displayName: c.displayName },
+    author: { username: c.username, displayName: c.displayName, followed: c.followed, ...(opts.badge ? { badge: opts.badge } : {}) },
     media,
     counts: { likes: c.counters.likes, comments: c.counters.comments, saves: c.counters.saves, helpful: c.counters.helpful, tripAdds: c.counters.tripAdds },
     me: { liked: c.liked, saved: c.saved, helped: c.helped },

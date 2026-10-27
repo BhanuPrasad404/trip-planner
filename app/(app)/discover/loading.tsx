@@ -1,11 +1,11 @@
-import { FeedSkeleton } from "@/components/ui/Skeleton";
+import { FeedSkeletonList } from "@/components/ui/PostSkeleton";
 
-// The feed's first screen, in the feed's own colours, so opening Discover feels instant.
+// The feed's first screen, shaped like the feed, so opening Discover feels instant.
 export default function Loading() {
   return (
     <main id="main" aria-busy="true">
       <span role="status" className="sr-only">Loading Discover</span>
-      <div className="h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-3rem)] md:p-4"><div className="mx-auto h-full w-full overflow-hidden bg-pine md:max-w-[440px] md:rounded-3xl"><FeedSkeleton /></div></div>
+      <div className="mx-auto w-full max-w-[34rem] pt-14 sm:px-5 sm:pt-6"><FeedSkeletonList count={2} /></div>
     </main>
   );
 }

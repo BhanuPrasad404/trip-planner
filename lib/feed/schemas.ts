@@ -35,3 +35,5 @@ export const hideSchema = z.object({ kind: z.enum(["post", "author", "destinatio
 export const blockSchema = z.object({ username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, "Invalid username") });
 export const postIdSchema = uuid;
 export const markReadSchema = z.object({ ids: z.array(uuid).min(1).max(50).optional() });
+/** Fresh picture links for posts already on screen (their old links expired). At most one page's worth per call. */
+export const mediaRefreshSchema = z.object({ ids: z.array(uuid).min(1).max(12) });

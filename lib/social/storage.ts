@@ -31,8 +31,15 @@ export function supabaseMediaStorage(supabase: SupabaseClient): MediaStorage {
     async signedUrls(paths, seconds = 3600) {
       const out = new Map<string, string>();
       if (paths.length === 0) return out;
-      const { data } = await bucket().createSignedUrls(paths, seconds);
-      for (const d of data ?? []) if (d.path && d.signedUrl && !d.error) out.set(d.path, d.signedUrl);
+      const { data, error } = await bucket().createSignedUrls(paths, seconds);
+      // A failure here used to be silent: the posts then showed with empty pictures and nobody could tell why. Say it, once per call.
+      if (error) { console.error(`[media] signing ${paths.length} file(s) failed: ${error.message}`); return out; }
+      let refused = 0, firstReason = "";
+      for (const d of data ?? []) {
+        if (d.path && d.signedUrl && !d.error) out.set(d.path, d.signedUrl);
+        else { refused++; firstReason ||= String(d.error ?? "no link returned"); }
+      }
+      if (refused > 0) console.error(`[media] ${refused} of ${paths.length} file(s) got no link (first reason: ${firstReason}). Check that the files exist in the post-media bucket and that this person may read them.`);
       return out;
     },
     async remove(paths) {

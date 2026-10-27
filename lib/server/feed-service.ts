@@ -8,6 +8,8 @@ import { rowToCandidate, toItem, type FeedItemDTO, type FeedRow, type MediaDTO }
 import { rankFeed } from "@/lib/feed/rank";
 import type { FeedCandidate } from "@/lib/feed/types";
 import { supabaseMediaStorage, type MediaStorage } from "@/lib/social/storage";
+import { badgeOf } from "@/lib/social/standing";
+import { loadStanding } from "./standing";
 
 export type FeedRequest = {
   cursor?: string | null;
@@ -27,6 +29,8 @@ export type FeedPage = {
   coldStart: boolean;
   /** Why the page is empty, when it is more specific than "nothing posted yet" (e.g. My trip with no places on the trip). */
   notice?: string;
+  /** Destinations near the stops of the trip being planned (first page only): the screen marks their posts "On your trip". */
+  tripDestinations?: string[];
   meta: { candidates: number; ranked: number; timings: Record<string, number> };
 };
 
@@ -80,10 +84,12 @@ export async function loadMedia(supabase: SupabaseClient, storage: MediaStorage,
     .order("position", { ascending: true });
   if (error) { console.error("[feed] media:", error.code, error.message); return out; }       // posts still show, just without pictures
   const list = (data ?? []) as { post_id: string; media_type: "image" | "video"; storage_path: string; poster_path: string | null; width: number | null; height: number | null; duration_s: number | string | null }[];
+  const withFiles = new Set(list.map((m) => m.post_id));
+  if (withFiles.size < ids.length) console.info(`[feed] media: ${ids.length - withFiles.size} of ${ids.length} post(s) have no picture rows (written reports have none; a photo or video post without them was saved without its files)`);
   const urls = await storage.signedUrls([...new Set(list.flatMap((m) => [m.storage_path, ...(m.poster_path ? [m.poster_path] : [])]))], 3600);
   for (const m of list) {
     const url = urls.get(m.storage_path);
-    if (!url) continue;                                                                       // an unsignable file is skipped, not fatal
+    if (!url) { console.warn(`[feed] media: no link for ${m.media_type} of post ${m.post_id} (file ${m.storage_path.split("/").slice(0, 1).join("/")}/…)`); continue; }   // skipped, not fatal — and now said
     const arr = out.get(m.post_id) ?? [];
     arr.push({ type: m.media_type, url, posterUrl: m.poster_path ? urls.get(m.poster_path) ?? null : null, width: m.width, height: m.height, durationS: m.duration_s == null ? null : Number(m.duration_s) });
     out.set(m.post_id, arr);
@@ -107,6 +113,7 @@ export async function buildFeedPage(supabase: SupabaseClient, userId: string, re
   const gen = cursor ? cursor.gen + (cursor.ids.length === 0 ? 1 : 0) : 0;
   const intent: IntentId = cursor?.intent ?? req.intent ?? "for_you";      // a scroll keeps the mode it started in
   let notice: string | undefined;
+  let tripDestinations: string[] | undefined;
   let coldStart = false;
   let candidateCount = 0;
   let rankedCount = 0;
@@ -126,6 +133,7 @@ export async function buildFeedPage(supabase: SupabaseClient, userId: string, re
     let t = clock();
     const sig = await loadSignals(supabase, userId, req.tripId);
     timings.signals = clock() - t;
+    tripDestinations = [...sig.trip];
     if (intent === "trip" && sig.trip.size === 0) {
       // "My trip" with nothing to match: say why, instead of showing an unexplained empty feed.
       notice = req.tripId ? "No travelers have posted from the places on this trip yet. Add more stops, or try Right now." : "Open a trip and add its places — posts from those destinations will show up here.";
@@ -156,14 +164,78 @@ export async function buildFeedPage(supabase: SupabaseClient, userId: string, re
   }
 
   const t = clock();
-  const media = await loadMedia(supabase, storage, pageCandidates.map((c) => c.id));
+  const [media, standing] = await Promise.all([                  // pictures and badges are independent: one round trip, not two
+    loadMedia(supabase, storage, pageCandidates.map((c) => c.id)),
+    loadStanding(supabase, pageCandidates.map((c) => c.authorId), { now: t0 }),
+  ]);
   timings.media = clock() - t;
-  const items = pageCandidates.map((c) => toItem(c, media.get(c.id) ?? [], { now: viewNow, viewerId: userId, position }));
+  const items = pageCandidates.map((c) => toItem(c, media.get(c.id) ?? [], { now: viewNow, viewerId: userId, position, badge: badgeOf(standing.get(c.authorId)) }));
 
   // More of this snapshot, or "refill" (empty ids) so the next request ranks again without repeating what was just shown.
   // A page that produced nothing at all ends the feed.
   const nextCursor = items.length === 0 && restIds.length === 0 ? null : encodeCursor({ ids: restIds, seen, gen, intent });
   timings.total = clock() - t0;
   console.info("[feed] feed.page", JSON.stringify({ items: items.length, rest: restIds.length, cold: coldStart, ...timings }));
-  return { items, nextCursor, coldStart, ...(notice ? { notice } : {}), meta: { candidates: candidateCount, ranked: rankedCount, timings } };
+  return { items, nextCursor, coldStart, ...(notice ? { notice } : {}), ...(tripDestinations ? { tripDestinations } : {}), meta: { candidates: candidateCount, ranked: rankedCount, timings } };
+}
+
+/** ONE post for its own page, under the viewer's real rules (blocked, hidden, moderated or deleted posts are simply not there). */
+export async function loadPost(supabase: SupabaseClient, userId: string, id: string, deps: Deps = {}): Promise<FeedItemDTO | null> {
+  const now = new Date((deps.now ?? Date.now)());
+  const fetched = rows<FeedRow>(await rpc(supabase, "feed_items", { _ids: [id] }), "feed_items");
+  const cand = fetched.map(rowToCandidate).find((c): c is FeedCandidate => !!c && c.id === id);
+  if (!cand) return null;
+  const [media, standing] = await Promise.all([loadMedia(supabase, deps.storage ?? supabaseMediaStorage(supabase), [cand.id]), loadStanding(supabase, [cand.authorId], { now: now.getTime() })]);
+  return toItem(cand, media.get(cand.id) ?? [], { now, viewerId: userId, position: null, badge: badgeOf(standing.get(cand.authorId)) });
+}
+
+/** More from the same destination, newest first, for the bottom of a post page. Best effort: a failure here never hides the post. */
+export async function loadPlaceMore(supabase: SupabaseClient, userId: string, destinationId: string, excludeId: string, limit = 8, deps: Deps = {}): Promise<FeedItemDTO[]> {
+  try {
+    const now = new Date((deps.now ?? Date.now)());
+    const found = rows<FeedRow>(await rpc(supabase, "feed_candidates", { _dest: [destinationId], _lat: null, _lng: null, _limit: 40 }), "feed_candidates")
+      .map(rowToCandidate)
+      .filter((c): c is FeedCandidate => !!c && c.destinationId === destinationId && c.id !== excludeId)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? -1 : 1))
+      .slice(0, Math.max(1, Math.min(limit, 12)));
+    const [media, standing] = await Promise.all([loadMedia(supabase, deps.storage ?? supabaseMediaStorage(supabase), found.map((c) => c.id)), loadStanding(supabase, found.map((c) => c.authorId), { now: now.getTime() })]);
+    return found.map((c) => toItem(c, media.get(c.id) ?? [], { now, viewerId: userId, position: null, badge: badgeOf(standing.get(c.authorId)) }));
+  } catch (e) {
+    console.error("[feed] more from place:", e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+
+/** A cursor for one traveler's posts: "<created_at>|<id>". Strict, because it is placed into a database filter. */
+const AUTHOR_CURSOR = /^(\d{4}-\d{2}-\d{2}T[\d:.+Z-]{8,32})\|([0-9a-f-]{36})$/i;
+export const AUTHOR_PAGE = 12;
+
+/**
+ * One traveler's posts, newest first, a page at a time. The database decides what this viewer may see (a private traveler's posts
+ * only for followers; hidden, blocked or moderated posts never). Throws on a damaged cursor so the route can answer 400.
+ */
+export async function loadAuthorPosts(supabase: SupabaseClient, userId: string, authorId: string, cursor: string | null, deps: Deps = {}): Promise<{ items: FeedItemDTO[]; nextCursor: string | null }> {
+  let q = supabase.from("posts").select("id, created_at").eq("author_id", authorId).eq("status", "visible")
+    .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(AUTHOR_PAGE + 1);
+  if (cursor) {
+    const m = AUTHOR_CURSOR.exec(cursor);
+    if (!m) throw new FeedError("bad cursor", 400);
+    q = q.or(`created_at.lt.${m[1]},and(created_at.eq.${m[1]},id.lt.${m[2]})`);
+  }
+  const { data, error } = await q;
+  if (error) { console.error("[feed] author posts:", error.code, error.message); throw new FeedError("author posts failed"); }
+  const list = (data ?? []) as { id: string; created_at: string }[];
+  const page = list.slice(0, AUTHOR_PAGE);
+  if (page.length === 0) return { items: [], nextCursor: null };
+  const now = new Date((deps.now ?? Date.now)());
+  const fetched = rows<FeedRow>(await rpc(supabase, "feed_items", { _ids: page.map((p) => p.id) }), "feed_items");
+  const byId = new Map(fetched.map((r) => [r.id, rowToCandidate(r)]));
+  const cands = page.map((p) => byId.get(p.id)).filter((c): c is FeedCandidate => !!c);
+  const [media, standing] = await Promise.all([loadMedia(supabase, deps.storage ?? supabaseMediaStorage(supabase), cands.map((c) => c.id)), loadStanding(supabase, [authorId], { now: now.getTime() })]);
+  const last = page[page.length - 1];
+  return {
+    items: cands.map((c) => toItem(c, media.get(c.id) ?? [], { now, viewerId: userId, position: null, badge: badgeOf(standing.get(c.authorId)) })),
+    nextCursor: list.length > AUTHOR_PAGE ? `${last.created_at}|${last.id}` : null,
+  };
 }

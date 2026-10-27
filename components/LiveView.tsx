@@ -11,6 +11,8 @@ import { OutboxStatus } from "./OutboxStatus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTripActions } from "@/lib/client/use-trip-actions";
+import { markAsked, shouldAsk } from "@/lib/feed/quick-report";
+import { QuickReport } from "./feed/QuickReport";
 import { kmText } from "@/lib/trip/remaining";
 import { delayText } from "@/lib/live";
 import { googleMapsDirections } from "@/lib/maps-links";
@@ -73,7 +75,15 @@ function LiveScreen({ e }: { e: Engine }) {
   const { drive, intel, nextStop, driveDay, todayDay } = live;
   // "Mark as done" in the navigation panel goes through this page's actions, so it gets the same Undo and notice as everywhere else.
   const navTarget = live.navigation.target;
-  const navUiUi = { ...navUi.ui, onArrivedDone: navUi.ui.onArrivedDone && navTarget ? () => void actions.setStatus(navTarget.id, "done", `Marked ${navTarget.name} done`) : undefined };
+  // After a stop is done: ask "How was it?" once per stop (never again after "Don't ask me after stops"). Nothing posts without a tap.
+  const [askFor, setAskFor] = useState<{ name: string; lat: number; lng: number } | null>(null);
+  const markDone = async (p: { id: string; name: string; lat: number; lng: number }) => {
+    await actions.setStatus(p.id, "done", `Marked ${p.name} done`);
+    let store: Storage | null = null;
+    try { store = window.localStorage; } catch { /* private mode: never ask */ }
+    if (shouldAsk(store, p.id)) { markAsked(store, p.id); setAskFor({ name: p.name, lat: p.lat, lng: p.lng }); }
+  };
+  const navUiUi = { ...navUi.ui, onArrivedDone: navUi.ui.onArrivedDone && navTarget ? () => void markDone(navTarget) : undefined };
 
   const result = intel.result;
   // The weather on this screen comes ONLY from the weather panel (its rules: lib/weather-rules.ts). The suggestions' own weather notes
@@ -211,7 +221,7 @@ function LiveScreen({ e }: { e: Engine }) {
                           {eta && <p className="text-xs text-ink-muted">You&apos;d arrive about <strong>{eta.etaClock}</strong>{d && <span className={`ml-2 rounded-full px-2 py-0.5 font-semibold ${d.tone === "late" ? "bg-clay-light text-clay-ink" : d.tone === "ok" ? "bg-teal-light text-teal-ink" : "bg-sky text-ink-muted"}`}>{d.text}</span>}</p>}
                           <div className="mt-1 flex flex-wrap items-center gap-x-4">
                             <a href={googleMapsDirections(p, vehicle)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
-                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "done", `Marked ${p.name} done`)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
+                            <button type="button" disabled={busy} onClick={() => void markDone(p)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
                             <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="tm-action min-h-11 py-1.5 disabled:opacity-60">Skip</button>
                           </div>
                           <PulseCard name={p.name} lat={p.lat} lng={p.lng} showTravelerPhotos />
@@ -248,6 +258,7 @@ function LiveScreen({ e }: { e: Engine }) {
       <OutboxStatus outbox={visits.outbox} />
       <LiveArrival live={live} vehicle={vehicle} failed={visits.failed} onClearFailed={visits.clearFailed} />
 
+      {askFor && <QuickReport place={askFor} onClose={() => setAskFor(null)} />}
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />
     </main>
   );

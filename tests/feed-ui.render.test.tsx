@@ -14,8 +14,8 @@ const item = (o: Partial<FeedItemDTO> = {}): FeedItemDTO => ({
   location: { lat: 18.98, lng: 73.26, precision: "approx", distanceKm: 3.4 }, canComment: true, isMine: false, createdAt: "2026-10-10T10:00:00Z", ...o,
 });
 const props = (o: Partial<CardProps> = {}): CardProps => ({
-  item: item(), index: 3, active: false, near: false, frugal: false, muted: true, register: noop, onToggleMute: noop, onLike: noop, onSave: noop,
-  onComments: noop, onMenu: noop, onAddToTrip: noop, onHelpful: noop, onDestination: noop, onVideoPlay: noop, onVideoProgress: noop, ...o,
+  item: item(), index: 3, active: false, near: false, frugal: false, muted: true, onTrip: false, register: noop, onToggleMute: noop, onLike: noop, onSave: noop,
+  onComments: noop, onMenu: noop, onAddToTrip: noop, onHelpful: noop, onShare: noop, onDestination: noop, onVideoPlay: noop, onVideoProgress: noop, ...o,
 });
 const video: MediaDTO = { type: "video", url: "https://signed.example/v.mp4", posterUrl: "https://signed.example/p.jpg", width: 720, height: 1280, durationS: 18 };
 const photo = (n: number): MediaDTO => ({ type: "image", url: `https://signed.example/${n}.jpg`, posterUrl: null, width: 1080, height: 1350, durationS: null });
@@ -26,7 +26,7 @@ describe("FeedCard: travel context first", () => {
     expect(html).toContain("Matheran");
     expect(html).toContain("Echo Point");
     expect(html).toContain("3.4 km away");
-    expect(html).toContain("approximate area");
+    expect(html).toContain("Approximate area, not an exact pin");
     expect(html).toContain("Current · 2 hours ago");
     expect(html).toContain("Add to trip");
     expect(html).toContain("Open map");
@@ -95,7 +95,8 @@ describe("FeedView & sheets", () => {
     const html = renderToStaticMarkup(<FeedView tripId={null} trips={[]} hasProfile />);
     expect(html).toContain('role="feed"');
     expect(html).toContain("Loading");
-    expect(html).toContain("Share a destination");
+    expect(html).toContain("Share what it&#x27;s like right now");           // the way to post is always at the top
+    expect(html).toContain("Plan a trip");                                   // with no trip, the feed says how a trip makes it better
   });
   it("Add to trip: with no trips it points to creating one; with trips it lists them and explains approximate pins", () => {
     const none = renderToStaticMarkup(<AddToTripSheet item={item()} trips={[]} onClose={noop} onAdded={noop} />);
@@ -205,9 +206,9 @@ describe("Own posts, notifications and saved", () => {
     const saved = renderToStaticMarkup(<SavedSheet onClose={noop} onAddToTrip={noop} onUnsaved={noop} />);
     expect(saved).toContain("Saved"); expect(saved).toContain("animate-pulse");
   });
-  it("the feed's corner has Share, Saved and a Notifications bell", () => {
+  it("the top of the feed has the way to share, Saved and a Notifications bell", () => {
     const html = renderToStaticMarkup(<FeedView tripId={null} trips={[]} hasProfile />);
-    expect(html).toContain('aria-label="Share a destination"'); expect(html).toContain('aria-label="Saved posts"'); expect(html).toContain('aria-label="Notifications"');
+    expect(html).toContain("Been somewhere?"); expect(html).toContain('aria-label="Saved posts"'); expect(html).toContain('aria-label="Notifications"');
   });
 });
 
@@ -221,12 +222,14 @@ describe("Travel intelligence screens", () => {
     const html = renderToStaticMarkup(<FeedCard {...props({ item: item({ media: [photo(1)], experience: exp }) })} />);
     expect(html).toContain("Quiet"); expect(html).toContain("Foggy"); expect(html).toContain("Closed"); expect(html).toContain("Best view");
     expect(html).toContain("Go before 9 AM"); expect(html).toContain("Posted from the area"); expect(html).toContain("can&#x27;t be proven");
-    expect(html).not.toContain("At the time:");
+    expect(html).not.toContain("At the time of the post");
   });
   it("an OLD post's conditions are labelled 'At the time', so they cannot be mistaken for today", () => {
     const old = item({ media: [photo(1)], experience: exp, freshness: { label: "4 weeks ago", state: "older", dot: "grey", usableAsCurrent: false } });
     const html = renderToStaticMarkup(<FeedCard {...props({ item: old })} />);
-    expect(html).toContain("At the time:"); expect(html).not.toContain("bg-emerald-500/85");
+    expect(html).toContain("At the time of the post, conditions may have changed");
+    expect(html).not.toContain("bg-clay");                                    // an old 'Closed' is shown calmly, never as an alarm
+    expect(html).not.toContain("(take care)");
   });
   it("Helpful sits beside Like for other people's posts, with its count, and is absent on your own", () => {
     const other = renderToStaticMarkup(<FeedCard {...props({ item: item({ media: [photo(1)], counts: { likes: 3, comments: 0, saves: 0, helpful: 17, tripAdds: 2 } }) })} />);

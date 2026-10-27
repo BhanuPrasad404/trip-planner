@@ -20,6 +20,7 @@
   /* Text-safe variants — meet WCAG AA (≥4.5:1) on their tinted backgrounds */
   --teal-ink: #14624f;
   --clay-ink: #a8431f;
+  --marigold-ink: #7a4a00;
   --ink-muted: #4f5c5a;
 
   /* Day colours on the plan map (Your plan). Never the only signal: days are also named and stops numbered. */
@@ -88,6 +89,7 @@
   --color-line: var(--line);
   --color-teal-ink: var(--teal-ink);
   --color-clay-ink: var(--clay-ink);
+  --color-marigold-ink: var(--marigold-ink);
   --color-ink-muted: var(--ink-muted);
 
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
@@ -245,6 +247,7 @@ body {
     --ink-muted: #bccdc8;
     --teal-ink: #7fe3cc;
     --clay-ink: #ffbca4;
+    --marigold-ink: #ffd9a0;
 
     /* the glass surface that replaces white cards */
     --tm-glass: rgba(7, 38, 34, 0.9);

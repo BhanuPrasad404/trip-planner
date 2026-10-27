@@ -32,3 +32,10 @@ export const BellIcon = (p: P) => svg(<><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6.5 2
 export const TrashIcon = (p: P) => svg(<><path d="M4 7h16M10 11v6M14 11v6" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></>, p);
 export const BulbIcon = (p: P) => svg(<><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3Z" /></>, p, p.filled ? "currentColor" : "none");
 export const ChartIcon = (p: P) => svg(<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />, p);
+export const ShareIcon = (p: P) => svg(<><path d="M12 15V3m0 0L8 7m4-4 4 4" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></>, p);
+export const ExpandIcon = (p: P) => svg(<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />, p);
+export const ChevronLeftIcon = (p: P) => svg(<path d="m15 6-6 6 6 6" />, p);
+export const ChevronRightIcon = (p: P) => svg(<path d="m9 6 6 6-6 6" />, p);
+export const RouteIcon = (p: P) => svg(<><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" /><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5" /></>, p);
+export const SparkIcon = (p: P) => svg(<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />, p);
+export const PauseIcon = (p: P) => svg(<><path d="M8 5v14M16 5v14" /></>, p);

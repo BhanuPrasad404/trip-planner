@@ -2,30 +2,24 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { feedReducer, initialFeed } from "./feed-state";
+import { knownPosition } from "./known-position";
+import { clearSnapshot, loadSnapshot, saveSnapshot, snapshotKey, type Snapshot } from "./feed-snapshot";
 import type { FeedItemDTO } from "@/lib/feed/map";
 import type { IntentId } from "@/lib/feed/config";
 
-type Page = { items: FeedItemDTO[]; nextCursor: string | null; coldStart: boolean; notice?: string };
-const TIMEOUT_MS = 15_000;
+type Page = { items: FeedItemDTO[]; nextCursor: string | null; coldStart: boolean; notice?: string; tripDestinations?: string[] };
 
-/** Device position, but ONLY if the person already allowed it (we never trigger a permission prompt for a feed) and never for long. */
-async function knownPosition(): Promise<{ lat: number; lng: number } | null> {
-  try {
-    if (!("geolocation" in navigator) || !navigator.permissions) return null;
-    const p = await navigator.permissions.query({ name: "geolocation" as PermissionName });
-    if (p.state !== "granted") return null;
-    return await new Promise((res) => {
-      const stop = setTimeout(() => res(null), 800);                                   // never delay the first content for this
-      navigator.geolocation.getCurrentPosition(
-        (g) => { clearTimeout(stop); res({ lat: g.coords.latitude, lng: g.coords.longitude }); },
-        () => { clearTimeout(stop); res(null); }, { maximumAge: 600_000, timeout: 800 },
-      );
-    });
-  } catch { return null; }
-}
+const session = (): Storage | null => { try { return typeof window === "undefined" ? null : window.sessionStorage; } catch { return null; } };
+const TIMEOUT_MS = 15_000;
 
 export function useFeed(tripId: string | null, intent: IntentId = "for_you") {
   const [state, dispatch] = useReducer(feedReducer, initialFeed);
+  // Coming back to the feed (Back from a post): the feed as it was left, once, for the trip and mode it was left in.
+  const comeBack = useRef<{ snap: Snapshot | null; read: boolean }>({ snap: null, read: false });
+  /** Where the page was scrolled when it was restored (null when the feed loaded fresh). The screen scrolls there once. */
+  const restoredY = useRef<number | null>(null);
+  const latest = useRef(state);
+  useEffect(() => { latest.current = state; }, [state]);
   const busy = useRef(false);
   const cursor = useRef<string | null>(null);
   const position = useRef<{ lat: number; lng: number } | null>(null);
@@ -58,20 +52,35 @@ export function useFeed(tripId: string | null, intent: IntentId = "for_you") {
       const page = await request(cur);
       if (!alive.current || gen !== generation.current) return;
       cursor.current = page.nextCursor;
-      dispatch({ type: "loaded", items: page.items, nextCursor: page.nextCursor, coldStart: page.coldStart, append, notice: page.notice ?? null });
+      dispatch({ type: "loaded", items: page.items, nextCursor: page.nextCursor, coldStart: page.coldStart, append, notice: page.notice ?? null, at: Date.now(), ...(page.tripDestinations ? { tripDestinations: page.tripDestinations } : {}) });
     } catch (e) {
       if (alive.current && gen === generation.current) dispatch({ type: "failed", message: e instanceof Error ? e.message : "Something went wrong." });
     } finally { busy.current = false; }
   }, [request]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { restore?: boolean }) => {
     generation.current++;
     busy.current = false;
     cursor.current = null;
+    restoredY.current = null;
+    if (opts?.restore) {
+      const store = session();
+      if (!comeBack.current.read) { comeBack.current = { snap: store ? loadSnapshot(store, snapshotKey(tripId, intent), Date.now()) : null, read: true }; }
+      const snap = comeBack.current.snap;
+      if (snap && snap.key === snapshotKey(tripId, intent)) {
+        cursor.current = snap.nextCursor;
+        restoredY.current = snap.scrollY;
+        dispatch({ type: "restore", items: snap.items, nextCursor: snap.nextCursor, coldStart: snap.coldStart, notice: snap.notice, tripDestinations: snap.tripDestinations, fetchedAt: snap.fetchedAt });
+        return;
+      }
+    }
+    comeBack.current = { snap: null, read: true };               // a refresh, a new mode or a new trip never brings back an old feed
+    const store = session();
+    if (store) clearSnapshot(store);
     dispatch({ type: "load" });
     position.current = position.current ?? (await knownPosition());
     void run(null, false);
-  }, [run]);
+  }, [run, tripId, intent]);
 
   const loadMore = useCallback(() => {
     if (busy.current || !cursor.current) return;
@@ -84,7 +93,17 @@ export function useFeed(tripId: string | null, intent: IntentId = "for_you") {
     else { dispatch({ type: "more" }); void run(cursor.current, true); }
   }, [load, run, state.items.length]);
 
-  useEffect(() => { alive.current = true; void load(); return () => { alive.current = false; }; }, [load]);
+  useEffect(() => { alive.current = true; void load({ restore: true }); return () => { alive.current = false; }; }, [load]);
 
-  return { state, dispatch, loadMore, retry, refresh: load };
+  /** Keep the feed (and where the page is scrolled) for a few minutes. Called by the screen when it is left or scrolled. */
+  const remember = useCallback((scrollY: number) => {
+    const store = session();
+    const s = latest.current;
+    if (!store || s.status === "loading" || s.items.length === 0 || s.fetchedAt == null) return;
+    const snap: Snapshot = { key: snapshotKey(tripId, intent), savedAt: Date.now(), items: s.items, nextCursor: s.nextCursor, coldStart: s.coldStart, notice: s.notice, tripDestinations: s.tripDestinations, scrollY, fetchedAt: s.fetchedAt };
+    saveSnapshot(store, snap);
+  }, [tripId, intent]);
+
+  const refresh = useCallback(() => load(), [load]);
+  return { state, dispatch, loadMore, retry, refresh, remember, restoredYRef: restoredY };
 }

@@ -16,6 +16,12 @@ import { AddPlaceForm } from "@/components/AddPlaceForm";
 import { TripTabs } from "@/components/shell/TripTabs";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PlanFlow } from "@/components/plan/PlanFlow";
+import { FeedView } from "@/components/feed/FeedView";
+import { FeedCard } from "@/components/feed/FeedCard";
+import { PostDetail } from "@/components/feed/PostDetail";
+import { TravelerProfile } from "@/components/feed/TravelerProfile";
+import { QuickReport } from "@/components/feed/QuickReport";
+import type { FeedItemDTO, MediaDTO } from "@/lib/feed/map";
 import { TripPlanner } from "@/components/TripPlanner";
 import { ComparePlans, DonePanel, ResultView, StopSheet } from "@/components/result/ResultView";
 import { EXAMPLES } from "@/lib/result/examples";
@@ -44,6 +50,13 @@ const firstStop = kochi.data.options[1].days.flatMap((d) => d.stops)[0];
 const TRIP = { id: "t1", owner_id: "u1", name: "Hyderabad weekend with friends", start_city: "Hyderabad", start_lat: 17.385, start_lng: 78.4867, dest_name: null, dest_lat: null, dest_lng: null, start_date: "2026-11-07", num_days: 3, end_mode: "start", invite_code: "abc", created_at: "2026-10-20T00:00:00Z" };
 const place = (id: string, name: string, day: number | null, extra: object = {}) => ({ id, trip_id: "t1", name, lat: 17.36, lng: 78.47, source_type: "search", source_url: null, season_tag_id: null, day_number: day, sequence_order: day ? 1 : null, arrival_time: day ? "10:00" : null, notes: null, category: "fort", status: "planned", status_at: null, address: "Golconda mandal, Hyderabad, Telangana, 500008, India", drive_minutes: day ? 25 : null, drive_km: day ? 9 : null, priority: "normal", added_by: "u1", created_at: "2026-10-20T00:00:00Z", season_tags: null, ...extra });
 
+
+// Feed screens: one real post (photos, conditions, a tip, a long caption and a long place name) on the card and on its own page.
+const FEED_PHOTO: MediaDTO = { type: "image", url: "https://signed.example/a.jpg", posterUrl: null, width: 1080, height: 1350, durationS: null };
+const FEED_POST = { id: "22222222-2222-4222-8222-222222222222", kind: "photo", caption: "Mist over the trail after the rain, and the parking was full by nine so come early if you can, the road is fine.", placeName: "Echo Point and a very long viewpoint name for a small phone", destination: { id: "d1", name: "Matheran Hill Station Near Mumbai", slug: "matheran" }, author: { username: "ravi_kumar_long_name", displayName: null }, media: [FEED_PHOTO, { ...FEED_PHOTO, url: "https://signed.example/b.jpg" }], counts: { likes: 1200, comments: 3, saves: 4, helpful: 5, tripAdds: 2 }, me: { liked: false, saved: false, helped: false }, experience: { crowd: "crowded", conditions: ["long_queue", "road_good", "parking_full"], vibes: ["best_view", "family"], tip: "Go before 9 AM, parking fills up quickly.", fromArea: true }, freshness: { label: "2 hours ago", state: "today", dot: "green", usableAsCurrent: true }, location: { lat: 18.98, lng: 73.26, precision: "approx", distanceKm: 3.4 }, canComment: true, isMine: false, createdAt: "2026-10-10T10:00:00Z" } as unknown as FeedItemDTO;
+const feedNoop = () => undefined;
+const feedCardProps = { item: FEED_POST, index: 0, active: true, near: true, frugal: false, muted: true, onTrip: true, register: feedNoop, onToggleMute: feedNoop, onLike: feedNoop, onSave: feedNoop, onComments: feedNoop, onMenu: feedNoop, onAddToTrip: feedNoop, onHelpful: feedNoop, onShare: feedNoop, onDestination: feedNoop, onVideoPlay: feedNoop, onVideoProgress: feedNoop };
+
 export const pages: Record<string, string> = {
   weather: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl space-y-4 px-4 py-5 sm:px-6" },
     h("div", { className: "mt-3" }, h(TripTabs, { tripId: "t", activeNow: false })),
@@ -52,6 +65,11 @@ export const pages: Record<string, string> = {
     h("div", { className: "rounded-2xl border border-line bg-white p-3.5" }, h(NextHoursRow, { hours: b.places[1]?.next ?? [], label: "x" })),
   )),
   // The bug of Oct 2026, kept on purpose: the test must SEE it, or it proves nothing.
+  "feed-screen": renderToStaticMarkup(h("main", { id: "main" }, h(FeedView, { tripId: null, trips: [{ id: "t1", name: "Monsoon weekend with the family" }], hasProfile: true }))),
+  "feed-card": renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-[34rem]" }, h(FeedCard, feedCardProps as never))),
+  "post-page": renderToStaticMarkup(withRouter(h(PostDetail, { initial: FEED_POST, more: [FEED_POST], trips: [{ id: "t1", name: "Monsoon weekend with the family" }], focusTripId: "t1", hasProfile: true } as never))),
+  "traveler-page": renderToStaticMarkup(withRouter(h(TravelerProfile, { profile: { username: "ravi_kumar_long_name", displayName: "Ravi Kumar from a long village name", bio: "Weekend rider. Hills, waterfalls and the long way round.", isPrivate: false, mine: true }, standing: { helped: 1240, posts: 3400, followers: 125000, following: 980, tier: "guide", place: { id: "d", name: "Araku Valley and the hills around it", helped: 300 } }, follow: "none", posts: [FEED_POST, { ...FEED_POST, id: "33333333-3333-4333-8333-333333333333" }], nextCursor: "c", postsHidden: false } as never))),
+  "quick-report": renderToStaticMarkup(h(QuickReport, { place: { name: "Echo Point and a very long viewpoint name", lat: 18.98, lng: 73.26 }, onClose: feedNoop })),
   control: renderToStaticMarkup(h("main", { className: "mx-auto w-full px-4" }, h("ol", { className: "flex gap-1.5 overflow-x-auto" },
     ...Array.from({ length: 12 }, (_, i) => h("li", { key: i, className: "w-14 shrink-0" }, `${i}h`, h("span", { className: "sr-only" }, `hour ${i} details`)))))),
   addplace: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },
@@ -81,7 +99,7 @@ export function measurePages(pages: Record<string, string>, outDir: string): Wid
     const outer = `${outDir}/wide-${name}-frames.html`;
     const frames = WIDTHS.map((w) => `<iframe id="f${w}" src="wide-${name}.html" style="width:${w}px;height:900px;border:0"></iframe>`).join("");
     writeFileSync(outer, `<!doctype html><html><body style="margin:0;width:1400px">${frames}<script>${measure};addEventListener('load',()=>{const r={};for(const w of ${JSON.stringify(WIDTHS)})r[w]=wide(document.getElementById('f'+w).contentDocument);const pre=document.createElement('pre');pre.id='RESULT';pre.textContent=JSON.stringify(r);document.body.appendChild(pre)})</script></body></html>`);
-    const dom = execFileSync(CHROME!, ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--allow-file-access-from-files", "--window-size=1400,1000", "--virtual-time-budget=4000", "--dump-dom", `file:///${outer}`], { encoding: "utf8", maxBuffer: 64 << 20 });
+    const dom = execFileSync(CHROME!, ["--headless=new", ...(process.env.CHROME_NO_SANDBOX ? ["--no-sandbox"] : []), "--disable-gpu", "--hide-scrollbars", "--allow-file-access-from-files", "--window-size=1400,1000", "--virtual-time-budget=4000", "--dump-dom", `file:///${outer}`], { encoding: "utf8", maxBuffer: 64 << 20 });
     const m = /<pre id="RESULT">([\s\S]*?)<\/pre>/.exec(dom);
     if (!m) throw new Error(`no measurement for ${name}`);
     const r = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")) as Record<string, { W: number; scroll: number; bad: string[] }>;

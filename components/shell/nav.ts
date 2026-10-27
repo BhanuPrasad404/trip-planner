@@ -17,7 +17,7 @@ export function buildNav(pathname: string, trips: NavTrip[]): NavItem[] {
   const inTrip = (sub: string) => (p: string) => new RegExp(`^/trips/[^/]+${sub}(/|$)`).test(p);
   return [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", Icon: IconDashboard, match: (p) => p === "/dashboard" },
-    { id: "discover", label: "Discover", href: "/discover", Icon: IconDiscover, match: (p) => p === "/discover" },
+    { id: "discover", label: "Discover", href: "/discover", Icon: IconDiscover, match: (p) => p === "/discover" || p.startsWith("/discover/") },
     { id: "trips", label: "My trips", href: "/trips", Icon: IconTrips, match: (p) => p === "/trips" || /^\/trips\/[^/]+$/.test(p) },
     { id: "plan", label: "Plan", href: t("/plan"), Icon: IconPlan, match: inTrip("/plan") },
     { id: "explore", label: "Explore", href: "/explore", Icon: IconExplore, match: (p) => p === "/explore" || inTrip("/explore")(p) },

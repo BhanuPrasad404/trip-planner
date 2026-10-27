@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TRIP_TYPES, TRIP_TYPE_LABEL, type TripType } from "@/lib/intel/types";
 import { Button } from "./ui/Button";
+import { Select } from "./ui/Select";
 
 const BLURB: Record<TripType, string> = {
   friends: "Sights and viewpoints rank a little higher.",
@@ -45,11 +46,10 @@ export function TripPrefsForm({ tripId, tripType, rangeKm, isOwner }: { tripId: 
       <h2 id="prefs-heading" className="font-display text-lg font-semibold text-pine">How you travel</h2>
       <p className="mt-1 text-sm text-ink-muted">This tunes which fuel, food and rest stops we suggest along your route. {BLURB[type]}</p>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="text-sm font-semibold text-pine">Who is travelling?
-          <select value={type} onChange={(e) => setType(e.target.value as TripType)} disabled={!isOwner} className="mt-1 block min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base font-normal disabled:bg-sky">
-            {TRIP_TYPES.map((t) => <option key={t} value={t}>{TRIP_TYPE_LABEL[t]}</option>)}
-          </select>
-        </label>
+        <div className="text-sm font-semibold text-pine">
+          <label htmlFor="trip-type-select">Who is travelling?</label>
+          <div className="mt-1"><Select id="trip-type-select" label="Who is travelling?" value={type} onChange={(v) => setType(v as TripType)} disabled={!isOwner} options={TRIP_TYPES.map((t) => ({ value: t, label: TRIP_TYPE_LABEL[t] }))} className="!min-h-11 font-normal" /></div>
+        </div>
         <label className="text-sm font-semibold text-pine">Range on a full tank (km)
           <input type="number" inputMode="numeric" min={80} max={1500} value={range} onChange={(e) => setRange(e.target.value)} disabled={!isOwner} className="mt-1 block min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base font-normal disabled:bg-sky" />
         </label>

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { requireUser } from "@/lib/auth";
 import { loadSeasonTags } from "@/lib/server/season-data";
 import { todayISO } from "@/lib/server/trip-data";
+import { seasonMonthFor } from "@/lib/trip/passed";
 import { tripState } from "@/lib/trip-state";
 import type { Trip } from "@/lib/types";
 
@@ -19,7 +20,7 @@ export default async function ExplorePage() {
   const start = focus && focus.start_lat != null && focus.start_lng != null ? { id: "start", label: focus.start_city ?? "Start", lat: focus.start_lat, lng: focus.start_lng } : null;
   const anchors = [dest, start].filter((a): a is NonNullable<typeof a> => !!a);
   const tags = await loadSeasonTags(supabase, anchors[0] ?? null);
-  const month = (focus?.start_date ? new Date(focus.start_date + "T00:00:00") : new Date()).getMonth() + 1;
+  const month = focus ? seasonMonthFor(focus, today) : Number(today.slice(5, 7)); // dates over → judged by today
 
   return (
     <main id="main" className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">

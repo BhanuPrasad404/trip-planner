@@ -1,4 +1,5 @@
 // Task 3: leave a trip, remove a member, hand a trip over — and a clear screen for the person who was removed.
+import { choose } from "./helpers/select";
 import { createElement, act, type ReactNode } from "react";
 import TestRenderer from "react-test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -154,7 +155,8 @@ describe("MembersPanel", () => {
   });
   afterEach(() => { act(() => r?.unmount()); vi.unstubAllGlobals(); });
   const mount = (userId: string, members = MEMBERS) => act(() => { r = TestRenderer.create(createElement(MembersPanel, { tripId: TRIP, tripName: "Araku weekend", members, ownerId: "owner", userId })); });
-  const btn = (label: string) => r.root.findAllByType("button").filter((b) => JSON.stringify(b.props.children).includes(label));
+  const textOf = (n: TestRenderer.ReactTestInstance): string => n.children.map((c) => (typeof c === "string" ? c : textOf(c))).join("");
+  const btn = (label: string) => r.root.findAllByType("button").filter((b) => textOf(b).includes(label));
   const text = () => JSON.stringify(r.toJSON());
 
   it("a member leaves: confirm explains what happens, then goes to My trips and tells the others", async () => {
@@ -174,7 +176,7 @@ describe("MembersPanel", () => {
     expect(text()).toContain("delete the trip");
     const go = () => btn("Hand over and leave")[0];
     expect(go().props.disabled).toBe(true); // a new owner must be chosen first
-    act(() => { r.root.findByType("select").props.onChange({ target: { value: "m2" } }); });
+    act(() => { choose(r.root, "heir-select", "m2"); });
     await act(async () => { await go().props.onClick(); });
     expect(fetches.map((f) => `${f.method} ${f.url}`)).toEqual([`POST /api/trips/${TRIP}/owner`, `DELETE /api/trips/${TRIP}/members/owner`]);
     expect(JSON.parse(fetches[0].body!)).toEqual({ user_id: "m2" });

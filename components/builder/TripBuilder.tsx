@@ -15,6 +15,7 @@ import type { DurationAdvice } from "@/lib/trip-builder/duration";
 import { parseISODate } from "@/lib/dates";
 import type { EngineView, NightHalt } from "@/lib/engine/types";
 import { FuelCard, HaltLine, PlanLabels, TransitDayCard, WhatIfStepper } from "./EngineExtras";
+import { Select } from "@/components/ui/Select";
 
 type Props = {
   tripId: string;
@@ -319,16 +320,11 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           <div>
                             <label htmlFor={`prio-${pl.id}`} className="block text-xs font-semibold text-ink-muted">How much it matters</label>
-                            <select id={`prio-${pl.id}`} value={pl.priority ?? "normal"} disabled={busy} onChange={(e) => void patchPlace(pl.id, { priority: e.target.value })} className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2.5 text-sm">
-                              {PRIORITIES.map((pr) => <option key={pr} value={pr}>{PRIORITY_UI[pr].label}</option>)}
-                            </select>
+                            <div className="mt-1"><Select id={`prio-${pl.id}`} label="How much it matters" value={pl.priority ?? "normal"} disabled={busy} onChange={(v) => void patchPlace(pl.id, { priority: v })} options={PRIORITIES.map((pr) => ({ value: pr, label: PRIORITY_UI[pr].label }))} className="!min-h-11 !px-2.5 !text-sm" /></div>
                           </div>
                           <div>
                             <label htmlFor={`visit-${pl.id}`} className="block text-xs font-semibold text-ink-muted">Time there</label>
-                            <select id={`visit-${pl.id}`} value={mine === null ? "" : String(mine)} disabled={busy} onChange={(e) => void patchPlace(pl.id, { visit_minutes: e.target.value === "" ? null : Number(e.target.value) })} className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2.5 text-sm">
-                              <option value="">Usual · {short(usual)}</option>
-                              {options.map((m) => <option key={m} value={m}>{short(m)}</option>)}
-                            </select>
+                            <div className="mt-1"><Select id={`visit-${pl.id}`} label="Time there" value={mine === null ? "" : String(mine)} disabled={busy} onChange={(v) => void patchPlace(pl.id, { visit_minutes: v === "" ? null : Number(v) })} options={[{ value: "", label: `Usual · ${short(usual)}` }, ...options.map((m) => ({ value: String(m), label: short(m) }))]} className="!min-h-11 !px-2.5 !text-sm" /></div>
                           </div>
                         </div>
                       </li>

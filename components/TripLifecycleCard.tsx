@@ -6,6 +6,8 @@ import { useState } from "react";
 import { INDIA_UTC_OFFSET_MIN, minuteOfDay } from "@/lib/travel/clock";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
+import { TimePicker } from "@/components/ui/TimePicker";
 import { useAction } from "@/lib/client/use-action";
 import { useLocalJson } from "@/lib/client/use-local-json";
 import { clockLabel, dayEndFrom, type Lifecycle } from "@/lib/trip/lifecycle";
@@ -60,14 +62,13 @@ export function TripLifecycleCard({ tripId, lifecycle, isOwner, plannedLabel }: 
         <legend className="text-xs font-semibold text-ink-muted">When are you leaving?</legend>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="leave" checked={leave === "now"} onChange={() => setLeave("now")} />Right now</label>
-          <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="leave" checked={leave === "later"} onChange={() => setLeave("later")} />Later today at <input type="time" aria-label="Departure time" value={laterAt} onChange={(e) => { setLaterAt(e.target.value); setLeave("later"); }} className="min-h-11 rounded-lg border border-line px-2" /></label>
+          <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="leave" checked={leave === "later"} onChange={() => setLeave("later")} />Later today at <span className="min-w-[7.5rem]"><TimePicker label="Departure time" value={laterAt} onChange={(v) => { setLaterAt(v); setLeave("later"); }} className="!min-h-11 !px-3" /></span></label>
         </div>
       </fieldset>
-      <label className="mt-2 block text-xs font-semibold text-ink-muted">How long can you travel?
-        <select value={hours} onChange={(e) => setHours(Number(e.target.value))} className="ml-2 min-h-11 rounded-lg border border-line bg-white px-2 text-sm font-normal text-ink">
-          {HOURS.map((h) => <option key={h} value={h}>about {h} hour{h === 1 ? "" : "s"}</option>)}
-        </select>
-      </label>
+      <div className="mt-2 text-xs font-semibold text-ink-muted">
+        <label htmlFor="lifecycle-hours">How long can you travel?</label>
+        <div className="mt-1 max-w-xs"><Select id="lifecycle-hours" label="How long can you travel?" value={String(hours)} onChange={(v) => setHours(Number(v))} options={HOURS.map((h) => ({ value: String(h), label: `about ${h} hour${h === 1 ? "" : "s"}` }))} className="!min-h-11" /></div>
+      </div>
       <p className="mt-2 text-xs text-ink-muted">
         {dayEnd === null ? "Choose a valid departure time." : <>We&apos;ll plan to wrap up by <strong className="text-pine">{clockLabel(dayEnd)}</strong>. </>}
         Your planned dates stay as they are. Nothing starts by itself: on the Live page you press Start drive, and we plan from where you are then (or from the place you choose if GPS isn&apos;t available), checking opening hours and conditions. Any change to your stops is suggested first, and you decide.

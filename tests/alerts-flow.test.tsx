@@ -124,7 +124,7 @@ describe("the components", () => {
   it("settings: plain choices, a test button, and honest limits", () => {
     const h = settings();
     for (const t of ["Phone notifications", "Sound", "Vibration", "Quiet hours", "Send a test alert", "Alerts work while Trailmate is open", "locked or the app is closed", "Home Screen"]) expect(h).toContain(t);
-    expect(h).toContain('role="switch"'); expect(h).toContain("22:00"); expect(h).toContain("07:00");
+    expect(h).toContain('role="switch"'); expect(h).toContain("10:00 PM"); expect(h).toContain("7:00 AM");
   });
   it("each permission state is explained in words", () => {
     expect(settings({ permission: "denied" })).toContain("blocked in this browser");
@@ -132,7 +132,7 @@ describe("the components", () => {
     expect(settings({ permission: "unsupported" })).toContain("can&#x27;t show phone notifications");
     expect(settings({ permission: "granted" })).toContain("Phone notifications are allowed.");
   });
-  it("quiet hours inputs appear only when quiet hours are on", () => { expect(settings({ prefs: { ...DEFAULT_ALERT_PREFS, quiet: null } })).not.toContain('type="time"'); expect(settings()).toContain('type="time"'); });
+  it("quiet hours inputs appear only when quiet hours are on", () => { expect(settings({ prefs: { ...DEFAULT_ALERT_PREFS, quiet: null } })).not.toContain('id="quiet-from"'); const h = settings(); expect(h).toContain('id="quiet-from"'); expect(h).toContain('id="quiet-to"'); expect(h).not.toContain('type="time"'); });   // our own picker, not the browser's
   it("when alerts are off the other choices and the test are disabled", () => {
     const h = settings({ prefs: { ...DEFAULT_ALERT_PREFS, enabled: false } });
     expect((h.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(5);

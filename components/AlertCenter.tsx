@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
+import { TimePicker } from "@/components/ui/TimePicker";
 import type { ActiveAlert } from "@/lib/client/use-alerts";
 import { clockToMinutes, minutesToClock, type AlertPrefs } from "@/lib/alerts/prefs";
 import type { Permission } from "@/lib/alerts/delivery";
@@ -67,8 +68,8 @@ export function AlertSettings({ prefs, permission, onChange, onEnablePhone, onTe
           <Switch id="alerts-quiet" label="Quiet hours" hint="No sound, buzz or phone notification. Cards still appear in the app." checked={!!q} disabled={!prefs.enabled} onChange={(v) => onChange({ quiet: v ? { startMin: 22 * 60, endMin: 7 * 60 } : null })} />
           {q && (
             <div className="grid grid-cols-2 gap-3 pb-1">
-              <label className="text-xs font-semibold text-ink-muted">From<input type="time" value={minutesToClock(q.startMin)} onChange={(e) => { const m = clockToMinutes(e.target.value); if (m !== null && m !== q.endMin) onChange({ quiet: { startMin: m, endMin: q.endMin } }); }} className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base text-pine" /></label>
-              <label className="text-xs font-semibold text-ink-muted">To<input type="time" value={minutesToClock(q.endMin)} onChange={(e) => { const m = clockToMinutes(e.target.value); if (m !== null && m !== q.startMin) onChange({ quiet: { startMin: q.startMin, endMin: m } }); }} className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base text-pine" /></label>
+              <div className="text-xs font-semibold text-ink-muted"><label htmlFor="quiet-from">From</label><div className="mt-1"><TimePicker id="quiet-from" label="Quiet hours start" value={minutesToClock(q.startMin)} onChange={(v) => { const m = clockToMinutes(v); if (m !== null && m !== q.endMin) onChange({ quiet: { startMin: m, endMin: q.endMin } }); }} /></div></div>
+              <div className="text-xs font-semibold text-ink-muted"><label htmlFor="quiet-to">To</label><div className="mt-1"><TimePicker id="quiet-to" label="Quiet hours end" value={minutesToClock(q.endMin)} onChange={(v) => { const m = clockToMinutes(v); if (m !== null && m !== q.startMin) onChange({ quiet: { startMin: q.startMin, endMin: m } }); }} /></div></div>
             </div>
           )}
         </div>

@@ -5,11 +5,13 @@ import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { googleMapsPlace } from "@/lib/maps-links";
 import { type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { Button } from "./ui/Button";
+import { Select } from "@/components/ui/Select";
 import { Glyph, CategoryGlyph, KindGlyph, KindBadge } from "@/components/ui/Glyph";
 import { SafeImg } from "@/components/ui/SafeImg";
 import { PlacePhoto } from "@/components/ui/PlacePhoto";
 import { usePlacePhotos } from "@/lib/client/use-place-photos";
 import { DiscoverSection } from "@/components/explore/DiscoverSection";
+import { TripExplore } from "@/components/explore/TripExplore";
 import { useSavedPlaces } from "@/lib/client/use-saved-places";
 import { creditText } from "@/lib/place-photos/safety";
 
@@ -86,6 +88,18 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
 
   return (
     <div className="space-y-10">
+      {tripId && (
+        <TripExplore tripId={tripId} saved={saved} added={added} addError={addError}
+          addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }} />
+      )}
+
+      <DiscoverSection
+        tripId={tripId} anchors={allAnchors} anchorId={anchorId} onAnchorChange={(id) => { setAnchorId(id); if (places) void discover(kind, id); }}
+        onPickPlace={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("sights", a); }}
+        researched={researched} month={month} saved={saved} added={added} addError={addError}
+        addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }}
+      />
+
       <section aria-labelledby="season-heading">
         <h2 id="season-heading" className="font-display text-2xl font-semibold text-pine">Best in {MONTH(month)}</h2>
         <p className="mt-1 max-w-2xl text-sm text-ink-muted">Places at their best this month, from season data we researched, each with its source. {researched.length > 0 ? <>Covers {researched.length} places in {regions.join(" and ")} so far — it grows region by region.</> : <>No researched places are available yet.</>}</p>
@@ -131,13 +145,6 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
         )}
       </section>
 
-      <DiscoverSection
-        tripId={tripId} anchors={allAnchors} anchorId={anchorId} onAnchorChange={(id) => { setAnchorId(id); if (places) void discover(kind, id); }}
-        onPickPlace={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("sights", a); }}
-        researched={researched} month={month} saved={saved} added={added} addError={addError}
-        addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }}
-      />
-
       <section aria-labelledby="around-heading" className="rounded-3xl border border-line bg-white p-5 sm:p-6">
         <h2 id="around-heading" className="font-display text-2xl font-semibold text-pine">Around {custom ? custom.label : anchors.length > 0 ? "your trip" : "a place"}</h2>
         <p className="mt-1 text-sm text-ink-muted">Real places from OpenStreetMap; well-known ones first. Photos come from Wikipedia and Wikimedia Commons (free licences, credited), and only where a real one exists. Price and rating filters will appear once a source for them is connected — we don&apos;t guess.</p>
@@ -146,7 +153,7 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
         ) : (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <label className="text-sm font-semibold text-pine">Around <select value={anchorId} onChange={(e) => { setAnchorId(e.target.value); if (places) void discover(kind, e.target.value); }} className="ml-1 min-h-10 rounded-lg border border-line bg-white px-2 text-sm font-normal">{allAnchors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
+              <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="explore-around">Around</label><div className="min-w-[10rem]"><Select id="explore-around" label="Explore around" value={anchorId} onChange={(v) => { setAnchorId(v); if (places) void discover(kind, v); }} options={allAnchors.map((a) => ({ value: a.id, label: a.label }))} className="!min-h-11 !text-sm font-normal" /></div></div>
               <div className="flex flex-wrap gap-2" role="group" aria-label="What to look for">
                 {DISCOVER.map((k) => <button key={k} type="button" disabled={busy} aria-pressed={places !== null && kind === k} onClick={() => void discover(k)} className={`min-h-10 rounded-full border px-3 text-sm font-semibold disabled:opacity-60 ${places !== null && kind === k ? "border-teal bg-teal-light text-teal-ink" : "border-line bg-white text-ink-muted hover:border-teal"}`}><KindGlyph kind={k} size={15} className="mr-1.5 inline align-text-bottom" />{DISCOVER_LABEL[k]}</button>)}
               </div>

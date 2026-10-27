@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PlaceSearch, type PickedPlace } from "./PlaceSearch";
 import { Button } from "./ui/Button";
 import { FormError, TextField } from "./ui/Field";
+import { TimePicker } from "./ui/TimePicker";
 
 type AddPlaceFormProps = {
   tripId: string;
@@ -140,7 +141,10 @@ export function AddPlaceForm({ tripId, dayNumber, near, onAdded, onCancel }: Add
           onChange={(e) => setSourceUrl(e.target.value)}
           placeholder="https://instagram.com/reel/…"
         />
-        <TextField label="Arrival time (optional)" type="time" className="font-mono" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
+        <div>
+          <label htmlFor="add-place-arrival" className="block text-sm font-semibold text-ink">Arrival time (optional)</label>
+          <div className="mt-1.5"><TimePicker id="add-place-arrival" label="Arrival time" value={arrivalTime} onChange={setArrivalTime} clearable placeholder="No time set" /></div>
+        </div>
       </div>
 
       <FormError message={error} />

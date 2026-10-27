@@ -111,7 +111,8 @@ describe("Save this trip (example → the save step)", () => {
     const html = render(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "ready" } }));
     expect(html).toContain("Save your trip");
     expect(html).toContain("Trip name");
-    expect(html).toContain('type="date"');
+    expect(html).toContain('id="plan-start-date"');   // our own calendar button (not the browser's date box)
+    expect(html).not.toContain('type="date"');
     expect(html).toContain("No dates yet");
     expect(html).toContain("Sign up and save this trip");
   });

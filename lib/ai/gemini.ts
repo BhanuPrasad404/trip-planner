@@ -101,24 +101,41 @@ export function providerMessage(body: string): string {
 
 /** Google's free tier is often busy (503) or briefly over its limit (429). Retrying and falling back hides most of that. */
 export const GEMINI_FALLBACK_MODEL = "gemini-flash-lite-latest";
-const RETRY_DELAYS_MS = [800, 2_000];
-const RETRY_SAME_MODEL = new Set([500, 503, 504]);
-const TRY_OTHER_MODEL = new Set([404, 429, 500, 503, 504]);
+const RETRY_DELAYS_MS = [600];
+const RETRY_SAME_MODEL = new Set([500, 503]);
+/** 408 = this request hung until its own time limit: retrying the same model would only burn the wait, so the lighter model gets the next turn. */
+export const TIMED_OUT = 408;
+const TRY_OTHER_MODEL = new Set([404, 408, 429, 500, 503, 504]);
+
+/**
+ * How long ONE request may take. Filling a form with thinking switched off answers in a few seconds; a request still silent after this is
+ * stuck. It has to be well under the screen's total wait (22 s, lib/intake/ai-read.ts) so a second model still gets its turn inside it.
+ */
+export const ATTEMPT_TIMEOUT_MS = Math.max(3_000, Number(process.env.GEMINI_ATTEMPT_TIMEOUT_MS) || 9_000);
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type AskArgs = Omit<Parameters<typeof buildGeminiRequest>[0], "model" | "thinking"> & { signal?: AbortSignal };
 
 async function askOnce(model: string, apiKey: string, args: AskArgs, thinking: ThinkingMode): Promise<unknown> {
   let res: Response;
+  const started = Date.now();
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       // The key goes in a header, never in the URL (URLs end up in logs).
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(buildGeminiRequest({ system: args.system, content: args.content, tool: args.tool, maxTokens: args.maxTokens, model, thinking })),
-      signal: args.signal ? AbortSignal.any([AbortSignal.timeout(30_000), args.signal]) : AbortSignal.timeout(30_000),
+      signal: args.signal ? AbortSignal.any([AbortSignal.timeout(ATTEMPT_TIMEOUT_MS), args.signal]) : AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
     });
   } catch (err) {
+    const waited = Date.now() - started;
+    // Say WHY in the terminal (never the key): a hang, a stop because the screen gave up, or a network that cannot reach Google at all.
+    if (err instanceof Error && err.name === "TimeoutError") {
+      console.warn(`[ai] ${model}: no answer after ${waited} ms`);
+      throw new AiRequestError(`AI request timed out after ${Math.round(waited / 1000)} s`, TIMED_OUT);
+    }
+    const cause = err instanceof Error && err.cause instanceof Error ? ` (${(err.cause as NodeJS.ErrnoException).code ?? err.cause.message})` : "";
+    console.warn(`[ai] ${model}: request failed after ${waited} ms: ${err instanceof Error ? err.name : "error"}${cause}`);
     throw new AiRequestError(`AI request failed: ${err instanceof Error ? err.message : "network error"}`, 503);
   }
   if (!res.ok) {

@@ -2,9 +2,18 @@
 // Only values that passed validation reach here, and the pieces that end up inside the query text are either from our own tables
 // (selectors, ISO codes) or numbers formatted by us, so no user text is ever pasted into a query.
 import { EXPLORE_CATEGORIES, exploreCategory, type ExploreCategory, type ExploreCategoryId } from "./categories";
+import { pathLengthKm } from "@/lib/geo";
 import { regionByCode } from "./regions";
 
-export type ExploreScope = { kind: "state"; code: string } | { kind: "point"; lat: number; lng: number; radius_km: number };
+/**
+ * `route`: everything within `radius_km` of a road line ([lng, lat] points, at most MAX_ROUTE_POINTS: see lib/explore/route-scope.ts).
+ * The corridor is the REAL remaining route, not a circle round the start.
+ */
+export type ExploreScope = { kind: "state"; code: string } | { kind: "point"; lat: number; lng: number; radius_km: number } | { kind: "route"; line: [number, number][]; radius_km: number };
+
+export const MAX_ROUTE_POINTS = 80;
+/** A corridor longer than this asks for notable places only when the category is heavy or "all" (a 400 km road has thousands of shrines). */
+const LONG_ROUTE_KM = 120;
 
 /** A place somebody found notable: linked to Wikipedia or Wikidata, or listed as heritage. */
 export const NOTABLE_FILTER = '[~"^(wikidata|wikipedia|heritage)$"~"."]';
@@ -30,13 +39,22 @@ export function buildExploreQuery(scope: ExploreScope, category: ExploreCategory
     const alt = region.iso.join("|");
     head = `area["boundary"="administrative"]["ISO3166-2"~"^IN-(${alt})$"]->.a;`;
     where = "(area.a)";
+  } else if (scope.kind === "route") {
+    const pts = scope.line;
+    if (pts.length < 2 || pts.length > MAX_ROUTE_POINTS || !pts.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))) throw new Error("bad route");
+    if (!Number.isFinite(scope.radius_km)) throw new Error("bad route");
+    const r = Math.round(Math.min(25, Math.max(1, scope.radius_km)) * 1000);
+    head = "";
+    // Overpass reads a list of coordinates in "around" as a line: everything within r metres of the road.
+    where = `(around:${r},${pts.map(([lng, lat]) => `${lat.toFixed(4)},${lng.toFixed(4)}`).join(",")})`;
   } else {
     if (![scope.lat, scope.lng, scope.radius_km].every(Number.isFinite)) throw new Error("bad point");
     const r = Math.round(Math.min(50, Math.max(1, scope.radius_km)) * 1000);
     head = "";
     where = `(around:${r},${scope.lat.toFixed(5)},${scope.lng.toFixed(5)})`;
   }
-  const notableOnly = scope.kind === "state" && (category === "all" || cats.every((c) => c.heavy));
+  const longRoute = scope.kind === "route" && pathLengthKm(scope.line.map(([lng, lat]) => ({ lat, lng }))) > LONG_ROUTE_KM;
+  const notableOnly = (scope.kind === "state" || longRoute) && (category === "all" || cats.every((c) => c.heavy));
   const union = cats.flatMap((c) => c.selectors).map((s) => `nwr${s}${where};`).join("");
   const lines = [`[out:json][timeout:40];`, head, `(${union})->.all;`, `nwr.all${NOTABLE_FILTER}->.n;`, `.n out center ${NOTABLE_LIMIT};`];
   if (!notableOnly) lines.push(`(.all; - .n;)->.o;`, `.o out center ${OTHER_LIMIT};`);

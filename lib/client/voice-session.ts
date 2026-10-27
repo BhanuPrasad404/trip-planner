@@ -27,7 +27,7 @@ export function voiceErrorMessage(code: string): string {
     case "not-allowed": return "The microphone is blocked for this site. Allow it in the browser's site settings, then try again, or type instead.";
     case "service-not-allowed": return "This browser won't allow voice input on this page. It usually needs the secure (https) site. You can type instead.";
     case "audio-capture": return "No microphone was found, or another app is using it. Check the microphone and try again.";
-    case "network": return "Voice needs the internet: the browser sends your speech to its speech service. Check your connection and try again.";
+    case "network": return "Your browser's voice service didn't connect (this happens on some phones even with internet). Use Record instead: it works another way.";
     case "language-not-supported": return "This browser can't understand that language by voice. Try English, or type instead.";
     case "no-speech": return "We didn't hear anything. Try again, a little closer to the phone.";
     default: return `Voice input stopped (${code}). You can type instead.`;

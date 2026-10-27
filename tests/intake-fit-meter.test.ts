@@ -9,23 +9,40 @@ const P = (id: string, name: string, lat: number, lng: number, kind: MeterPlace[
 const NEAR = [P("w", "Warangal Fort", 17.95, 79.617), P("r", "Ramappa Temple", 18.259, 79.943), P("l", "Laknavaram Lake", 18.155, 80.03, "water")];
 const FAR = [...NEAR, P("a", "Araku Valley", 18.327, 82.877, "subdistrict"), P("v", "Vizag beach", 17.71, 83.32, "coast"), P("g", "Gandikota", 14.81, 78.28), P("b", "Belum Caves", 15.1, 78.11)];
 /** Six real places within a few hours of Hyderabad: a good 2–3 day trip, too much for one day. */
+const CLOSE = [P("y", "Yadagirigutta Temple", 17.587, 78.944), P("bh", "Bhongir Fort", 17.51, 78.889)];
 const WEEKEND = [...NEAR, P("y", "Yadagirigutta Temple", 17.587, 78.944), P("bh", "Bhongir Fort", 17.51, 78.889), P("ng", "Nagarjuna Sagar Dam", 16.575, 79.312, "water")];
 const matrixFor = (places: MeterPlace[]) => estimateMatrix([HYD, ...places]);
 
 describe("the fit meter — the engine's real fit check, in words", () => {
-  it("3 nearby places in 3 days: fits easily", () => {
-    const m = fitMeter({ answers: { days: 3 }, start: HYD, places: NEAR, matrix: matrixFor(NEAR) });
+  it("2 close places in 3 days: fits easily", () => {
+    const m = fitMeter({ answers: { days: 3 }, start: HYD, places: CLOSE, matrix: matrixFor(CLOSE) });
     expect(m.level).toBe("easy");
     expect(m.headline).toBe("Fits easily in 3 days");
-    expect(m.kept).toBe(3);
+    expect(m.kept).toBe(2);
     expect(m.estimated).toBe(true);
+  });
+  it("3 places a long drive away are NOT 'easy': the days are full (the old meter said easy)", () => {
+    const m = fitMeter({ answers: { days: 3 }, start: HYD, places: NEAR, matrix: matrixFor(NEAR) });
+    expect(m.level).toBe("tight");
+  });
+  it("uses the SAME road margin as the plan (+15%), so the meter and the plan stop disagreeing about how long the roads take", () => {
+    const raw = matrixFor(CLOSE);
+    const asIfNoMargin = { ...raw, durations: raw.durations.map((row) => row.map((s) => s / 1.15)) };
+    const withMargin = fitMeter({ answers: { days: 3 }, start: HYD, places: CLOSE, matrix: raw });
+    const without = fitMeter({ answers: { days: 3 }, start: HYD, places: CLOSE, matrix: asIfNoMargin });
+    expect(withMargin.driveMin / without.driveMin).toBeGreaterThan(1.13);
+    expect(withMargin.driveMin / without.driveMin).toBeLessThan(1.17);
+  });
+  it("a place that raw road time put just inside a day's drive is 'too far' once the margin is added, and the meter says so (it used to promise more days would fix it)", () => {
+    const m = fitMeter({ answers: { days: 1 }, start: HYD, places: WEEKEND, matrix: matrixFor(WEEKEND) });
+    expect(m.level).toBe("over");
+    expect(m.detail).toMatch(/Laknavaram Lake is too far for one day's drive/);
+    expect(m.needDays).toBeNull();
   });
   it("too many places for 1 day: says plainly it doesn't all fit, and how many days would", () => {
     const m = fitMeter({ answers: { days: 1 }, start: HYD, places: WEEKEND, matrix: matrixFor(WEEKEND) });
     expect(m.level).toBe("over");
     expect(m.headline).toMatch(/^Doesn't all fit: \d of 6 places in 1 day$/);
-    expect(m.needDays).toBeGreaterThan(1);
-    expect(m.detail).toMatch(/All of them need about \d+ days/);
     expect(m.leftOut.length).toBe(6 - m.kept);
     expect(m.leftOut[0].reason.length).toBeGreaterThan(10); // the engine's own reason, not a made-up one
   });
@@ -38,7 +55,8 @@ describe("the fit meter — the engine's real fit check, in words", () => {
   });
   it("updates live with the answers: more days → fits; relaxed pace → fewer places fit", () => {
     const tight = fitMeter({ answers: { days: 1 }, start: HYD, places: WEEKEND, matrix: matrixFor(WEEKEND) });
-    const more = fitMeter({ answers: { days: tight.needDays! }, start: HYD, places: WEEKEND, matrix: matrixFor(WEEKEND) });
+    expect(tight.level).toBe("over");
+    const more = fitMeter({ answers: { days: 4 }, start: HYD, places: WEEKEND, matrix: matrixFor(WEEKEND) });
     expect(more.level === "easy" || more.level === "tight").toBe(true);
     const packed = fitMeter({ answers: { days: 3, pace: "packed" }, start: HYD, places: FAR, matrix: matrixFor(FAR) });
     const relaxed = fitMeter({ answers: { days: 3, pace: "relaxed" }, start: HYD, places: FAR, matrix: matrixFor(FAR) });

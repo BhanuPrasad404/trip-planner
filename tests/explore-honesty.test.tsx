@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ExploreView, isResearched, type ExploreSeasonTag } from "@/components/ExploreView";
 import { AheadBrowser } from "@/components/intel/AheadBrowser";
 import type { RankedPoi } from "@/lib/intel/types";
+// Explore with a trip shows the trip section, which can send the person to Discover: a router stand-in for these tests.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined, refresh: () => undefined, replace: () => undefined }) }));
 
 const tag = (o: Partial<ExploreSeasonTag>): ExploreSeasonTag => ({
   id: "i", place_name: "Place", lat: 17, lng: 80, category: "fort", good_months: [10, 11, 12], reason: "Cool season.", region: "Andhra Pradesh",

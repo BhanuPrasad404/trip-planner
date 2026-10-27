@@ -4,6 +4,7 @@
 // It checks driving and time only — opening hours, weather and night driving are checked when the trip is planned, and it says so.
 import { SETTLEMENT_VISIT_MIN } from "@/lib/engine/settlement";
 import type { PlaceCategory } from "@/lib/categories";
+import { withMargin } from "@/lib/engine/margin";
 import { evaluateBrief, type BriefConstraints, type BriefFit } from "@/lib/trip-builder/brief";
 import type { PlaceHit } from "@/lib/places/types";
 import type { TripAnswers } from "./types";
@@ -81,7 +82,9 @@ export function fitMeter(input: { answers: TripAnswers; start: { lat: number; ln
   const fit: BriefFit = evaluateBrief({
     candidates: places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: categoryFor(p), confidence: 1, must: p.must, visitMin: settlementMinutes(p) })),
     start: { lat: start.lat, lng: start.lng, label: start.name },
-    numDays: answers.days, startDateISO: input.startDateISO ?? null, utcOffsetMin: 330, constraints, matrix,
+    // The SAME road margin the plan adds (+15% on every drive, lib/engine/margin.ts), so the meter and the plan stop disagreeing about how long
+    // the roads take. Heights are not known here, so no hill drive is guessed: a hill trip is checked more strictly when it is planned.
+    numDays: answers.days, startDateISO: input.startDateISO ?? null, utcOffsetMin: 330, constraints, matrix: withMargin(matrix, null).matrix,
   });
 
   const total = places.length;

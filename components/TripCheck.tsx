@@ -29,6 +29,9 @@ import type { BoardStop } from "@/lib/forecast/board";
 import { momentAt } from "@/lib/forecast/moment";
 import { arrivalNote } from "@/lib/forecast/present";
 import { DEFAULT_VIEW } from "@/lib/forecast/view-time";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { tripDatesView } from "@/lib/trip/passed";
+import { TimePicker } from "@/components/ui/TimePicker";
 
 type Stored = {
   date: string;
@@ -107,7 +110,8 @@ export function TripCheck({ tripId, trip, places, activeDay, today, roadLine = n
   // Driving times: the plan's saved ones when it has them, otherwise the ones we fetched just now for this day. Never invented.
   const legsForDay = advisor.legs && advisor.legs.day === dayNo ? advisor.legs : null;
   const driveOf = (p: Place): number | null => p.drive_minutes ?? legsForDay?.minutes[p.id] ?? null;
-  const tripDay = dateOfTripDay(trip.start_date, dayNo);
+  // Dates over: the old planned day is history, so "Leave on" starts empty (today) and the person picks a real date.
+  const tripDay = tripDatesView(trip, today).passed ? null : dateOfTripDay(trip.start_date, dayNo);
   const date = s.date || (tripDay ? isoDate(tripDay) : "");
   const forReadiness = (p: Place) => ({ id: p.id, name: p.name, day_number: p.day_number, sequence_order: p.sequence_order, arrival_time: p.arrival_time, drive_minutes: driveOf(p), hours: hoursOf(p).opening_hours ?? null });
 
@@ -365,12 +369,12 @@ export function TripCheck({ tripId, trip, places, activeDay, today, roadLine = n
               {!tripDay && (
                 <div>
                   <label htmlFor="check-date" className="text-sm font-semibold text-pine">Leave on</label>
-                  <input id="check-date" type="date" value={date} onChange={(e) => set((c) => ({ ...c, date: e.target.value, ran: false }))} className="mt-1.5 min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base" />
+                  <div className="mt-1.5"><DatePicker id="check-date" label="Leave on" today={today} min={today} value={date} onChange={(v) => set((c) => ({ ...c, date: v, ran: false }))} /></div>
                 </div>
               )}
               <div>
                 <label htmlFor="check-time" className="text-sm font-semibold text-pine">Leave at</label>
-                <input id="check-time" type="time" value={s.time} onChange={(e) => set((c) => ({ ...c, time: e.target.value, ran: false }))} className="mt-1.5 min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base" />
+                <div className="mt-1.5"><TimePicker id="check-time" label="Leave at" value={s.time} onChange={(v) => set((c) => ({ ...c, time: v, ran: false }))} /></div>
               </div>
             </div>
           </details>

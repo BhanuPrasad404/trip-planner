@@ -39,3 +39,43 @@ Signed in at `localhost:3000`, in the browser console:
 fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:{kind:'state',code:'TG'},category:'all',limit:5})}).then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,1)))
 ```
 `source: "live"` the first time and `"cache"` after; `total` is how many places the region has in that category; an error message says which part failed. Change `code` (any of the 36) and `category` (`fort`, `temple`, `waterfall`, `beach`, `wildlife`, `lake`, `museum`, `viewpoint`, `heritage`, `peak`).
+
+---
+
+## Explore for a trip (route-aware) — added in round 6
+
+**Audit before this change.** Explore already read live OpenStreetMap data (Overpass) for a state or a circle, with a shared cache, photos, save and add-to-ideas. What a traveller saw first, though, was a small hand-researched seasonal list (mostly Andhra Pradesh and Telangana), and the search knew only "a state" or "a circle round the start or destination". It did not know whether the trip had started, which stops were left, or where the road runs, and it could not say *why* a place was suggested.
+
+**What it does now.** For anyone with a trip, the top of Explore follows what the traveller is doing (`lib/explore/context.ts`):
+
+| Situation | What it searches |
+|---|---|
+| Planned, not started | A corridor round the whole planned road: start → stops still to do → end |
+| On the road (dates running, or resumed) | A corridor round what is **left** of the road, from the shared position (or the last finished stop if no position is shared) |
+| Nothing left to do on the plan | A circle round where the traveller is |
+| No trip, or a finished / called-off trip | Nothing trip-specific: the ordinary Explore below |
+
+How: `app/api/explore/trip/route.ts` → `lib/server/explore-trip.ts` reads the trip under the person's own access, asks the routing service for the real road through the stops (kept 6 hours), asks the map for places within 5/10/20 km of that road (`scope.kind = "route"`, shared cache keyed by a hash of the road, so two travellers on the same road share one answer), ranks them (`lib/explore/route-rank.ts`) and measures the extra drive of the first page by road (`lib/intel/detour.ts`).
+
+**What it will not claim.** The extra drive is labelled "estimated" until measured "by road". Reasons are built only from calculated numbers or the map's own tags (heritage / Wikipedia). There are no crowd levels, ratings, "open now" or "matches your interests" because no source for them is connected. "Add to my ideas" puts the place in the ideas list; it never changes the schedule.
+
+**Also changed.** The nationwide Discover section now comes before the curated "Best in <month>" list, and has a **Near me** button (location asked on tap, used for that list only).
+
+**Traveller reports (Phase 4, done).** Each place on the page is linked to a feed destination only when it is really the same place:
+within 400 m, or within 2 km with a matching name (`lib/explore/community.ts`). The card shows "3 traveller reports · latest yesterday",
+counting only posts the person may see (row-level security, visible and approved). A report older than 30 days says "may be out of date".
+Tapping it opens the feed's own "what travellers say" sheet (`DestinationSheet`). If the feed can't be read, the places still show.
+
+**Add as a stop (Phase 5, done).** Before anything changes, `POST /api/explore/trip/effect` (`lib/server/explore-effect.ts` →
+`lib/explore/plan-effect.ts`) works out, for the chosen day (suggested: today while travelling, else the day of the nearest stop):
+the best spot (least extra driving, one routing request), the extra time (drive + time there), the later stops' new times, a warning when
+a later stop's OWN listed hours say it would be closed at the new time or it slips past sunset, and what could not be checked (unknown
+hours, no dates, estimated roads). Only "Add to Day N" writes, through the existing `insert-stop` route, which now accepts `before_id`
+(and answers 409 if the day changed since the preview; the sheet then looks again). Later times are cleared until the day is re-planned,
+exactly like Go There. Undo deletes the new stop.
+
+**Not done yet (honest list).**
+1. **Interests and budget**: not used (no stored vocabulary to match against, no price data).
+2. **Opening hours of the suggested place itself** are the map's raw text; the add-a-stop check uses the hours of the trip's own stops.
+3. **Coverage** follows OpenStreetMap. Famous places are well mapped, small ones less so; a long road asks for notable places only for the heavy categories (temples, lakes, viewpoints…).
+4. **Needs a real device and a deployed database to confirm**: the corridor query against live Overpass servers for long routes (timeouts), the shared cache table with route keys, the `destinations_near_points` match against real feed data, GPS on a phone, and the look of the new section and sheets.

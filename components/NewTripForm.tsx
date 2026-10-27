@@ -9,6 +9,7 @@ import { PlaceSearch, type PickedPlace } from "./PlaceSearch";
 import { Button } from "./ui/Button";
 import { FormError, TextField } from "./ui/Field";
 import { Glyph } from "./ui/Glyph";
+import { DatePicker } from "./ui/DatePicker";
 
 /** Today's date in India, whatever the phone's own time zone. */
 function todayISO() {
@@ -144,14 +145,11 @@ export function NewTripForm() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <TextField
-          label="Start date"
-          type="date"
-          min={todayISO()}
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          hint="Used to check what's in season."
-        />
+        <div>
+          <label htmlFor="new-trip-start" className="block text-sm font-semibold text-ink">Start date</label>
+          <div className="mt-1.5"><DatePicker id="new-trip-start" label="Start date" today={todayISO()} min={todayISO()} value={startDate} onChange={setStartDate} /></div>
+          <p className="mt-1.5 text-sm text-ink-muted">Used to check what&apos;s in season.</p>
+        </div>
         <TextField
           label="Number of days"
           type="number"

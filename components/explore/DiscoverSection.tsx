@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeviceHere } from "@/lib/client/use-device-here";
 import { ExplorePlaceSearch } from "@/components/ExplorePlaceSearch";
 import { CategoryGlyph } from "@/components/ui/Glyph";
 import { ExploreCard, type SeasonNote } from "@/components/explore/ExploreCard";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
 import { CATEGORIES, normalizeCategory, type PlaceCategory } from "@/lib/categories";
 import { useExplore } from "@/lib/client/use-explore";
 import { usePlacePhotos } from "@/lib/client/use-place-photos";
@@ -50,6 +52,15 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
   const [category, setCategory] = useState<ExploreCategoryId | "all">("all");
   const [sort, setSort] = useState<"notable" | "nearest">("notable");
   const [q, setQ] = useState("");
+  // "Near me": asked for on a tap, used to look round this spot, never stored or shared.
+  const { here, request } = useDeviceHere();
+  const wantNear = useRef(false);
+  useEffect(() => {
+    if (!wantNear.current || here.status !== "on") return;
+    wantNear.current = false;
+    setMode("place");
+    onPickPlace({ name: "Your location", address: "", lat: here.lat, lng: here.lng, source: "map" });
+  }, [here, onPickPlace]);
 
   const anchor = anchors.find((a) => a.id === anchorId) ?? anchors[0] ?? null;
   const scope = useMemo<ExploreScope | null>(
@@ -104,16 +115,15 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="How to look">
             <button type="button" aria-pressed={mode === "region"} onClick={() => setMode("region")} className={chip(mode === "region")}>By state or UT</button>
             <button type="button" aria-pressed={mode === "place"} onClick={() => setMode("place")} className={chip(mode === "place")}>Around a place</button>
+            <button type="button" disabled={here.status === "asking"} onClick={() => { wantNear.current = true; if (here.status === "on") { wantNear.current = false; setMode("place"); onPickPlace({ name: "Your location", address: "", lat: here.lat, lng: here.lng, source: "map" }); } else request(); }} className={chip(false)}>{here.status === "asking" ? "Asking…" : "Near me"}</button>
           </div>
+          {here.status === "denied" && <p role="status" className="mt-2 text-sm text-ink-muted">Location is blocked in this browser, so “Near me” can&apos;t work. Search for a place or choose a state instead.</p>}
+          {here.status === "unavailable" && <p role="status" className="mt-2 text-sm text-ink-muted">We couldn&apos;t find your location just now. Search for a place or choose a state instead.</p>}
 
           {mode === "region" ? (
             <div className="mt-3">
               <label className="text-sm font-semibold text-pine" htmlFor="explore-region">State or union territory</label>
-              <select id="explore-region" value={region} onChange={(e) => setRegion(e.target.value)} className="mt-1 block min-h-11 w-full max-w-sm rounded-xl border border-line bg-white px-3 text-base">
-                <option value="">Choose…</option>
-                <optgroup label="States">{REGIONS.filter((r) => r.kind === "state").map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</optgroup>
-                <optgroup label="Union territories">{REGIONS.filter((r) => r.kind === "ut").map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</optgroup>
-              </select>
+              <div className="mt-1 max-w-sm"><Select id="explore-region" label="State or union territory" value={region} onChange={setRegion} placeholder="Choose…" options={[...REGIONS.filter((r) => r.kind === "state"), ...REGIONS.filter((r) => r.kind === "ut")].map((r) => ({ value: r.code, label: r.name, hint: r.kind === "ut" ? "Union territory" : undefined }))} /></div>
               {!region && (
                 <ul className="mt-3 flex flex-wrap gap-2" aria-label="Quick pick">
                   {REGIONS.map((r) => <li key={r.code}><button type="button" onClick={() => setRegion(r.code)} className="min-h-11 rounded-full border border-line bg-white px-3 text-sm text-ink-muted hover:border-teal">{r.name}</button></li>)}
@@ -124,8 +134,8 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
             <div className="mt-3 space-y-3">
               {anchors.length > 0 && (
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="text-sm font-semibold text-pine">Around <select value={anchor?.id ?? ""} onChange={(e) => onAnchorChange(e.target.value)} className="ml-1 min-h-11 rounded-lg border border-line bg-white px-2 text-sm font-normal">{anchors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
-                  <label className="text-sm font-semibold text-pine">Within <select value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="ml-1 min-h-11 rounded-lg border border-line bg-white px-2 text-sm font-normal">{RADII.map((r) => <option key={r} value={r}>{r} km</option>)}</select></label>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="discover-around">Around</label><div className="min-w-[10rem]"><Select id="discover-around" label="Around" value={anchor?.id ?? ""} onChange={onAnchorChange} options={anchors.map((a) => ({ value: a.id, label: a.label }))} className="!min-h-11 !text-sm font-normal" /></div></div>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="discover-within">Within</label><div className="min-w-[7rem]"><Select id="discover-within" label="Within" value={String(radius)} onChange={(v) => setRadius(Number(v))} options={RADII.map((r) => ({ value: String(r), label: `${r} km` }))} className="!min-h-11 !text-sm font-normal" /></div></div>
                 </div>
               )}
               {anchors.length === 0 && <p className="text-sm text-ink-muted">Search for a city, town or landmark above, or create a trip to explore around its destination.</p>}
@@ -143,7 +153,7 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
                   <label htmlFor="explore-q" className="text-sm font-semibold text-pine">Search these results</label>
                   <input id="explore-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} autoComplete="off" placeholder="e.g. fort, falls, a name" className="mt-1 block min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base" />
                 </div>
-                <label className="text-sm font-semibold text-pine">Sort <select value={sort} onChange={(e) => setSort(e.target.value as "notable" | "nearest")} className="ml-1 min-h-11 rounded-lg border border-line bg-white px-2 text-sm font-normal"><option value="notable">Well known first</option>{canSortNearest && <option value="nearest">Nearest to {distanceFrom?.label}</option>}</select></label>
+                <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="discover-sort">Sort</label><div className="min-w-[10rem]"><Select id="discover-sort" label="Sort" value={sort} onChange={(v) => setSort(v)} options={[{ value: "notable" as "notable" | "nearest", label: "Well known first" }, ...(canSortNearest ? [{ value: "nearest" as "notable" | "nearest", label: `Nearest to ${distanceFrom?.label}` }] : [])]} className="!min-h-11 !text-sm font-normal" /></div></div>
               </div>
             </>
           )}

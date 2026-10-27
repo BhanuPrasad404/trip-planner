@@ -1,9 +1,12 @@
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { choose, optionsOf } from "./helpers/select";
 import { ExploreView, type ExploreSeasonTag } from "@/components/ExploreView";
 import { forgetKnownPhotos } from "@/lib/client/use-place-photos";
 import { forgetFailedImages } from "@/components/ui/SafeImg";
 import type { ExploreItem } from "@/lib/explore/items";
+// Explore with a trip shows the trip section, which can send the person to Discover: a router stand-in for these tests.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined, refresh: () => undefined, replace: () => undefined }) }));
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -61,7 +64,7 @@ const mount = async (props: Partial<React.ComponentProps<typeof ExploreView>> = 
   return r;
 };
 const chooseRegion = async (r: TestRenderer.ReactTestRenderer, code = "TG") => {
-  await act(async () => { r.root.findByProps({ id: "explore-region" }).props.onChange({ target: { value: code } }); });
+  await act(async () => { choose(r.root, "explore-region", code); });
   await flush();
 };
 
@@ -70,7 +73,7 @@ describe("Discover: nothing is fetched until you choose, then every state works 
     const r = await mount();
     expect(text(r.root)).toContain("Choose a state or union territory to see its places.");
     expect(exploreCalls()).toHaveLength(0);
-    expect(r.root.findByProps({ id: "explore-region" }).findAllByType("option").length).toBe(37); // "Choose…" + 36
+    expect(optionsOf(r.root, "explore-region").length).toBe(36); // 36 states and union territories ("Choose…" is the placeholder)
     expect(buttons(r, "Kerala").length).toBeGreaterThan(0); // quick-pick chips
   });
   it("choosing a state loads its ranked places (first page, 18) and says how many there are", async () => {
@@ -131,11 +134,11 @@ describe("filters, search, sort, paging", () => {
   it("offers 'Nearest' only when there is a place to measure from", async () => {
     const without = await mount(); await chooseRegion(without);
     expect(without.root.findByProps({ value: "notable" })).toBeTruthy();
-    expect(without.root.findAll((n) => n.type === "option" && n.props.value === "nearest")).toHaveLength(0);
+    expect(optionsOf(without.root, "discover-sort").filter((o) => o.value === "nearest")).toHaveLength(0);
     const withTrip = await mount({ tripId: "t1", anchors: [{ id: "dest", label: "Mothkur", lat: 17.5, lng: 78.9 }] });
     await act(async () => { withTrip.root.findAllByType("button").find((b) => text(b) === "By state or UT")!.props.onClick(); });
     await chooseRegion(withTrip);
-    expect(withTrip.root.findAll((n) => n.type === "option" && n.props.value === "nearest").map((o) => text(o))).toEqual(["Nearest to Mothkur"]);
+    expect(optionsOf(withTrip.root, "discover-sort").filter((o) => o.value === "nearest").map((o) => o.label)).toEqual(["Nearest to Mothkur"]);
   });
   it("around a trip's destination it browses that point by default (radius 25 km) with distances", async () => {
     await mount({ tripId: "t1", anchors: [{ id: "dest", label: "Mothkur", lat: 17.5, lng: 78.9 }] });
@@ -305,8 +308,8 @@ describe("a late answer to an old question is ignored", () => {
       return new Response(JSON.stringify({ items: items.map((x, n) => ({ ...x, id: `way/${code}${n}` })), total: 2, nextCursor: null, source: "cache", stale: false, fetchedAt: "2026-10-10T00:00:00.000Z" }), { status: 200 });
     }) as unknown as typeof fetch;
     const r = await mount();
-    await act(async () => { r.root.findByProps({ id: "explore-region" }).props.onChange({ target: { value: "KL" } }); });
-    await act(async () => { r.root.findByProps({ id: "explore-region" }).props.onChange({ target: { value: "GA" } }); });
+    await act(async () => { choose(r.root, "explore-region", "KL"); });
+    await act(async () => { choose(r.root, "explore-region", "GA"); });
     await act(async () => { releases.GA?.(); await Promise.resolve(); }); await flush();
     await act(async () => { releases.KL?.(); await Promise.resolve(); }); await flush(); // the old answer arrives late
     expect(text(r.root)).toContain("Goa Fort"); expect(text(r.root)).not.toContain("Kerala Fort");

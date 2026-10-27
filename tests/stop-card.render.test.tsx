@@ -16,7 +16,7 @@ const html = (p: Place, extra: Record<string, unknown> = {}) => renderToStaticMa
 describe("StopCard — a clear timeline card, not a pile of links", () => {
   it("shows the stop's name, address, time and the drive from the previous point", () => {
     const h = html(place());
-    expect(h).toContain("Kolanupaka"); expect(h).toContain("Alair mandal"); expect(h).toContain("11:50"); expect(h).toContain("30 min · 32 km from previous point");
+    expect(h).toContain("Kolanupaka"); expect(h).toContain("Alair mandal"); expect(h).toContain("11:50"); expect(h).toContain("30 min · 32 km"); expect(h).toContain("from previous point");
   });
   it("the two actions you use all the time are real buttons: Skip and Done", () => {
     const h = html(place());
@@ -122,6 +122,23 @@ describe("Menu — keyboard, phone sheet and closing", () => {
     await act(async () => { r.root.findByProps({ "aria-haspopup": "menu" }).props.onClick(); await Promise.resolve(); });
     expect(seen).toEqual([true, false]);
     act(() => r.unmount());
+  });
+});
+
+describe("StopCard — on a phone (393 px: the name had about 140 px and broke into three lines)", () => {
+  it("the header keeps only the photo, the name and the menu; the pin moves to a 'Map' button in the action row", () => {
+    const h = html(place(), { onShowOnMap: vi.fn() });
+    expect(h).toMatch(/aria-label="Show Kolanupaka on the map"[^>]*max-sm:hidden|max-sm:hidden[^>]*aria-label="Show Kolanupaka on the map"/);   // header pin: not on phones
+    expect(h).toContain("Map<span");                                                                                                       // action-row button: phones only (sm:hidden)
+    expect(h).toMatch(/sm:hidden[^>]*>[\s\S]*?Map<span/);
+  });
+  it("the photo is smaller on phones, and its licence credit sits under the whole header, not in the narrow title column", () => {
+    const h = html(place(), { photo: { url: "https://example.org/a.jpg", credit: "Someone", license: "CC BY-SA 3.0", source: "wikimedia", pageUrl: "https://example.org/p" } as never });
+    expect(h).toContain("h-12 w-12 sm:h-16 sm:w-16");
+    expect(h.indexOf("</header>")).toBeLessThan(h.indexOf("Photo:"));
+  });
+  it("the drive line is short on phones but still says 'from previous point' to screen readers", () => {
+    expect(html(place())).toContain("max-sm:sr-only\"> from previous point");
   });
 });
 

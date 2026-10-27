@@ -1,7 +1,8 @@
 // A phone set to another time zone (Tokyo, New York) near midnight INDIA time: every "today", "now" and clock the app shows is India
 // time. Real components and functions; the phone's own time zone is really switched (process.env.TZ).
+import TestRenderer, { act } from "react-test-renderer";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,7 +20,13 @@ describe("near midnight India time, a phone on another time zone", () => {
   it("new trip: the earliest date allowed is India's today (Tokyo is already on the 23rd, New York still on the 22nd)", () => {
     for (const [tz, ms, today] of [["Asia/Tokyo", ist(22, 23, 45), "2026-10-22"], ["America/New_York", ist(23, 0, 30), "2026-10-23"], ["Asia/Kolkata", ist(23, 0, 30), "2026-10-23"]] as const) {
       at(tz, ms);
-      expect(renderToStaticMarkup(createElement(NewTripForm))).toContain(`min="${today}"`);
+      // Our own calendar gets the earliest allowed day as a prop: it must be India's today, whatever the phone's own zone says.
+      let r!: TestRenderer.ReactTestRenderer;
+      act(() => { r = TestRenderer.create(createElement(NewTripForm)); });
+      const pickers = r.root.findAll((n) => n.type === DatePicker);
+      expect(pickers.map((n) => n.props.min)).toEqual([today]);
+      expect(pickers.map((n) => n.props.today)).toEqual([today]);
+      act(() => r.unmount());
     }
   });
   it("the map's 'done about' time is India time, and says (tomorrow) by India's calendar", () => {

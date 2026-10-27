@@ -5,7 +5,9 @@
 // keeps listening through pauses until you tap stop, and says exactly why when it can't work.
 import { useEffect, useRef, useState } from "react";
 import { Glyph } from "@/components/ui/Glyph";
+import { Select } from "@/components/ui/Select";
 import { recorderSupported, recordingToText, startRecording } from "@/lib/client/voice-record";
+import { browserVoiceFailedRecently, browserVoiceUnreliable, forgetBrowserVoiceFailed, rememberBrowserVoiceFailed } from "@/lib/client/voice-prefs";
 import { startVoice, type RecCtor } from "@/lib/client/voice-session";
 
 export const VOICE_LANGS = [
@@ -30,8 +32,10 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   const [canRecord, setCanRecord] = useState(false);
   const [recording, setRecording] = useState<number | null>(null);
   const [converting, setConverting] = useState(false);
+  // True once the browser's own recogniser has failed on this phone: Record becomes the main button instead of the backup.
+  const [preferRecord, setPreferRecord] = useState(false);
   const session = useRef<{ stop: () => void } | null>(null);
-  useEffect(() => { queueMicrotask(() => { setSupported(!!speechRecognition()); setCanRecord(recorderSupported()); }); }, []);
+  useEffect(() => { queueMicrotask(() => { setSupported(!!speechRecognition()); setCanRecord(recorderSupported()); setPreferRecord(browserVoiceFailedRecently(window.localStorage, Date.now())); }); }, []);
   useEffect(() => () => session.current?.stop(), []);
   if (supported === null) return null;
   if (!supported && !canRecord) {
@@ -64,34 +68,39 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
       onFinal: (t) => onText(t),
       onInterim: setHeard,
       onListening: setListening,
-      onError: (message, code) => { setError(message); if (typeof console !== "undefined") console.warn("[voice]", code); },
+      onError: (message, code) => {
+        setError(message);
+        if (typeof console !== "undefined") console.warn("[voice]", code);
+        // The recogniser can't work on this phone: remember it, so next time Record is the first thing offered.
+        if (canRecord && browserVoiceUnreliable(code)) { rememberBrowserVoiceFailed(window.localStorage, Date.now()); setPreferRecord(true); }
+      },
     });
   }
 
-  const recordLabel = converting ? "Turning your voice into text…" : recording !== null ? `Recording ${Math.floor(recording / 60)}:${String(recording % 60).padStart(2, "0")} · tap to stop` : "Record, then convert to text";
+  const recordMain = canRecord && (!supported || preferRecord);   // Record is the main button (the browser's own voice is missing or didn't work here)
+  const recordLabel = converting ? "Turning your voice into text…" : recording !== null ? `Recording ${Math.floor(recording / 60)}:${String(recording % 60).padStart(2, "0")} · tap to stop` : recordMain ? "Record your voice" : "Record, then convert to text";
   return (
     <div className="rounded-xl border border-line bg-sky/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        {supported && (
+        {supported && !recordMain && (
           <button type="button" onClick={toggle} disabled={recording !== null || converting} aria-pressed={listening} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${listening ? "bg-clay text-white" : "bg-pine text-white"}`}>
             <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${listening ? "animate-pulse bg-white" : "bg-marigold"}`} />
             {listening ? "Listening… tap to stop" : "Say it instead"}
           </button>
         )}
-        {canRecord && (!supported || error !== null || recording !== null || converting) && (
-          <button type="button" onClick={() => void toggleRecord()} disabled={listening || converting} aria-pressed={recording !== null} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${recording !== null ? "bg-clay text-white" : supported ? "border-2 border-pine bg-white text-pine" : "bg-pine text-white"}`}>
+        {canRecord && (recordMain || error !== null || recording !== null || converting) && (
+          <button type="button" onClick={() => void toggleRecord()} disabled={listening || converting} aria-pressed={recording !== null} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${recording !== null ? "bg-clay text-white" : recordMain ? "bg-pine text-white" : "border-2 border-pine bg-white text-pine"}`}>
             <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${recording !== null ? "animate-pulse bg-white" : "bg-marigold"}`} />
-            {supported && recording === null && !converting ? "Not working? Record instead" : recordLabel}
+            {supported && !recordMain && recording === null && !converting ? "Not working? Record instead" : recordLabel}
           </button>
         )}
         <label className="sr-only" htmlFor="voice-lang">Language you will speak</label>
-        <select id="voice-lang" value={lang} disabled={listening || recording !== null || converting} onChange={(e) => setLang(e.target.value)} className="min-h-12 rounded-xl border border-line bg-white px-3 text-base disabled:opacity-60">
-          {VOICE_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-        </select>
+        <span className="min-w-[9rem]"><Select id="voice-lang" label="Language you will speak" value={lang} disabled={listening || recording !== null || converting} onChange={setLang} options={VOICE_LANGS.map((l) => ({ value: l.code, label: l.label }))} /></span>
       </div>
       {listening && <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-ink">{heard ? <>{heard}</> : <span className="text-ink-muted">Speak now. Pauses are fine; tap stop when you are done.</span>}</p>}
       {recording !== null && <p role="status" aria-live="polite" className="mt-2 text-sm text-ink-muted">Speak now. Pauses are fine; tap stop when you are done.</p>}
-      <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted"><Glyph name="info" size={13} className="mt-0.5" />{supported ? "Your browser turns speech into text. On Chrome the audio is sent to Google to do that." : "Your recording is sent to our speech service to turn it into text, and is not kept."} Nothing is sent until you tap{canRecord && supported ? "; \"Record instead\" sends a short recording to our speech service, and it is not kept" : ""}.</p>
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted"><Glyph name="info" size={13} className="mt-0.5" />{recordMain ? "Your recording is sent to our speech service to turn it into text, and is not kept." : "Your browser turns speech into text. On Chrome the audio is sent to Google to do that."} Nothing is sent until you tap{canRecord && supported && !recordMain ? "; \"Record instead\" sends a short recording to our speech service, and it is not kept" : ""}.</p>
+      {recordMain && supported && recording === null && !converting && <button type="button" onClick={() => { forgetBrowserVoiceFailed(window.localStorage); setPreferRecord(false); setError(null); }} className="tm-action mt-1 min-h-11 text-sm font-semibold">Try live voice again</button>}
       {error && <p role="alert" className="mt-1.5 text-sm font-medium text-clay-ink">{error}</p>}
     </div>
   );

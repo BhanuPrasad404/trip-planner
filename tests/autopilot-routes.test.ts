@@ -176,3 +176,23 @@ describe("POST /api/pulse", () => {
     expect(JSON.stringify(json)).not.toContain("waterfall.jpg");
   });
 });
+
+describe("POST /api/trips/[id]/insert-stop with before_id (Explore's 'Add as a stop')", () => {
+  const body = { name: "Borra Caves", lat: 17.1, lng: 80.2, day_number: 1 };
+  it("puts it just before the chosen stop: earlier stops keep their times, it and later ones move one place and lose their now-wrong times", async () => {
+    const res = await post(insertPOST, { ...body, before_id: id(3) });
+    expect(res.status).toBe(201);
+    const day1 = state.places.filter((p) => p.day_number === 1).sort((a, b) => (a.sequence_order as number) - (b.sequence_order as number));
+    expect(day1.map((p) => p.name)).toEqual(["S1", "S2", "Borra Caves", "S3"]);
+    expect(day1.find((p) => p.name === "S2")).toMatchObject({ sequence_order: 2, arrival_time: "10:00:00" });   // before it: untouched
+    expect(day1.find((p) => p.name === "S3")).toMatchObject({ sequence_order: 4, arrival_time: null });         // after it: needs a re-plan
+    expect(await res.json()).toMatchObject({ shifted: 1, needsReplan: true });
+  });
+  it("refuses (409) when that stop is no longer a stop to do on that day, and changes nothing", async () => {
+    for (const before of [id(1), id(4), "00000000-0000-0000-0000-0000000000ee"]) {   // already done; another day; gone
+      const n = state.places.length;
+      expect((await post(insertPOST, { ...body, before_id: before })).status).toBe(409);
+      expect(state.places).toHaveLength(n);
+    }
+  });
+});

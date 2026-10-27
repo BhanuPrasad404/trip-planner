@@ -298,6 +298,29 @@ export const exploreSchema = z.object({
   limit: z.number().int().min(1).max(30).default(18),
 });
 
+// Explore for a TRIP: which trip, what kind of place, how wide a corridor, and (only if the traveller allowed it) where they are.
+// The road itself is never sent by the browser: the server builds it from the trip, so nobody can make the server search an arbitrary line.
+export const exploreTripSchema = z.object({
+  trip_id: uuid,
+  category: z.enum([...EXPLORE_CATEGORY_IDS, "all"]).default("all"),
+  radius_km: z.union([z.literal(5), z.literal(10), z.literal(20)]).default(10),
+  cursor: z.number().int().min(0).max(2000).default(0),
+  limit: z.number().int().min(1).max(30).default(12),
+  position: z.object({ lat: latitude, lng: longitude }).nullish().transform((v) => v ?? null),
+});
+
+// "What happens to my plan if I add this as a stop?" Read-only preview. The day is optional (the server suggests one).
+export const exploreEffectSchema = z.object({
+  trip_id: uuid,
+  day_number: z.number().int().min(1).max(MAX_TRIP_DAYS).nullish().transform((v) => v ?? null),
+  place: z.object({
+    name: z.string().trim().min(1).max(120),
+    lat: latitude,
+    lng: longitude,
+    category: z.enum(EXPLORE_CATEGORY_IDS).nullish().transform((v) => v ?? null),
+  }),
+});
+
 /** A place a traveller saved. The key is the place's identity (an OpenStreetMap element like "way/123", or "season:<id>" for researched places). */
 export const savedPlaceKey = z.string().trim().regex(/^[a-z0-9:_/.-]{3,80}$/i, "Invalid place");
 export const savedPlaceSchema = z.object({
@@ -375,6 +398,8 @@ export const insertStopSchema = z.object({
   category: z.string().trim().max(40).nullish().transform((v) => v || null),
   address: z.string().trim().max(200).nullish().transform((v) => v || null),
   notes: z.string().trim().max(300).nullish().transform((v) => v || null),
+  /** Put the new stop just before this one (same day, still to do). Absent = the old behaviour: next, right after what is finished. */
+  before_id: uuid.nullish().transform((v) => v ?? null),
 });
 
 export const restoreSchema = z.object({

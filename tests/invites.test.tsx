@@ -1,4 +1,5 @@
 // Task 4: a new invite link on demand (the old one dies at once), optional expiry, throttled joining, clear join messages.
+import { choose } from "./helpers/select";
 import { createElement, act, type ReactNode } from "react";
 import TestRenderer from "react-test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -131,10 +132,11 @@ describe("InvitePanel", () => {
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => { fetched = { url, body: init.body as string }; return { ok: true, status: 200, json: async () => ({ ok: true }) }; });
     let tr!: TestRenderer.ReactTestRenderer;
     act(() => { tr = TestRenderer.create(createElement(InvitePanel, { inviteUrl: URL, tripName: "Hampi", tripId: TRIP, isOwner: true })); });
-    const btn = (label: string) => tr.root.findAllByType("button").find((b) => JSON.stringify(b.props.children).includes(label))!;
+    const textOf = (n: TestRenderer.ReactTestInstance): string => n.children.map((c) => (typeof c === "string" ? c : textOf(c))).join("");
+    const btn = (label: string) => tr.root.findAllByType("button").find((b) => textOf(b).includes(label))!;
     await act(async () => { btn("New invite link").props.onClick(); });
     expect(JSON.stringify(tr.toJSON())).toContain("The old link stops working at once");
-    act(() => { tr.root.findByType("select").props.onChange({ target: { value: "168" } }); });
+    act(() => { choose(tr.root, "invite-expiry", "168"); });
     await act(async () => { await btn("Make new link").props.onClick(); });
     expect(fetched).toEqual({ url: `/api/trips/${TRIP}/invite`, body: JSON.stringify({ expires_in_hours: 168 }) });
     expect(router.refresh).toHaveBeenCalled();

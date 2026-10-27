@@ -81,9 +81,9 @@ export function StopCard({
   const hasMenu = !!(onMove || onRelocate || onRemove);
 
   const driveLine = scheduled && place.drive_minutes != null && place.drive_minutes > 0 && (
-    <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+    <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-ink-muted" title="Drive from the previous point">
       <Glyph name="car" size={13} />
-      {formatDuration(place.drive_minutes)}{place.drive_km != null && ` · ${Math.round(place.drive_km)} km`} from previous point
+      <span>{formatDuration(place.drive_minutes)}{place.drive_km != null && ` · ${Math.round(place.drive_km)} km`}<span className="max-sm:sr-only"> from previous point</span></span>
     </p>
   );
 
@@ -94,8 +94,8 @@ export function StopCard({
       }`}
     >
       {/* Title row: what it is, where it is, and the menu for everything occasional */}
-      <header className="flex items-start gap-3">
-        {photo && <PlacePhoto photo={photo} name={place.name} sizes="64px" className={`h-16 w-16 ${skipped ? "opacity-60" : ""}`} fallback={<CategoryGlyph category={category} size={22} />} />}
+      <header className="flex items-start gap-2.5 sm:gap-3">
+        {photo && <PlacePhoto photo={photo} name={place.name} sizes="64px" className={`h-12 w-12 sm:h-16 sm:w-16 ${skipped ? "opacity-60" : ""}`} fallback={<CategoryGlyph category={category} size={22} />} />}
         <div className="min-w-0 flex-1">
           <h3 className={`break-words text-[17px] font-semibold leading-snug text-pine ${skipped ? "text-ink-muted" : ""} ${done ? "decoration-teal/60" : ""}`}>
             {!scheduled && <CategoryGlyph category={category} size={17} className="mr-1.5 inline align-text-bottom text-teal" />}
@@ -103,7 +103,6 @@ export function StopCard({
             <span className="sr-only"> ({cat.label})</span>
           </h3>
           {driveLine}
-          {photo && <PhotoCredit photo={photo} className="mt-1" />}
         </div>
         {busy && (
           <span role="status" className="mt-0.5 inline-flex items-center gap-1.5 rounded-full bg-sky px-2.5 py-1 text-xs font-semibold text-ink-muted">
@@ -111,7 +110,7 @@ export function StopCard({
           </span>
         )}
         {onShowOnMap && (
-          <button type="button" onClick={() => onShowOnMap(place.id)} aria-label={`Show ${place.name} on the map`} title="Show on the map" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted transition-colors hover:bg-sky hover:text-pine">
+          <button type="button" onClick={() => onShowOnMap(place.id)} aria-label={`Show ${place.name} on the map`} title="Show on the map" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted transition-colors hover:bg-sky hover:text-pine max-sm:hidden">
             <Glyph name="pin" size={19} />
           </button>
         )}
@@ -154,6 +153,7 @@ export function StopCard({
           </Menu>
         )}
       </header>
+      {photo && <PhotoCredit photo={photo} className="mt-2 break-words" />}
 
       {(done || skipped) && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -197,6 +197,11 @@ export function StopCard({
               </Button>
             </>
           ))}
+          {onShowOnMap && (
+            <button type="button" onClick={() => onShowOnMap(place.id)} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-teal-ink hover:bg-sky sm:hidden">
+              <Glyph name="pin" size={16} />Map<span className="sr-only"> for {place.name}</span>
+            </button>
+          )}
           {!scheduled && onMove && moveOptions.length > 0 && (
             <Menu
               label={`Schedule ${place.name} on a day`}

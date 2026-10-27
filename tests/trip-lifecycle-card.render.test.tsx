@@ -1,3 +1,5 @@
+import { choose } from "./helpers/select";
+import { TimePicker } from "@/components/ui/TimePicker";
 import { createElement, act, type ReactNode } from "react";
 import TestRenderer, { type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,15 +63,15 @@ describe("TripLifecycleCard: what to do with a trip whose real life and planned 
     });
     it("leaving later today at 17:00 for 4 hours plans to wrap up by 9 pm", async () => {
       await mount(never); await press("Resume now");
-      const time = r.root.findByProps({ "aria-label": "Departure time" });
-      await act(async () => { time.props.onChange({ target: { value: "17:00" } }); });
-      const select = r.root.findAllByType("select")[0]; await act(async () => { select.props.onChange({ target: { value: "4" } }); });
+      const time = r.root.findAll((n) => n.type === TimePicker)[0];
+      await act(async () => { time.props.onChange("17:00"); });
+      await act(async () => { choose(r.root, "lifecycle-hours", "4"); });
       expect(all()).toContain("9:00 pm");
       await press("Resume trip"); expect(sent[0].body).toEqual({ action: "resume", day_end_min: 21 * 60 });
     });
     it("an invalid departure time cannot be submitted, and says why", async () => {
       await mount(never); await press("Resume now");
-      await act(async () => { r.root.findByProps({ "aria-label": "Departure time" }).props.onChange({ target: { value: "" } }); });
+      await act(async () => { r.root.findAll((n) => n.type === TimePicker)[0].props.onChange(""); });
       expect(all()).toContain("Choose a valid departure time."); expect(btn("Resume trip").props.disabled).toBe(true);
       await press("Resume trip"); expect(sent).toEqual([]);
     });
@@ -110,7 +112,7 @@ describe("TripLifecycleCard: what to do with a trip whose real life and planned 
     });
     it("continuing opens the same resume form and records the same decision", async () => {
       await mount(started); await press("Continue from the next stop"); expect(all()).toContain("Continue from your next stop");
-      await act(async () => { r.root.findByProps({ "aria-label": "Departure time" }).props.onChange({ target: { value: "09:00" } }); });
+      await act(async () => { r.root.findAll((n) => n.type === TimePicker)[0].props.onChange("09:00"); });
       await press("Resume trip"); expect(sent[0].body).toEqual({ action: "resume", day_end_min: 13 * 60 });
     });
     it("finishing asks first and keeps everything", async () => {

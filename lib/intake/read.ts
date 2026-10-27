@@ -35,6 +35,9 @@ const said = <T,>(value: T, evidence: string): Known<T> => ({ value, source: "sa
 const FILLER = new Set(["ట్రిప్", "ट्रिप", "ட்ரிப்", "ಟ್ರಿಪ್", "ಪ್ರವಾಸ", "प्रवास", "यात्रा", "యాత్ర", "பயணம்", "टूर",
   "और", "के", "की", "का", "को", "से", "में", "पर", "है", "हैं", "साथ", "आहेत", "आणि", "तो", "తో", "లో", "ఉన్నారు", "మరియు", "உடன்", "மற்றும்", "ಜೊತೆ", "ಮತ್ತು", "the", "a", "an", "and", "or", "with", "for", "to", "of", "in", "on", "at", "by", "is", "are", "was", "we", "our", "us", "my", "i", "me", "trip", "tour", "plan", "planning", "visit", "visiting", "go", "going", "want", "wanna", "also", "then", "next", "this", "that", "some", "few", "near", "around", "via", "lo", "tho", "ki", "ka", "ke", "ko", "ni", "nu", "mein", "me", "se", "aur", "hai", "hain", "undi", "unnaru", "cheyyali", "cheddam", "velladam", "veldam", "karna", "karenge", "jaana", "jana", "jayenge", "chalo", "lets", "let's", "manam", "memu", "hum", "ham", "naan", "naanga", "naavu", "aamhi", "pls", "please", "must", "is", "a", "ga", "kuda", "bhi", "and", "mariyu", "mattu", "aani", "ani", "um", "ah", "trip", "pakka", "definitely", "it", "its", "it's", "day", "days", "places", "place", "spots", "spot"]);
 
+/** Action and position words that open a sentence about a place ("See Hampi", "Visit Araku", "Near Gandikota"): never part of the name. */
+const LEADING_ACTION = /^(?:see|visit|visiting|explore|exploring|reach|reaching|cover|covering|include|including|add|adding|try|check|enjoy|go|going|goto|via|near|nearby|around|towards?|trip|tour)$/i;
+
 export function readTrip(input: string, opts: { todayMonth: number }): InstantReading {
   const raw = asciiDigits(input.normalize("NFC")).slice(0, 4000);
   const tags = [...raw.matchAll(/#([\p{L}\p{N}_]{3,40})/gu)].map((m) => m[1]);
@@ -120,6 +123,9 @@ export function readTrip(input: string, opts: { todayMonth: number }): InstantRe
     const clean = s.replace(/[^\p{L}\p{M}\p{N}\s'.&-]/gu, " ").replace(/\s+/g, " ").trim().replace(/^[.'&-]+|[.'&-]+$/g, "").trim();
     // A piece starting with a vowel sign is the left-over end of a word whose start we removed ("களுடன்" from "நண்பர்களுடன்").
     const kept = clean.split(" ").filter((w) => w && !/^\p{M}/u.test(w) && !FILLER.has(w.toLowerCase()) && !isStartWord(w));
+    // "See Hampi", "Visit Lepakshi Temple", "Go to Goa", "Near Araku": the action word at the front is not part of the name. It starts with a
+    // capital (it opens the sentence), so the capital-letter rule below can't tell. Only when a name is left after it ("Go" alone stays).
+    while (kept.length > 1 && LEADING_ACTION.test(kept[0])) kept.shift();
     // Trim lower-case words from both ends ("Lepakshi temple" keeps "temple" inside the name; "meeda" alone goes).
     while (kept.length && !looksLikeName(kept[0])) kept.shift();
     while (kept.length > 1 && !looksLikeName(kept[kept.length - 1]) && !/^(temple|falls|fort|caves?|beach|lake|dam|hills?|valley|palace|park|waterfalls?|peak|island)$/i.test(kept[kept.length - 1])) kept.pop();

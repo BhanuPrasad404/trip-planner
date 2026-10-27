@@ -89,10 +89,11 @@ const render = (
   p: PlaceWithSeason[] = places,
   t: Trip = trip,
   conditions: Record<string, Conditions> = {},
-  votes: Record<string, VoteSummary> = {}
+  votes: Record<string, VoteSummary> = {},
+  today = "2026-10-06"
 ) =>
   renderToStaticMarkup(
-    <TripPlanner trip={t} places={p} members={members} today="2026-10-06" siteUrl="https://trailmate.example" conditions={conditions} userId="u1" votes={votes} />
+    <TripPlanner trip={t} places={p} members={members} today={today} siteUrl="https://trailmate.example" conditions={conditions} userId="u1" votes={votes} />
   );
 
 describe("TripPlanner render", () => {
@@ -107,9 +108,14 @@ describe("TripPlanner render", () => {
   });
 
   it("treats the same waterfall as in season when the trip starts in July", () => {
-    const html = render(places, { ...trip, start_date: "2026-07-01" });
+    const html = render(places, { ...trip, start_date: "2026-07-01" }, {}, {}, "2026-06-20"); // an upcoming July trip
     expect(html).not.toContain("Out of season");
     expect(html).not.toContain("Worth a look"); // nothing to flag, so no warning box at all
+  });
+
+  it("once the July dates are over, the season is judged for TODAY (October), not for the July that is gone", () => {
+    const html = render(places, { ...trip, start_date: "2026-07-01" }); // today = 6 Oct
+    expect(html).toContain("Out of season");
   });
 
 

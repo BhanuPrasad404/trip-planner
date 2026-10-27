@@ -35,10 +35,11 @@ import { EXAMPLE_LINKS } from "@/lib/result/example-list";
 import { suggestStartDate } from "@/lib/intake/start-date";
 import { formatDate } from "@/lib/format";
 import { addDays, parseISODate } from "@/lib/dates";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 export type Step = "start" | "words" | "understood" | "questions" | "ready";
 type Mode = "paste" | "describe" | "manual";
-const STEPS: { id: Step; label: string }[] = [{ id: "start", label: "Start" }, { id: "understood", label: "Your places" }, { id: "questions", label: "A few questions" }, { id: "ready", label: "Save" }];
+const STEPS: { id: Step; label: string }[] = [{ id: "start", label: "Start" }, { id: "understood", label: "Your places" }, { id: "questions", label: "Questions" }, { id: "ready", label: "Save" }];
 const stepIndex = (s: Step) => (s === "words" ? 0 : STEPS.findIndex((x) => x.id === s));
 
 export const EXAMPLES = [
@@ -209,13 +210,13 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
   return (
     <div ref={top} className="mx-auto w-full max-w-2xl scroll-mt-16 px-4 pb-28 pt-2">
       {/* progress */}
-      <ol className="mb-4 flex items-center gap-1.5" aria-label="Steps">
+      <ol className="mb-4 grid grid-cols-4 gap-1.5" aria-label="Steps">
         {STEPS.map((s, i) => {
           const at = stepIndex(step);
           return (
-            <li key={s.id} className="flex-1" aria-current={i === at ? "step" : undefined}>
+            <li key={s.id} className="min-w-0" aria-current={i === at ? "step" : undefined}>
               <div className={`h-1.5 rounded-full ${i <= at ? "bg-teal" : "bg-sky"}`} />
-              <span className={`mt-1 block text-[11px] font-semibold ${i === at ? "text-teal-ink" : "text-ink-muted"}`}>{s.label}{i < at ? <span className="sr-only"> (done)</span> : null}</span>
+              <span title={s.label} className={`mt-1 block truncate text-[11px] font-semibold ${i === at ? "text-teal-ink" : "text-ink-muted"}`}>{s.label}{i < at ? <span className="sr-only"> (done)</span> : null}</span>
             </li>
           );
         })}
@@ -337,7 +338,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
             {chosenStart !== null ? (
               <>
                 <label htmlFor="plan-start-date" className="block text-sm text-ink-muted">First day{startDate === undefined ? " (our suggestion: change it if you know your dates)" : ""}</label>
-                <input id="plan-start-date" type="date" min={todayIndia} value={chosenStart} onChange={(e) => setStartDate(e.target.value || null)} className="block min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base text-ink" />
+                <DatePicker id="plan-start-date" label="First day" today={todayIndia} min={todayIndia} value={chosenStart} onChange={(v) => setStartDate(v || null)} />
                 {endText && <p className="text-sm text-ink-muted">{tripDays} {tripDays === 1 ? "day" : "days"}: {endText}{eff.answers.startTime && (!eff.answers.startDate || eff.answers.startDate === chosenStart) ? ` · leaving ${clock12(eff.answers.startTime)} on day 1` : ""}</p>}
                 <button type="button" onClick={() => setStartDate(null)} className="tm-action min-h-11 text-sm font-semibold">No dates yet</button>
               </>

@@ -9,5 +9,5 @@ export const metadata: Metadata = { title: "Weather", robots: { index: false, fo
 export default async function WeatherPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const b = await loadTripBundle(id, `/trips/${id}/weather`, { reports: false });
-  return <TripWeatherView trip={b.trip} places={b.places} conditions={b.conditions} />;
+  return <TripWeatherView trip={b.trip} places={b.places} conditions={b.conditions} today={b.today} />;
 }

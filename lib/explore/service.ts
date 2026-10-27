@@ -26,8 +26,17 @@ const inflight = new Map<string, Promise<ExploreItem[]>>();
 const shortCache = new Map<string, { at: number; items: ExploreItem[] }>();
 export const clearExploreMemory = () => { inflight.clear(); shortCache.clear(); };
 
+/** A short, stable fingerprint of a road line (points rounded to about 100 m), so two travellers on the same road share one saved answer. */
+export function lineHash(line: [number, number][]): string {
+  let h = 0x811c9dc5;
+  for (const [lng, lat] of line) for (const c of `${lng.toFixed(3)},${lat.toFixed(3)};`) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+}
+
 export function cacheKey(scope: ExploreScope, category: ExploreCategoryId | "all"): string {
-  return scope.kind === "state" ? `state:${scope.code}:${category}` : `point:${scope.lat.toFixed(2)},${scope.lng.toFixed(2)}:${Math.round(scope.radius_km)}:${category}`;
+  if (scope.kind === "state") return `state:${scope.code}:${category}`;
+  if (scope.kind === "route") return `route:${lineHash(scope.line)}:${Math.round(scope.radius_km)}:${category}`; // ≤ 80 characters: the table's limit
+  return `point:${scope.lat.toFixed(2)},${scope.lng.toFixed(2)}:${Math.round(scope.radius_km)}:${category}`;
 }
 
 /** One question to the Overpass mirrors, in order, within an overall deadline. Throws ExploreUnavailableError if none answers. */
@@ -54,7 +63,7 @@ export async function fetchExplore(scope: ExploreScope, category: ExploreCategor
 export async function loadExplore(scope: ExploreScope, category: ExploreCategoryId | "all", deps: LoadDeps): Promise<Loaded> {
   const now = deps.now ?? Date.now;
   const key = cacheKey(scope, category);
-  const persistent = scope.kind === "state";
+  const persistent = scope.kind !== "point";   // a region and a road are the same for everyone, so they are shared; a circle round one phone is not
 
   const short = shortCache.get(key);
   if (short && now() - short.at < SHORT_TTL_MS) return { items: short.items, stale: false, source: "cache", fetchedAt: short.at };

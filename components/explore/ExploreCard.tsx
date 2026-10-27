@@ -22,11 +22,18 @@ type Props = {
   /** Present only when a trip exists to add the place to. */
   added: boolean | null;
   onAdd: (() => void) | null;
+  /** Why this place is on the list, made only from numbers we calculated (lib/explore/route-rank.ts). */
+  reasons?: string[];
+  /** The traveller feed for this exact place, when there is one (lib/explore/community.ts). */
+  community?: { text: string; fresh: "new" | "recent" | "old" | "none" } | null;
+  onCommunity?: () => void;
+  /** Present when the place can be added as a stop (with a preview of what it changes first). */
+  onAddStop?: () => void;
 };
 
 const btn = "min-h-11 py-2 font-semibold underline underline-offset-2";
 
-export function ExploreCard({ item, photo, season, saved, onToggleSave, added, onAdd }: Props) {
+export function ExploreCard({ item, photo, season, saved, onToggleSave, added, onAdd, reasons, community, onCommunity, onAddStop }: Props) {
   const [open, setOpen] = useState(false);
   const panel = `explore-details-${item.id.replace("/", "-")}`;
   const glyph = plannerCategory(item.category);
@@ -51,9 +58,23 @@ export function ExploreCard({ item, photo, season, saved, onToggleSave, added, o
       </div>
       <p className="mt-0.5 text-xs text-ink-muted">{exploreCategoryLabel(item.category)}{item.heritage && " · Heritage listed"}{item.km !== undefined && ` · ${item.km} km away`}</p>
 
+      {reasons && reasons.length > 0 && (
+        <ul aria-label={`Why ${item.name} is suggested`} className="mt-2 space-y-1 text-sm text-ink">
+          {reasons.map((r) => <li key={r} className="flex items-start gap-2"><span aria-hidden="true" className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-teal" /><span>{r}</span></li>)}
+        </ul>
+      )}
+
+      {community && onCommunity && (
+        <button type="button" onClick={onCommunity} className="mt-2 inline-flex min-h-11 items-center gap-2 self-start text-left text-sm font-semibold text-teal-ink underline underline-offset-2">
+          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${community.fresh === "new" ? "bg-teal" : community.fresh === "recent" ? "bg-marigold" : "bg-line"}`} />
+          {community.text}<span className="sr-only">: what travellers say about {item.name}</span>
+        </button>
+      )}
+
       <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-0 pt-3 text-sm">
         <a href={googleMapsPlace(item)} target="_blank" rel="noopener noreferrer" className={`${btn} text-teal-ink`}>Map<span className="sr-only"> of {item.name} (opens in a new tab)</span></a>
         <button type="button" aria-pressed={saved} onClick={onToggleSave} className={`${btn} ${saved ? "text-teal-ink" : "text-pine"}`}><span className="inline-flex items-center gap-1.5">{saved && <Glyph name="check" size={16} />}{saved ? "Saved" : "Save"}<span className="sr-only"> {item.name}</span></span></button>
+        {onAddStop && <button type="button" onClick={onAddStop} className={`${btn} text-pine`}>Add as a stop<span className="sr-only">: {item.name}</span></button>}
         {onAdd && (added ? <span className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-teal-ink"><Glyph name="check" size={16} />Added to Ideas</span> : <button type="button" onClick={onAdd} className={`${btn} text-pine`}>Add to my ideas<span className="sr-only">: {item.name}</span></button>)}
         <button type="button" aria-expanded={open} aria-controls={panel} onClick={() => setOpen((v) => !v)} className={`${btn} ml-auto text-ink-muted`}>{open ? "Hide details" : "Details"}</button>
       </div>

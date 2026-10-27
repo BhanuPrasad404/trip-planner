@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
 import { Glyph } from "@/components/ui/Glyph";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
 import { useAction } from "@/lib/client/use-action";
 import { MAX_TRIP_DAYS_ALLOWED, MIN_TRIP_DAYS, previewDateChange, summarizeTripDates } from "@/lib/trip-dates";
 
@@ -21,6 +23,7 @@ export function TripDatesPanel({ tripId, startDate, numDays, canEdit, stopCounts
   onChanged: () => void;
 }) {
   const summary = summarizeTripDates(startDate, numDays);
+  const [todayIndia] = useState(() => dateOf(Date.now(), INDIA_UTC_OFFSET_MIN)); // read once, in India time
   const [editing, setEditing] = useState(false);
   const [date, setDate] = useState(startDate ?? "");
   const [days, setDays] = useState(summary.days);
@@ -65,7 +68,7 @@ export function TripDatesPanel({ tripId, startDate, numDays, canEdit, stopCounts
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="trip-start-date" className="text-sm font-semibold text-pine">First day of the trip</label>
-              <input id="trip-start-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1.5 min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base" />
+              <div className="mt-1.5"><DatePicker id="trip-start-date" label="First day of the trip" today={todayIndia} min={todayIndia} value={date} onChange={setDate} placeholder="No date yet" /></div>
               {date && <button type="button" onClick={() => setDate("")} className="tm-action mt-1.5 min-h-11 text-sm font-semibold hover:text-clay-ink">Clear the date</button>}
             </div>
             <div>

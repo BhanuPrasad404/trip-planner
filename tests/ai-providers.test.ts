@@ -138,16 +138,16 @@ describe("Gemini is often busy on the free tier: retry, then fall back, but neve
   };
   afterEach(() => vi.useRealTimers());
 
-  it("a busy answer (503) is retried and then succeeds — you never see it", async () => {
-    const { out, urls } = await run([bad(503, "high demand"), bad(503, "high demand"), ok()]);
+  it("a busy answer (503) is retried once and then succeeds — you never see it", async () => {
+    const { out, urls } = await run([bad(503, "high demand"), ok()]);
     expect(out).toEqual({ v: { places: [] } });
-    expect(urls).toHaveLength(3);
-    expect(new Set(urls).size).toBe(1);                                  // same model all three times
+    expect(urls).toHaveLength(2);
+    expect(new Set(urls).size).toBe(1);                                  // same model both times
   });
   it("if the main model stays busy, the lighter model answers", async () => {
-    const { out, urls } = await run([bad(503), bad(503), bad(503), ok()]);
+    const { out, urls } = await run([bad(503), bad(503), ok()]);
     expect(out).toEqual({ v: { places: [] } });
-    expect(urls[3]).toContain("gemini-flash-lite-latest");
+    expect(urls[2]).toContain("gemini-flash-lite-latest");
   });
   it("a retired model (404) or a used-up limit (429) goes straight to the lighter model", async () => {
     expect((await run([bad(404, "no longer available"), ok()])).urls[1]).toContain("gemini-flash-lite-latest");
@@ -161,6 +161,6 @@ describe("Gemini is often busy on the free tier: retry, then fall back, but neve
   it("when everything is busy it gives up with the real reason (after a bounded number of tries)", async () => {
     const { out, urls } = await run([]);                                   // every call answers 503
     expect(out).toMatchObject({ e: { status: 503 } });
-    expect(urls.length).toBe(6);                                          // 3 tries x 2 models, then stop
+    expect(urls.length).toBe(4);                                          // 2 tries x 2 models, then stop (3 x 2 used up the screen's whole wait)
   });
 });

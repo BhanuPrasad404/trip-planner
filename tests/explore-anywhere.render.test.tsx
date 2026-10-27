@@ -1,9 +1,12 @@
+import { allSelects } from "./helpers/select";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExploreView } from "@/components/ExploreView";
 import { forgetKnownPhotos } from "@/lib/client/use-place-photos";
 import { forgetFailedImages } from "@/components/ui/SafeImg";
+// Explore with a trip shows the trip section, which can send the person to Discover: a router stand-in for these tests.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined, refresh: () => undefined, replace: () => undefined }) }));
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -85,7 +88,7 @@ describe("Explore: anywhere in India, not only the places in your trip", () => {
     await act(async () => { button(r, "Hampi").props.onClick(); });
     await act(async () => { await Promise.resolve(); });
     // Both the Discover section and the food/stays section offer the same places to look around.
-    const placeSelects = r.root.findAllByType("select").map((sel) => sel.findAllByType("option").map((o) => text(o))).filter((o) => o.includes("Mothkur"));
+    const placeSelects = allSelects(r.root).map((sel) => sel.options.map((o) => o.label)).filter((o) => o.includes("Mothkur"));
     expect(placeSelects).toHaveLength(2);
     for (const options of placeSelects) expect(options).toEqual(["Hampi", "Mothkur"]);
   });

@@ -41,7 +41,7 @@ describe("useFitMeter — road times once per set of places, the rest on the pho
     expect(out.meter.headline).toBe("Checking the roads…");
     await wait(ROADS_PAUSE_MS + 10);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(out.meter.level).toBe("easy");
+    expect(out.meter.level).toBe("tight");   // Hyderabad → Warangal alone is a long drive once the plan's road margin is added; 2 days is full, not easy
     for (const days of [1, 3, 4]) await show({ answers: { days, pace: "relaxed" }, places });
     await wait(2000);
     expect(fetchMock).toHaveBeenCalledTimes(1);

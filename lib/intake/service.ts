@@ -38,6 +38,7 @@ export async function readWithAi(text: string, chosenStart: Start, deps: Resolve
   } catch (e) {
     if (e instanceof AiSlowError) return none("slow");
     if (e instanceof AiNotConfiguredError) return none("off");
+    if (e instanceof AiRequestError && e.status === 408) return none("slow");
     if (e instanceof AiRequestError && (e.status === 429 || e.status === 503)) return none("busy");
     return none("failed");
   }

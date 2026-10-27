@@ -7,6 +7,7 @@ import { useNowMinute } from "@/lib/client/use-now";
 import { MEMBERS_CHANGED_BROADCAST } from "@/lib/trip/deletion";
 import { Button } from "./ui/Button";
 import { FormError } from "./ui/Field";
+import { Select } from "./ui/Select";
 import { Glyph } from "@/components/ui/Glyph";
 
 type Props = {
@@ -123,12 +124,10 @@ export function InvitePanel({ inviteUrl, tripName, tripId, isOwner = false, expi
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-ink">The old link stops working at once. Anyone who already joined stays on the trip.</p>
-              <label className="block text-sm font-semibold text-ink">
-                How long should the new link work?
-                <select value={hours === null ? "" : String(hours)} onChange={(e) => setHours(e.target.value ? Number(e.target.value) : null)} className="mt-1.5 block min-h-11 w-full rounded-xl border border-line bg-white px-3 text-base">
-                  {EXPIRY_CHOICES.map((c) => <option key={c.label} value={c.hours === null ? "" : String(c.hours)}>{c.label}</option>)}
-                </select>
-              </label>
+              <div className="block text-sm font-semibold text-ink">
+                <label htmlFor="invite-expiry">How long should the new link work?</label>
+                <div className="mt-1.5"><Select id="invite-expiry" label="How long should the new link work?" value={hours === null ? "" : String(hours)} onChange={(v) => setHours(v ? Number(v) : null)} options={EXPIRY_CHOICES.map((c) => ({ value: c.hours === null ? "" : String(c.hours), label: c.label }))} className="!min-h-11" /></div>
+              </div>
               <FormError message={error} />
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={rotate} loading={busy} loadingLabel="Making link…">Make new link</Button>

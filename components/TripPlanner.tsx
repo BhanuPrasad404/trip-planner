@@ -33,12 +33,13 @@ import { TripMapLazy } from "./TripMapLazy";
 import { TripAlerts } from "./TripAlerts";
 import { Button } from "./ui/Button";
 import { TripDatesPanel } from "./TripDatesPanel";
+import { startingViewMode, tripDatesView } from "@/lib/trip/passed";
 import { TripCheck } from "./TripCheck";
 import Link from "next/link";
 import { useWeatherBoard } from "@/lib/client/use-weather-board";
 import type { BoardStop } from "@/lib/forecast/board";
 import { tripDayISO } from "@/lib/forecast/ist";
-import { DEFAULT_VIEW, plannedInstant, typicalView } from "@/lib/forecast/view-time";
+import { plannedInstant, typicalView } from "@/lib/forecast/view-time";
 import { SEVERITY_RANK } from "@/lib/weather-rules";
 import { StopWeatherLine, WeatherAlertRow } from "@/components/weather/WeatherParts";
 import { usePlanRoad } from "@/lib/client/use-plan-road";
@@ -119,6 +120,8 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   useTripChanges({ tripId: trip.id, places: serverPlaces, driving: false, onChange: refresh, listenToRows: false });
 
   const days = useMemo(() => Array.from({ length: trip.num_days }, (_, i) => i + 1), [trip.num_days]);
+  // Once the planned dates are over they are history: weather and season follow "today" (resume) or new dates (reschedule), never the old date.
+  const datesView = useMemo(() => tripDatesView(trip, today), [trip, today]);
 
   // Everything the UI needs per stop: season status for ITS visit date, category, Go Score.
   // Real photos of the stops, filled in after the plan is on screen. Stops without a confident match keep their icon.
@@ -128,13 +131,13 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
   const enriched = useMemo(
     () =>
       places.map((p) => {
-        const month = visitMonth(trip.start_date, p.day_number, today);
+        const month = visitMonth(datesView.seasonStart, p.day_number, today);
         const status = getSeasonStatus(p.season_tags?.good_months, month);
         const category = normalizeCategory(p.category ?? p.season_tags?.category);
         const score: GoScore | null = computeGoScore({ category, seasonStatus: status, conditions: conditions[p.id] ?? null });
         return { place: p, status, category, score, month };
       }),
-    [places, trip.start_date, today, conditions]
+    [places, datesView.seasonStart, today, conditions]
   );
 
   const dayItems = useMemo(() => enriched.filter((e) => e.place.day_number === activeDay), [enriched, activeDay]);
@@ -152,9 +155,10 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     .filter((p) => p.day_number !== null && (p.status ?? "planned") === "planned")
     .map((p) => {
       const dayISO = tripDayISO(trip.start_date, p.day_number);
-      return { id: p.id, name: p.name, lat: p.lat, lng: p.lng, isNext: false, liveEta: null, planned: plannedInstant(dayISO, p.arrival_time ?? null), dayISO, typical: typicalView(conditions[p.id]) };
-    }), [places, trip.start_date, conditions]);
-  const wx = useWeatherBoard({ enabled: wxNow > 0 && wxStops.length > 0, nowMs: wxNow, mode: DEFAULT_VIEW, here: null, stops: wxStops, road: [] });
+      // Dates over: the old arrival time is history. The stop is shown for RIGHT NOW (if the traveller goes today), never for a day that is gone.
+      return { id: p.id, name: p.name, lat: p.lat, lng: p.lng, isNext: false, liveEta: null, planned: datesView.passed ? null : plannedInstant(dayISO, p.arrival_time ?? null), dayISO: datesView.passed ? null : dayISO, typical: typicalView(conditions[p.id]) };
+    }), [places, trip.start_date, conditions, datesView.passed]);
+  const wx = useWeatherBoard({ enabled: wxNow > 0 && wxStops.length > 0 && datesView.weather !== "off", nowMs: wxNow, mode: startingViewMode(datesView), here: null, stops: wxStops, road: [] });
   const wxPlaces = useMemo(() => new Map(wx.places.map((p) => [p.id, p])), [wx.places]);
   const wxAlertsFor = (id: string) => wx.alerts.filter((a) => a.placeId === id);
   const dayWeatherAlerts = wx.alerts.filter((a) => SEVERITY_RANK[a.level] >= SEVERITY_RANK.warning && dayItems.some((e) => e.place.id === a.placeId));
@@ -379,7 +383,7 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     status: e.status,
     category: e.category,
     score: e.score,
-    scoreFor: activeISO ? dayWithDate(activeISO, today) : "today (no trip dates set)",
+    scoreFor: activeISO && !datesView.passed ? dayWithDate(activeISO, today) : datesView.passed ? "today (your planned dates have passed)" : "today (no trip dates set)",
     seasonReason: e.place.season_tags?.reason,
     moveDays: days,
     votes: votes[e.place.id],
@@ -396,8 +400,8 @@ export function TripPlanner({ trip, places: serverPlaces, members = [], today, c
     reportCtx: { userId, now: reportNow, onChanged: refresh, outbox },
     busy: busyId === e.place.id,
     selected: selectedId === e.place.id,
-    weather: e.place.day_number !== null && (e.place.status ?? "planned") === "planned"
-      ? <StopWeatherLine place={wxPlaces.get(e.place.id)} alerts={wxAlertsFor(e.place.id)} nowMs={wxNow} onSetDates={() => setTool("dates")} />
+    weather: e.place.day_number !== null && (e.place.status ?? "planned") === "planned" && datesView.weather !== "off"
+      ? <StopWeatherLine place={wxPlaces.get(e.place.id)} alerts={wxAlertsFor(e.place.id)} nowMs={wxNow} datesPassed={datesView.passed} onSetDates={() => setTool("dates")} />
       : null,
     onShowOnMap: showOnMap,
   });

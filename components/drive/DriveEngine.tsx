@@ -26,6 +26,7 @@ import { useDeviceHere, type DeviceHere } from "@/lib/client/use-device-here";
 import { liveStopEtas, roadPointsAhead } from "@/lib/forecast/route-times";
 import { DEFAULT_VIEW, plannedInstant, typicalView, type ViewMode } from "@/lib/forecast/view-time";
 import { tripDayISO } from "@/lib/forecast/ist";
+import { tripDatesView } from "@/lib/trip/passed";
 import type { BoardStop } from "@/lib/forecast/board";
 import { buildRoute, project } from "@/lib/intel/route-geometry";
 
@@ -154,7 +155,10 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
   const notices = useHudNotices(mapNotices, 1);
 
   // ── Weather: where you are (while driving) and the day's coming stops, each at the time you will be there (lib/forecast). ──
-  const [weatherMode, setWeatherMode] = useState<ViewMode>(DEFAULT_VIEW);
+  // Dates over (a resumed trip, or one opened late): the old planned times are history, so stops are shown for right now.
+  const datesPassed = useMemo(() => tripDatesView(trip, data.today).passed, [trip, data.today]);
+  const [pickedMode, setWeatherMode] = useState<ViewMode | null>(null);
+  const weatherMode: ViewMode = pickedMode ?? (datesPassed ? { kind: "now" } : DEFAULT_VIEW);
   const weatherNow = live.nowMs || now();
   const visitOf = useCallback((id: string) => live.intelStops.find((x) => x.id === id)?.visitMin ?? 0, [live.intelStops]);
   const routeStops = useMemo(() => (drive.route?.stopIds ?? []).map((id) => ({ id, visitMin: visitOf(id) })), [drive.route, visitOf]);
@@ -165,9 +169,9 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
     const dayISO = tripDayISO(trip.start_date, p.day_number);
     return {
       id: p.id, name: p.name, lat: p.lat, lng: p.lng, isNext: i === 0, liveEta: etas.get(p.id) ?? null,
-      planned: plannedInstant(dayISO, p.arrival_time ?? null), dayISO, typical: typicalView(data.conditions[p.id]),
+      planned: datesPassed ? null : plannedInstant(dayISO, p.arrival_time ?? null), dayISO: datesPassed ? null : dayISO, typical: typicalView(data.conditions[p.id]),
     };
-  }), [live.remaining, trip.start_date, etas, data.conditions]);
+  }), [live.remaining, trip.start_date, etas, data.conditions, datesPassed]);
   // Where "here" is: the drive's GPS while driving; otherwise the phone's position once the traveller asked for it; otherwise the
   // planned start, said plainly so it is never mistaken for a live position.
   const { here: device, request: requestDevice } = useDeviceHere();

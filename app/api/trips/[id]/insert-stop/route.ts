@@ -30,8 +30,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const today = places.filter((p) => p.day_number === input.day_number);
   const finished = today.filter((p) => p.status === "done" || p.status === "skipped");
-  const base = Math.max(0, ...finished.map((p) => p.sequence_order ?? 0)); // the new stop comes right after what is already behind you
-  const after = today.filter((p) => (p.status ?? "planned") === "planned"); // everything still ahead moves one place later
+  const planned = today.filter((p) => (p.status ?? "planned") === "planned");
+  let base: number, after: typeof planned;
+  if (input.before_id) {
+    // Explore's "Add as a stop" chose the spot (the least extra driving): just before this stop. It must still be a stop to do on
+    // this day, or the plan changed since the preview, and we say so instead of guessing.
+    const target = planned.find((p) => p.id === input.before_id);
+    if (!target) return jsonError("That day's plan changed since you looked. Please check again.", 409);
+    base = (target.sequence_order ?? 1) - 1;
+    after = planned.filter((p) => (p.sequence_order ?? 0) >= (target.sequence_order ?? 0)); // it and everything after it move one later
+  } else {
+    base = Math.max(0, ...finished.map((p) => p.sequence_order ?? 0)); // the new stop comes right after what is already behind you
+    after = planned; // everything still ahead moves one place later
+  }
 
   const { data: created, error } = await supabase
     .from("places")

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeCategory } from "@/lib/categories";
 import { dateOfTripDay } from "@/lib/dates";
+import { tripDatesView } from "@/lib/trip/passed";
 import { computeGoScore } from "@/lib/goscore";
 import { weatherProvider } from "@/lib/providers/registry";
 import { getMatrix } from "@/lib/routing";
@@ -69,7 +70,9 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
   const votes = summarizeVotes((voteRows ?? []) as { place_id: string; user_id: string; vote: -1 | 1 }[], opts.userId);
 
   const numDays = Math.max(1, Math.floor(trip.num_days as number));
-  const startDate = (trip.start_date as string | null) ?? null;
+  // Dates over → no weather or season fit for days that are gone (the same rule as the screens: lib/trip/passed.ts).
+  const rawStart = (trip.start_date as string | null) ?? null;
+  const startDate = rawStart && !tripDatesView({ start_date: rawStart, num_days: numDays }, opts.todayISO).passed ? rawStart : null;
   const base: BuilderPlace[] = places.map((p) => {
     const tag = tagOf(p);
     return {

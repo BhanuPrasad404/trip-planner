@@ -88,6 +88,7 @@ export function weatherMode(startDateISO: string | null, numDays: number, todayI
   if (!startDateISO) return "none";
   const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
   const first = day(startDateISO) - day(todayISO), last = first + numDays - 1;
+  if (last < 0) return "none";                  // every day is over: there is no forecast for a day that is gone
   if (last <= FORECAST_DAYS) return "forecast";
   if (first > FORECAST_DAYS) return "typical";
   return "mixed";

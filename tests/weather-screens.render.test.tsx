@@ -99,7 +99,7 @@ describe("the trip's Weather page (real Hyderabad data)", () => {
   const idea = place({ id: "p3", name: "Shilparamam", lat: 17.4527, lng: 78.3787, day_number: null, arrival_time: null, category: "other" });
   const mount = async (t: unknown, places: unknown[], conds: Record<string, unknown> = {}) => {
     const { TripWeatherView } = await import("@/components/TripWeatherView");
-    await act(async () => { r = TestRenderer.create(createElement(TripWeatherView, { trip: t, places, conditions: conds } as never)); });
+    await act(async () => { r = TestRenderer.create(createElement(TripWeatherView, { trip: t, places, conditions: conds, today: new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10) } as never)); });
     await settle();
   };
   const timeTexts = () => r!.root.findAll((n) => n.props["data-testid"] === "time-text").map((n) => text(n));

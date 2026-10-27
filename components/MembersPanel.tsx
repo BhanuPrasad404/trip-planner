@@ -8,6 +8,7 @@ import { MEMBERS_CHANGED_BROADCAST, forgetTripLocally, markDeletingHere, unmarkD
 import type { TripMember } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { FormError } from "./ui/Field";
+import { Select } from "./ui/Select";
 
 type Props = { tripId: string; tripName: string; members: TripMember[]; ownerId: string; userId: string };
 
@@ -147,13 +148,12 @@ export function MembersPanel({ tripId, tripName, members, ownerId, userId }: Pro
                 {others.length > 0 ? (
                   <>
                     <p className="text-base text-ink">Before you leave, hand it over to another member. Or, to end it for everyone, delete the trip instead (at the bottom of this page).</p>
-                    <label className="block text-sm font-semibold text-ink">
-                      New owner
-                      <select value={heir} onChange={(e) => setHeir(e.target.value)} className="mt-1.5 block min-h-12 w-full rounded-xl border border-line bg-white px-3 text-base">
-                        <option value="">Choose a member…</option>
-                        {others.map((m) => <option key={m.user_id} value={m.user_id}>{nameOf(m)}</option>)}
-                      </select>
-                    </label>
+                    <div className="block text-sm font-semibold text-ink">
+                      <label htmlFor="heir-select">New owner</label>
+                      <div className="mt-1.5">
+                        <Select id="heir-select" label="New owner" value={heir} onChange={setHeir} placeholder="Choose a member…" options={others.map((m) => ({ value: m.user_id, label: nameOf(m) }))} />
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <p className="text-base text-ink">You&apos;re the only person on this trip, so there is no one to hand it over to. Delete the trip instead (at the bottom of this page), or keep it.</p>

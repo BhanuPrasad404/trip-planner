@@ -195,7 +195,7 @@ export function PlaceWeatherCardSkeleton() {
 }
 
 /** The Plan screen's compact line on a stop card: arrival, temperature, feels-like, day or night, rain; any alert; the day strip on tap. */
-export function StopWeatherLine({ place, alerts, nowMs, onSetDates }: { place: BoardPlace | undefined; alerts: WeatherAlert[]; nowMs: number; onSetDates?: () => void }) {
+export function StopWeatherLine({ place, alerts, nowMs, onSetDates, datesPassed = false }: { place: BoardPlace | undefined; alerts: WeatherAlert[]; nowMs: number; onSetDates?: () => void; /** The trip's planned dates are over: the weather shown is for right now, and says so. */ datesPassed?: boolean }) {
   const [open, setOpen] = useState(false);
   if (!place) return <div className="mt-2 h-11 rounded-xl bg-sky/50" aria-hidden="true" />;
   const m = place.moment;
@@ -212,7 +212,7 @@ export function StopWeatherLine({ place, alerts, nowMs, onSetDates }: { place: B
     <div className="mt-2 rounded-xl border border-line bg-sky/40 px-3 py-2" data-testid="stop-weather">
       <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex min-h-11 w-full items-center justify-between gap-2 text-left">
         <span className="min-w-0">
-          <span className="block text-sm font-semibold text-pine">{timeText(place, nowMs)}</span>
+          <span className="block text-sm font-semibold text-pine">{datesPassed && place.timing.status === "time" && place.timing.basis === "now" ? "If you go today · right now" : timeText(place, nowMs)}</span>
           <span className="block text-sm text-ink">
             {ok ? [ok.tempC !== null ? `${Math.round(ok.tempC)}°` : null, ok.feelsC !== null ? `feels ${Math.round(ok.feelsC)}°` : null, hot, dayNightWord(ok.isDay), rainText(ok)].filter(Boolean).join(" · ")
               : m && m.status !== "ok" ? missingText(m, place.typical?.text ?? null) : "The day at this place (tap to see)"}

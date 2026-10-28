@@ -248,6 +248,27 @@ export const intakeSimilarSchema = z.object({
   round_trip: z.boolean().default(true),
 });
 
+/** "Plan it for me": a hub and what we know about the trip. */
+export const intakeProposeSchema = z.object({
+  hub: z.object({ lat: latitude, lng: longitude, name: z.string().trim().min(1).max(120) }),
+  start: z.object({ lat: latitude, lng: longitude, name: z.string().trim().min(1).max(120) }).nullish().transform((v) => v ?? null),
+  round_trip: z.boolean().default(true),
+  days: z.number().int().min(1).max(10).default(3),
+  group: z.enum(["solo", "couple", "friends", "family", "family_kids", "family_elders"]).nullish().transform((v) => v ?? null),
+  interests: z.array(z.enum(["nature", "temples", "food", "adventure", "photography", "offbeat", "shopping", "beaches", "history"])).max(9).default([]),
+  pace: z.enum(["relaxed", "balanced", "packed"]).nullish().transform((v) => v ?? null),
+  max_drive_hours: z.number().min(1).max(12).nullish().transform((v) => v ?? null),
+});
+
+/** "On your way": stops along the road between where the trip starts and where it is going. */
+export const intakeJourneySchema = z.object({
+  start: z.object({ lat: latitude, lng: longitude, name: z.string().trim().min(1).max(120) }),
+  dest: z.object({ lat: latitude, lng: longitude, name: z.string().trim().min(1).max(120) }),
+  interests: z.array(z.enum(["nature", "temples", "food", "adventure", "photography", "offbeat", "shopping", "beaches", "history"])).max(9).default([]),
+  max_drive_hours: z.number().min(1).max(12).nullish().transform((v) => v ?? null),
+  round_trip: z.boolean().default(true),
+});
+
 // ─── Trip creation: reading what the traveller wrote — works signed out too ─
 export const intakeReadSchema = z.object({
   text: z.string().trim().min(2, "Write or paste a little more").max(4000, "That's too much text — paste less"),

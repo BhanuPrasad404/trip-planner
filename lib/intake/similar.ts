@@ -28,7 +28,7 @@ export type Suggestion = Candidate & { reason: string; extraDriveMin: number | n
 
 /** The trip's kinds of place as Explore categories ("Bogatha Waterfall" → waterfall). */
 const KIND_OF: Partial<Record<ReturnType<typeof categoryFor>, ExploreCategoryId>> = { waterfall: "waterfall", temple: "temple", fort: "fort", beach: "beach", lake: "lake", museum: "museum", viewpoint: "viewpoint", wildlife: "wildlife" };
-const INTEREST_KINDS: Partial<Record<Interest, ExploreCategoryId[]>> = { nature: ["waterfall", "lake", "viewpoint"], temples: ["temple"], history: ["fort", "heritage"], beaches: ["beach"], adventure: ["peak", "waterfall"], photography: ["viewpoint"], offbeat: ["waterfall", "peak"] };
+export const INTEREST_KINDS: Partial<Record<Interest, ExploreCategoryId[]>> = { nature: ["waterfall", "lake", "viewpoint"], temples: ["temple"], history: ["fort", "heritage"], beaches: ["beach"], adventure: ["peak", "waterfall"], photography: ["viewpoint"], offbeat: ["waterfall", "peak"] };
 const KIND_WORD: Record<ExploreCategoryId, string> = { fort: "fort", temple: "temple", waterfall: "waterfall", beach: "beach", wildlife: "wildlife park", lake: "lake", museum: "museum or cave", viewpoint: "viewpoint", heritage: "heritage site", peak: "hill" };
 
 /** Which kinds to look for: the kinds already chosen first, then the interests. At most 3. */

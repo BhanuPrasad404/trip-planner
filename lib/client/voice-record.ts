@@ -2,7 +2,7 @@
 // speech recognition is missing or fails (Brave, Firefox, in-app browsers, no route to Google's speech service…).
 import { MAX_RECORD_SECONDS, blobToWav, bytesToBase64 } from "./wav";
 
-export type MicHandlers = { onTick: (seconds: number) => void; onDone: (blob: Blob) => void; onError: (message: string) => void };
+export type MicHandlers = { onTick: (seconds: number) => void; onDone: (blob: Blob) => void; onError: (message: string) => void; /** 0..1, about ten times a second while recording: shows the traveller the phone is really hearing them. */ onLevel?: (level: number) => void };
 
 export function recorderSupported(): boolean {
   if (typeof window === "undefined") return false;
@@ -33,24 +33,47 @@ export function transcribeMessage(status: string): string | null {
   }
 }
 
-export async function startRecording(h: MicHandlers): Promise<{ stop: () => void }> {
+/** A rough 0..1 loudness from the analyser. Best effort: no AudioContext just means no meter, never a failed recording. */
+function watchLevel(stream: MediaStream, onLevel: (v: number) => void): () => void {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return () => undefined;
+    const ctx = new Ctx();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    const timer = setInterval(() => {
+      analyser.getByteTimeDomainData(data);
+      let peak = 0;
+      for (const b of data) peak = Math.max(peak, Math.abs(b - 128));
+      onLevel(Math.min(1, peak / 64));
+    }, 100);
+    return () => { clearInterval(timer); void ctx.close().catch(() => undefined); };
+  } catch { return () => undefined; }
+}
+
+export async function startRecording(h: MicHandlers): Promise<{ stop: () => void; /** Throw the recording away: nothing is sent or kept. */ cancel: () => void }> {
+  const none = { stop: () => undefined, cancel: () => undefined };
   let stream: MediaStream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } }); }
-  catch (e) { h.onError(micErrorMessage(e instanceof DOMException ? e.name : "")); return { stop: () => undefined }; }
+  catch (e) { h.onError(micErrorMessage(e instanceof DOMException ? e.name : "")); return none; }
   const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
   const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t));
   let rec: MediaRecorder;
   try { rec = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32_000 }); }
-  catch (e) { stream.getTracks().forEach((t) => t.stop()); h.onError(micErrorMessage(e instanceof DOMException ? e.name : "")); return { stop: () => undefined }; }
+  catch (e) { stream.getTracks().forEach((t) => t.stop()); h.onError(micErrorMessage(e instanceof DOMException ? e.name : "")); return none; }
   const chunks: Blob[] = [];
-  let seconds = 0, finished = false;
+  let seconds = 0, finished = false, cancelled = false;
+  const stopMeter = h.onLevel ? watchLevel(stream, h.onLevel) : () => undefined;
+  const cleanup = () => { clearInterval(tick); stopMeter(); stream.getTracks().forEach((t) => t.stop()); };
   const tick = setInterval(() => { seconds++; h.onTick(seconds); if (seconds >= MAX_RECORD_SECONDS) stop(); }, 1000);
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-  rec.onstop = () => { clearInterval(tick); stream.getTracks().forEach((t) => t.stop()); if (!finished) { finished = true; h.onDone(new Blob(chunks, { type: rec.mimeType || mimeType || "audio/webm" })); } };
-  rec.onerror = () => { clearInterval(tick); stream.getTracks().forEach((t) => t.stop()); if (!finished) { finished = true; h.onError("The recording stopped unexpectedly. You can type instead."); } };
+  rec.onstop = () => { cleanup(); if (!finished) { finished = true; if (!cancelled) h.onDone(new Blob(chunks, { type: rec.mimeType || mimeType || "audio/webm" })); } };
+  rec.onerror = () => { cleanup(); if (!finished) { finished = true; h.onError("The recording stopped unexpectedly. You can type instead."); } };
   function stop() { if (rec.state !== "inactive") rec.stop(); }
   rec.start();
-  return { stop };
+  return { stop, cancel: () => { cancelled = true; stop(); if (rec.state === "inactive") cleanup(); } };
 }
 
 /** Recording → words, through the server. Returns the text, or the sentence to show when it didn't work. */

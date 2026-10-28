@@ -9,6 +9,7 @@ import {
   ArrowUp, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Volume2, VolumeX, Moon, Layers,
   Maximize2, Minimize2, Trash2, SkipForward, CalendarDays, ExternalLink, MessageSquare, CloudRain, Thermometer, Wind, Bus, Motorbike,
   CloudLightning, CloudFog, EyeOff, Cloud, CloudSun, CloudMoon, OctagonAlert, Eye, History, Star, Search,
+  Mic, ClipboardPaste, Plus, RefreshCw, WandSparkles, Compass,
 } from "lucide";
 import type { IconNode } from "lucide";
 
@@ -29,6 +30,7 @@ export const GLYPHS = {
   rain: CloudRain, wind: Wind, bus: Bus, motorbike: Motorbike, thermometer: Thermometer, trash: Trash2, skip: SkipForward, calendar: CalendarDays, external: ExternalLink, chat: MessageSquare,
   storm: CloudLightning, fog: CloudFog, lowVisibility: EyeOff, cloud: Cloud, cloudSun: CloudSun, cloudMoon: CloudMoon,
   severe: OctagonAlert, watch: Eye, recent: History, star: Star, search: Search,
+  mic: Mic, paste: ClipboardPaste, plus: Plus, refresh: RefreshCw, wand: WandSparkles, compass: Compass,
   faceAngry: Angry, faceSad: Frown, faceOkay: Meh, faceGood: Smile, faceGreat: Laugh,
 } as const satisfies Record<string, IconNode>;
 

@@ -1,0 +1,159 @@
+{
+ "_about": "Pairs of (a trip stop's name, an OpenStreetMap object's name). shouldMatch is the truth, written by hand. Used to measure how often TrailMate's CURRENT name matching (lib/season-match.ts nameSimilarity, thresholds in lib/travel/hours-match.ts) links the same place and keeps different places apart.",
+ "pairs": [
+  {
+   "id": "n01",
+   "stop": "Charminar",
+   "osm": "Charminar",
+   "shouldMatch": true,
+   "why": "identical"
+  },
+  {
+   "id": "n02",
+   "stop": "Golconda Fort",
+   "osm": "Golkonda Fort",
+   "shouldMatch": true,
+   "why": "spelling variant"
+  },
+  {
+   "id": "n03",
+   "stop": "Mysore Palace",
+   "osm": "Mysuru Palace",
+   "shouldMatch": true,
+   "why": "city renamed"
+  },
+  {
+   "id": "n04",
+   "stop": "Amer Fort",
+   "osm": "Amber Fort",
+   "shouldMatch": true,
+   "why": "spelling variant"
+  },
+  {
+   "id": "n05",
+   "stop": "Hawa Mahal",
+   "osm": "Hawa Mahal (Palace of Winds)",
+   "shouldMatch": true,
+   "why": "added descriptor"
+  },
+  {
+   "id": "n06",
+   "stop": "Meenakshi Temple",
+   "osm": "Meenakshi Amman Temple",
+   "shouldMatch": true,
+   "why": "shorter form"
+  },
+  {
+   "id": "n07",
+   "stop": "Sri Venkateswara Temple Tirumala",
+   "osm": "Tirumala Sri Venkateswara Swamy Temple",
+   "shouldMatch": true,
+   "why": "word order and extra words"
+  },
+  {
+   "id": "n08",
+   "stop": "Victoria Memorial",
+   "osm": "Victoria Memorial Hall",
+   "shouldMatch": true,
+   "why": "extra word"
+  },
+  {
+   "id": "n09",
+   "stop": "Jama Masjid",
+   "osm": "Jama Masjid Delhi",
+   "shouldMatch": true,
+   "why": "city appended"
+  },
+  {
+   "id": "n10",
+   "stop": "Brihadeeswarar Temple",
+   "osm": "Brihadisvara Temple",
+   "shouldMatch": true,
+   "why": "transliteration variant"
+  },
+  {
+   "id": "n11",
+   "stop": "Golden Temple",
+   "osm": "Harmandir Sahib",
+   "shouldMatch": true,
+   "why": "different name for the same place (needs an alias source)"
+  },
+  {
+   "id": "n12",
+   "stop": "Mysore Palace",
+   "osm": "Amba Vilas Palace",
+   "shouldMatch": true,
+   "why": "different name for the same place (needs an alias source)"
+  },
+  {
+   "id": "n13",
+   "stop": "Lotus Temple",
+   "osm": "Bahá'í House of Worship",
+   "shouldMatch": true,
+   "why": "different name for the same place (needs an alias source)"
+  },
+  {
+   "id": "n14",
+   "stop": "Charminar",
+   "osm": "చార్మినార్",
+   "shouldMatch": true,
+   "why": "same name in another script (needs script handling)"
+  },
+  {
+   "id": "n15",
+   "stop": "Taj Mahal",
+   "osm": "తాజ్ మహల్",
+   "shouldMatch": true,
+   "why": "same name in another script (needs script handling)"
+  },
+  {
+   "id": "n16",
+   "stop": "Taj Mahal",
+   "osm": "Taj Mahal Palace Hotel",
+   "shouldMatch": false,
+   "why": "a hotel, not the monument"
+  },
+  {
+   "id": "n17",
+   "stop": "Red Fort",
+   "osm": "Red Fort Metro Station",
+   "shouldMatch": false,
+   "why": "a station, not the fort"
+  },
+  {
+   "id": "n18",
+   "stop": "Marina Beach",
+   "osm": "Marina Beach Road",
+   "shouldMatch": false,
+   "why": "a road, not the beach"
+  },
+  {
+   "id": "n19",
+   "stop": "Gateway of India",
+   "osm": "Gateway of India Restaurant",
+   "shouldMatch": false,
+   "why": "a restaurant, not the monument"
+  },
+  {
+   "id": "n20",
+   "stop": "Konark Sun Temple",
+   "osm": "Konark Beach",
+   "shouldMatch": false,
+   "why": "a beach, not the temple"
+  },
+  {
+   "id": "n21",
+   "stop": "Golconda Fort",
+   "osm": "Golconda Dam",
+   "shouldMatch": false,
+   "why": "a dam, not the fort"
+  },
+  {
+   "id": "n22",
+   "stop": "Padmanabhaswamy Temple",
+   "osm": "Padmanabha Swamy Temple Road",
+   "shouldMatch": false,
+   "why": "a road, not the temple"
+  }
+ ]
+}

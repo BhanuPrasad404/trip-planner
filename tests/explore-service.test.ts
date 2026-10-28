@@ -5,6 +5,8 @@ import type { ExploreItem } from "@/lib/explore/items";
 import type { ExploreScope } from "@/lib/explore/query";
 
 const TG: ExploreScope = { kind: "state", code: "TG" };
+/** No real waiting between the two rounds of a failing lookup. */
+const noSleep = async () => undefined;
 const overpass = (...els: object[]) => ({ elements: els });
 const fort = (id: number, name: string, extra: Record<string, string> = {}) => ({ type: "way", id, center: { lat: 17.3833 + id * 0.1, lon: 78.4011 }, tags: { name, historic: "fort", ...extra } });
 const ok = (json: unknown) => new Response(JSON.stringify(json), { status: 200 });
@@ -36,14 +38,14 @@ describe("fetchExplore: the map servers", () => {
   });
   it("a timed-out empty answer is a FAILURE, never 'no places here'", async () => {
     const f = vi.fn(async () => ok({ elements: [], remark: "runtime error: Query timed out" }));
-    await expect(fetchExplore(TG, "fort", f as unknown as typeof fetch)).rejects.toBeInstanceOf(ExploreUnavailableError);
+    await expect(fetchExplore(TG, "fort", f as unknown as typeof fetch, Date.now, noSleep)).rejects.toBeInstanceOf(ExploreUnavailableError);
   });
   it("gives up with a clear error naming each server when none answers, and respects an overall deadline", async () => {
     const f = vi.fn(async () => new Response("no", { status: 503 }));
-    await expect(fetchExplore(TG, "fort", f as unknown as typeof fetch)).rejects.toThrow(/HTTP 503/);
+    await expect(fetchExplore(TG, "fort", f as unknown as typeof fetch, Date.now, noSleep)).rejects.toThrow(/HTTP 503/);
     let t = 0;
     const slow = vi.fn(async () => { t += 50_000; return new Response("no", { status: 503 }); });
-    await expect(fetchExplore(TG, "fort", slow as unknown as typeof fetch, () => t)).rejects.toThrow(/deadline/);
+    await expect(fetchExplore(TG, "fort", slow as unknown as typeof fetch, () => t, noSleep)).rejects.toThrow(/deadline/);
     expect(slow).toHaveBeenCalledTimes(1);
   });
 });
@@ -81,7 +83,7 @@ describe("loadExplore: cache first, then the map, then an older list rather than
     await store.put(cacheKey(TG, "fort"), [item(1)]);
     t = FRESH_MS + 1000; // no longer fresh, still usable
     const f = vi.fn(async () => new Response("no", { status: 503 }));
-    const r = await loadExplore(TG, "fort", { store, fetchImpl: f as unknown as typeof fetch, now: () => t });
+    const r = await loadExplore(TG, "fort", { store, fetchImpl: f as unknown as typeof fetch, now: () => t, sleep: noSleep });
     expect(r).toMatchObject({ stale: true, source: "cache" }); expect(r.items).toHaveLength(1);
   });
   it("a list older than the stale limit is not used; the error is honest", async () => {
@@ -89,7 +91,7 @@ describe("loadExplore: cache first, then the map, then an older list rather than
     await store.put(cacheKey(TG, "fort"), [item(1)]);
     t = STALE_OK_MS + 1000;
     const f = vi.fn(async () => new Response("no", { status: 503 }));
-    await expect(loadExplore(TG, "fort", { store, fetchImpl: f as unknown as typeof fetch, now: () => t })).rejects.toBeInstanceOf(ExploreUnavailableError);
+    await expect(loadExplore(TG, "fort", { store, fetchImpl: f as unknown as typeof fetch, now: () => t, sleep: noSleep })).rejects.toBeInstanceOf(ExploreUnavailableError);
   });
   it("when the daily allowance is used up: serves an older list if there is one, otherwise says so; never calls the map", async () => {
     const f = vi.fn();

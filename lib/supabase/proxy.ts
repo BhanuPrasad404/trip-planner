@@ -6,7 +6,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv } from "@/lib/env";
 import { WELCOME_PATH, consentFree, needsConsent } from "@/lib/oauth";
 
-const PROTECTED_PREFIXES = ["/trips", "/trip", "/join"];
+// Every page that needs a signed-in person. Stopping them HERE (before the page starts streaming) matters: a page that redirects after it has
+// started sending can only do it from the browser, which React reports as "could not finish this Suspense boundary" and the screen flickers.
+const PROTECTED_PREFIXES = ["/trips", "/trip", "/join", "/dashboard", "/discover", "/explore", "/memories", "/profile"];
 // /reset-password is deliberately NOT here: the reset link signs the person in before they choose the new password.
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password"];
 
@@ -56,7 +58,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (signedIn && matches(pathname, AUTH_PAGES)) {
+  // `session=ended`: a page asked the Auth server and it said this session is gone, although the token still looks valid here. Let the login
+  // page open (it clears the stale cookie) instead of bouncing the visitor back to the app, which would send them straight back here.
+  const sessionEnded = request.nextUrl.searchParams.get("session") === "ended";
+  if (signedIn && !sessionEnded && matches(pathname, AUTH_PAGES)) {
     const tripsUrl = request.nextUrl.clone();
     tripsUrl.pathname = "/trips";
     tripsUrl.search = "";

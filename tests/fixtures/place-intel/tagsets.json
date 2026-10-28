@@ -1,0 +1,349 @@
+{
+ "_about": "Shapes of OpenStreetMap objects, written by hand. They measure what TrailMate's current code does with each SHAPE (is it kept as a place, which hours tags survive). They do NOT measure how often each shape occurs in real OpenStreetMap data for India: only the live probe can.",
+ "tagsets": [
+  {
+   "id": "t01",
+   "label": "Hindu temple tagged only as a place of worship",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "hindu",
+    "building": "temple",
+    "name": "Sri Example Temple"
+   }
+  },
+  {
+   "id": "t02",
+   "label": "Hindu temple, place of worship, with opening_hours",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "hindu",
+    "name": "Sri Example Temple",
+    "opening_hours": "Mo-Su 06:00-20:00"
+   }
+  },
+  {
+   "id": "t03",
+   "label": "Hindu temple, place of worship, with service_times only",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "hindu",
+    "name": "Sri Example Temple",
+    "service_times": "Mo-Su 05:00-12:00,16:00-21:00"
+   }
+  },
+  {
+   "id": "t04",
+   "label": "Temple tagged historic=temple",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "temple",
+    "name": "Example Temple"
+   }
+  },
+  {
+   "id": "t05",
+   "label": "Temple tagged historic=temple with opening_hours",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "temple",
+    "name": "Example Temple",
+    "opening_hours": "Mo-Su 06:00-20:00"
+   }
+  },
+  {
+   "id": "t06",
+   "label": "Famous temple: place of worship + tourism=attraction + wikidata",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "tourism": "attraction",
+    "wikidata": "Q1",
+    "name": "Example Venkateswara Temple"
+   }
+  },
+  {
+   "id": "t07",
+   "label": "Famous temple: place of worship + heritage + wikipedia",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "heritage": "2",
+    "wikipedia": "en:Example",
+    "name": "Example Temple"
+   }
+  },
+  {
+   "id": "t08",
+   "label": "Temple with only a website and an opening_hours:url",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "hindu",
+    "name": "Example Temple",
+    "website": "https://example.org",
+    "opening_hours:url": "https://example.org/timings"
+   }
+  },
+  {
+   "id": "t09",
+   "label": "Mosque tagged only as a place of worship",
+   "category": "mosque",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "muslim",
+    "name": "Example Masjid"
+   }
+  },
+  {
+   "id": "t10",
+   "label": "Church tagged only as a place of worship",
+   "category": "church",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "christian",
+    "building": "church",
+    "name": "Example Church"
+   }
+  },
+  {
+   "id": "t11",
+   "label": "Gurdwara tagged only as a place of worship",
+   "category": "gurdwara",
+   "origin": "synthetic-shape",
+   "tags": {
+    "amenity": "place_of_worship",
+    "religion": "sikh",
+    "name": "Example Gurdwara"
+   }
+  },
+  {
+   "id": "t12",
+   "label": "Fort",
+   "category": "fort",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "fort",
+    "name": "Example Fort"
+   }
+  },
+  {
+   "id": "t13",
+   "label": "Fort with opening_hours",
+   "category": "fort",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "fort",
+    "name": "Example Fort",
+    "opening_hours": "Mo-Su 09:00-17:30"
+   }
+  },
+  {
+   "id": "t14",
+   "label": "Castle / palace tagged historic=castle",
+   "category": "palace",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "castle",
+    "name": "Example Palace"
+   }
+  },
+  {
+   "id": "t15",
+   "label": "Palace tagged only building=palace + heritage",
+   "category": "palace",
+   "origin": "synthetic-shape",
+   "tags": {
+    "building": "palace",
+    "heritage": "2",
+    "name": "Example Palace"
+   }
+  },
+  {
+   "id": "t16",
+   "label": "Monument",
+   "category": "monument",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "monument",
+    "name": "Example Monument"
+   }
+  },
+  {
+   "id": "t17",
+   "label": "Archaeological site",
+   "category": "monument",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "archaeological_site",
+    "name": "Example Ruins"
+   }
+  },
+  {
+   "id": "t18",
+   "label": "Museum with opening_hours",
+   "category": "museum",
+   "origin": "synthetic-shape",
+   "tags": {
+    "tourism": "museum",
+    "name": "Example Museum",
+    "opening_hours": "Tu-Su 10:00-17:00"
+   }
+  },
+  {
+   "id": "t19",
+   "label": "Waterfall",
+   "category": "waterfall",
+   "origin": "synthetic-shape",
+   "tags": {
+    "natural": "waterfall",
+    "name": "Example Falls"
+   }
+  },
+  {
+   "id": "t20",
+   "label": "Beach",
+   "category": "beach",
+   "origin": "synthetic-shape",
+   "tags": {
+    "natural": "beach",
+    "name": "Example Beach"
+   }
+  },
+  {
+   "id": "t21",
+   "label": "Viewpoint",
+   "category": "viewpoint",
+   "origin": "synthetic-shape",
+   "tags": {
+    "tourism": "viewpoint",
+    "name": "Example Point"
+   }
+  },
+  {
+   "id": "t22",
+   "label": "Lake",
+   "category": "lake",
+   "origin": "synthetic-shape",
+   "tags": {
+    "natural": "water",
+    "water": "lake",
+    "name": "Example Lake"
+   }
+  },
+  {
+   "id": "t23",
+   "label": "Hill / peak",
+   "category": "peak",
+   "origin": "synthetic-shape",
+   "tags": {
+    "natural": "peak",
+    "name": "Example Hill"
+   }
+  },
+  {
+   "id": "t24",
+   "label": "Cave entrance",
+   "category": "cave",
+   "origin": "synthetic-shape",
+   "tags": {
+    "natural": "cave_entrance",
+    "name": "Example Caves"
+   }
+  },
+  {
+   "id": "t25",
+   "label": "National park boundary",
+   "category": "park",
+   "origin": "synthetic-shape",
+   "tags": {
+    "boundary": "national_park",
+    "name": "Example National Park"
+   }
+  },
+  {
+   "id": "t26",
+   "label": "Nature reserve",
+   "category": "park",
+   "origin": "synthetic-shape",
+   "tags": {
+    "leisure": "nature_reserve",
+    "name": "Example Sanctuary"
+   }
+  },
+  {
+   "id": "t27",
+   "label": "Garden",
+   "category": "park",
+   "origin": "synthetic-shape",
+   "tags": {
+    "leisure": "garden",
+    "name": "Example Garden",
+    "opening_hours": "Mo-Su 06:00-18:00"
+   }
+  },
+  {
+   "id": "t28",
+   "label": "Zoo",
+   "category": "zoo",
+   "origin": "synthetic-shape",
+   "tags": {
+    "tourism": "zoo",
+    "name": "Example Zoo",
+    "opening_hours": "Tu-Su 09:00-17:00"
+   }
+  },
+  {
+   "id": "t29",
+   "label": "Attraction (general)",
+   "category": "attraction",
+   "origin": "synthetic-shape",
+   "tags": {
+    "tourism": "attraction",
+    "name": "Example Attraction"
+   }
+  },
+  {
+   "id": "t30",
+   "label": "Lighthouse tagged man_made + attraction",
+   "category": "attraction",
+   "origin": "synthetic-shape",
+   "tags": {
+    "man_made": "lighthouse",
+    "tourism": "attraction",
+    "name": "Example Lighthouse"
+   }
+  },
+  {
+   "id": "t31",
+   "label": "Stepwell tagged historic=wayside_shrine",
+   "category": "monument",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "wayside_shrine",
+    "name": "Example Stepwell"
+   }
+  },
+  {
+   "id": "t32",
+   "label": "Unnamed temple",
+   "category": "temple",
+   "origin": "synthetic-shape",
+   "tags": {
+    "historic": "temple"
+   }
+  }
+ ]
+}

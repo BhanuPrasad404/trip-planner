@@ -42,10 +42,10 @@ describe("Gemini: not thinking", () => {
     await callGemini({ system: "s", content, tool });
     expect(bodyOf(f.mock.calls[0]).generationConfig).toEqual({ maxOutputTokens: 8192, temperature: 0 });
   });
-  it("a 400 that is NOT about thinking is a real error and is not retried", async () => {
+  it("a bad-key 400 is a real error and is not retried with other settings", async () => {
     setup("gemini-flash-test-d");
-    const f = vi.fn(async () => bad400("Request contains an invalid argument.")); vi.stubGlobal("fetch", f);
-    await expect(callGemini({ system: "s", content, tool })).rejects.toBeInstanceOf(AiRequestError);
+    const f = vi.fn(async () => bad400("API key not valid. Please pass a valid API key.")); vi.stubGlobal("fetch", f);
+    await expect(callGemini({ system: "s", content, tool })).rejects.toMatchObject({ status: 401 });
     expect(f).toHaveBeenCalledTimes(1);
   });
   it("does nothing at all when the wait is already over", async () => {

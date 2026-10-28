@@ -1,0 +1,3101 @@
+{
+ "schema": 1,
+ "layers": {
+  "geonames": "The India place index that ships with the repo (about 70,000 places, GeoNames)",
+  "photon": "The OpenStreetMap search (Photon) was NOT reachable in this run (stubbed to return nothing)",
+  "overpass": "Overpass (OpenStreetMap tags) was not queried."
+ },
+ "fixtures": {
+  "queries": 168,
+  "states": 26,
+  "tagsets": 32,
+  "namePairs": 22,
+  "hoursTruthEntries": 0
+ },
+ "place": {
+  "summary": {
+   "queries": 168,
+   "entityFound": {
+    "num": 114,
+    "den": 156,
+    "pct": 73.1
+   },
+   "wrongState": {
+    "num": 7,
+    "den": 156,
+    "pct": 4.5
+   },
+   "roleCorrect": {
+    "num": 108,
+    "den": 114,
+    "pct": 94.7
+   },
+   "roleCorrectOfAll": {
+    "num": 108,
+    "den": 156,
+    "pct": 69.2
+   },
+   "ambiguityHandled": {
+    "num": 6,
+    "den": 12,
+    "pct": 50
+   },
+   "silentGuesses": {
+    "num": 4,
+    "den": 12,
+    "pct": 33.3
+   },
+   "falseClarifications": {
+    "num": 27,
+    "den": 156,
+    "pct": 17.3
+   },
+   "interestCaptured": {
+    "num": 10,
+    "den": 12,
+    "pct": 83.3
+   },
+   "intentCaptured": {
+    "num": 0,
+    "den": 18,
+    "pct": 0
+   },
+   "suggestionsOffered": {
+    "num": 0,
+    "den": 20,
+    "pct": 0
+   }
+  },
+  "byGroup": {
+   "alt_spelling": {
+    "queries": 18,
+    "entityFound": {
+     "num": 15,
+     "den": 18,
+     "pct": 83.3
+    },
+    "wrongState": {
+     "num": 2,
+     "den": 18,
+     "pct": 11.1
+    },
+    "roleCorrect": {
+     "num": 15,
+     "den": 15,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 15,
+     "den": 18,
+     "pct": 83.3
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 4,
+     "den": 18,
+     "pct": 22.2
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "ambiguous": {
+    "queries": 12,
+    "entityFound": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "wrongState": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "roleCorrect": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "roleCorrectOfAll": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "ambiguityHandled": {
+     "num": 6,
+     "den": 12,
+     "pct": 50
+    },
+    "silentGuesses": {
+     "num": 4,
+     "den": 12,
+     "pct": 33.3
+    },
+    "falseClarifications": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "attraction": {
+    "queries": 36,
+    "entityFound": {
+     "num": 17,
+     "den": 36,
+     "pct": 47.2
+    },
+    "wrongState": {
+     "num": 3,
+     "den": 36,
+     "pct": 8.3
+    },
+    "roleCorrect": {
+     "num": 11,
+     "den": 17,
+     "pct": 64.7
+    },
+    "roleCorrectOfAll": {
+     "num": 11,
+     "den": 36,
+     "pct": 30.6
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 4,
+     "den": 36,
+     "pct": 11.1
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "category": {
+    "queries": 12,
+    "entityFound": {
+     "num": 11,
+     "den": 12,
+     "pct": 91.7
+    },
+    "wrongState": {
+     "num": 0,
+     "den": 12,
+     "pct": 0
+    },
+    "roleCorrect": {
+     "num": 11,
+     "den": 11,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 11,
+     "den": 12,
+     "pct": 91.7
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 3,
+     "den": 12,
+     "pct": 25
+    },
+    "interestCaptured": {
+     "num": 10,
+     "den": 12,
+     "pct": 83.3
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 12,
+     "pct": 0
+    }
+   },
+   "city": {
+    "queries": 36,
+    "entityFound": {
+     "num": 36,
+     "den": 36,
+     "pct": 100
+    },
+    "wrongState": {
+     "num": 0,
+     "den": 36,
+     "pct": 0
+    },
+    "roleCorrect": {
+     "num": 36,
+     "den": 36,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 36,
+     "den": 36,
+     "pct": 100
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 8,
+     "den": 36,
+     "pct": 22.2
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "compound": {
+    "queries": 12,
+    "entityFound": {
+     "num": 0,
+     "den": 12,
+     "pct": 0
+    },
+    "wrongState": {
+     "num": 0,
+     "den": 12,
+     "pct": 0
+    },
+    "roleCorrect": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "roleCorrectOfAll": {
+     "num": 0,
+     "den": 12,
+     "pct": 0
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 0,
+     "den": 12,
+     "pct": 0
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "discovery": {
+    "queries": 8,
+    "entityFound": {
+     "num": 8,
+     "den": 8,
+     "pct": 100
+    },
+    "wrongState": {
+     "num": 0,
+     "den": 8,
+     "pct": 0
+    },
+    "roleCorrect": {
+     "num": 8,
+     "den": 8,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 8,
+     "den": 8,
+     "pct": 100
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 3,
+     "den": 8,
+     "pct": 37.5
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 8,
+     "pct": 0
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 8,
+     "pct": 0
+    }
+   },
+   "hours_question": {
+    "queries": 10,
+    "entityFound": {
+     "num": 4,
+     "den": 10,
+     "pct": 40
+    },
+    "wrongState": {
+     "num": 1,
+     "den": 10,
+     "pct": 10
+    },
+    "roleCorrect": {
+     "num": 4,
+     "den": 4,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 4,
+     "den": 10,
+     "pct": 40
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 0,
+     "den": 10,
+     "pct": 0
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 10,
+     "pct": 0
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "native_script": {
+    "queries": 6,
+    "entityFound": {
+     "num": 6,
+     "den": 6,
+     "pct": 100
+    },
+    "wrongState": {
+     "num": 0,
+     "den": 6,
+     "pct": 0
+    },
+    "roleCorrect": {
+     "num": 6,
+     "den": 6,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 6,
+     "den": 6,
+     "pct": 100
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 0,
+     "den": 6,
+     "pct": 0
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   },
+   "region": {
+    "queries": 18,
+    "entityFound": {
+     "num": 17,
+     "den": 18,
+     "pct": 94.4
+    },
+    "wrongState": {
+     "num": 1,
+     "den": 18,
+     "pct": 5.6
+    },
+    "roleCorrect": {
+     "num": 17,
+     "den": 17,
+     "pct": 100
+    },
+    "roleCorrectOfAll": {
+     "num": 17,
+     "den": 18,
+     "pct": 94.4
+    },
+    "ambiguityHandled": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "silentGuesses": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "falseClarifications": {
+     "num": 5,
+     "den": 18,
+     "pct": 27.8
+    },
+    "interestCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "intentCaptured": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    },
+    "suggestionsOffered": {
+     "num": 0,
+     "den": 0,
+     "pct": null
+    }
+   }
+  },
+  "byState": [
+   {
+    "state": "Andhra Pradesh",
+    "queries": 12,
+    "found": 9
+   },
+   {
+    "state": "Assam",
+    "queries": 2,
+    "found": 1
+   },
+   {
+    "state": "Bihar",
+    "queries": 1,
+    "found": 1
+   },
+   {
+    "state": "Chhattisgarh",
+    "queries": 1,
+    "found": 1
+   },
+   {
+    "state": "Delhi",
+    "queries": 6,
+    "found": 3
+   },
+   {
+    "state": "Goa",
+    "queries": 3,
+    "found": 3
+   },
+   {
+    "state": "Gujarat",
+    "queries": 5,
+    "found": 2
+   },
+   {
+    "state": "Haryana",
+    "queries": 1,
+    "found": 0
+   },
+   {
+    "state": "Himachal Pradesh",
+    "queries": 2,
+    "found": 1
+   },
+   {
+    "state": "Jammu and Kashmir",
+    "queries": 2,
+    "found": 2
+   },
+   {
+    "state": "Jharkhand",
+    "queries": 1,
+    "found": 1
+   },
+   {
+    "state": "Karnataka",
+    "queries": 13,
+    "found": 11
+   },
+   {
+    "state": "Kerala",
+    "queries": 13,
+    "found": 11
+   },
+   {
+    "state": "Madhya Pradesh",
+    "queries": 4,
+    "found": 3
+   },
+   {
+    "state": "Maharashtra",
+    "queries": 12,
+    "found": 7
+   },
+   {
+    "state": "Meghalaya",
+    "queries": 1,
+    "found": 1
+   },
+   {
+    "state": "Odisha",
+    "queries": 5,
+    "found": 4
+   },
+   {
+    "state": "Puducherry",
+    "queries": 2,
+    "found": 2
+   },
+   {
+    "state": "Punjab",
+    "queries": 3,
+    "found": 2
+   },
+   {
+    "state": "Rajasthan",
+    "queries": 13,
+    "found": 9
+   },
+   {
+    "state": "Sikkim",
+    "queries": 1,
+    "found": 1
+   },
+   {
+    "state": "Tamil Nadu",
+    "queries": 17,
+    "found": 14
+   },
+   {
+    "state": "Telangana",
+    "queries": 12,
+    "found": 9
+   },
+   {
+    "state": "Uttar Pradesh",
+    "queries": 14,
+    "found": 10
+   },
+   {
+    "state": "Uttarakhand",
+    "queries": 3,
+    "found": 3
+   },
+   {
+    "state": "West Bengal",
+    "queries": 7,
+    "found": 3
+   }
+  ],
+  "failures": [
+   {
+    "id": "q016",
+    "group": "city",
+    "query": "Ahmedabad",
+    "expectedRole": "city_region",
+    "gotInstead": "Ahmedabad→Ahmedabad (city, Gujarat) [asked to check]",
+    "ms": 44.721898999999894,
+    "found": true,
+    "matched": {
+     "name": "Ahmedabad",
+     "kind": "city",
+     "state": "Gujarat",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q018",
+    "group": "city",
+    "query": "Jaipur",
+    "expectedRole": "city_region",
+    "gotInstead": "Jaipur→Jaipur (city, Rajasthan) [asked to check]",
+    "ms": 43.138862000000245,
+    "found": true,
+    "matched": {
+     "name": "Jaipur",
+     "kind": "city",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q019",
+    "group": "city",
+    "query": "Udaipur",
+    "expectedRole": "city_region",
+    "gotInstead": "Udaipur→Udaipur (city, Rajasthan) [asked to check]",
+    "ms": 42.187700999999834,
+    "found": true,
+    "matched": {
+     "name": "Udaipur",
+     "kind": "city",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q020",
+    "group": "city",
+    "query": "Jodhpur",
+    "expectedRole": "city_region",
+    "gotInstead": "Jodhpur→Jodhpur (city, Rajasthan) [asked to check]",
+    "ms": 42.25031100000024,
+    "found": true,
+    "matched": {
+     "name": "Jodhpur",
+     "kind": "city",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q022",
+    "group": "city",
+    "query": "Agra",
+    "expectedRole": "city_region",
+    "gotInstead": "Agra→Agra (city, Uttar Pradesh) [asked to check]",
+    "ms": 42.203089999999975,
+    "found": true,
+    "matched": {
+     "name": "Agra",
+     "kind": "city",
+     "state": "Uttar Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q028",
+    "group": "city",
+    "query": "Patna",
+    "expectedRole": "city_region",
+    "gotInstead": "Patna→Patna (city, Bihar) [asked to check]",
+    "ms": 40.18520699999999,
+    "found": true,
+    "matched": {
+     "name": "Patna",
+     "kind": "city",
+     "state": "Bihar",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q032",
+    "group": "city",
+    "query": "Srinagar",
+    "expectedRole": "city_region",
+    "gotInstead": "Srinagar→Srinagar (city, Jammu and Kashmir) [asked to check]",
+    "ms": 40.991191999999955,
+    "found": true,
+    "matched": {
+     "name": "Srinagar",
+     "kind": "city",
+     "state": "Jammu and Kashmir",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q035",
+    "group": "city",
+    "query": "Raipur",
+    "expectedRole": "city_region",
+    "gotInstead": "Raipur→Raipur (city, Chhattisgarh) [asked to check]",
+    "ms": 41.597875999999815,
+    "found": true,
+    "matched": {
+     "name": "Raipur",
+     "kind": "city",
+     "state": "Chhattisgarh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q037",
+    "group": "region",
+    "query": "Goa",
+    "expectedRole": "city_region",
+    "gotInstead": "Goa→Goa (state, Goa) [asked to check]",
+    "ms": 41.12455999999975,
+    "found": true,
+    "matched": {
+     "name": "Goa",
+     "kind": "state",
+     "state": "Goa",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q038",
+    "group": "region",
+    "query": "Coorg",
+    "expectedRole": "city_region",
+    "gotInstead": "Coorg→Kodagu (district, Karnataka) [asked to check]",
+    "ms": 49.12343800000008,
+    "found": true,
+    "matched": {
+     "name": "Kodagu",
+     "kind": "district",
+     "state": "Karnataka",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q043",
+    "group": "region",
+    "query": "Manali",
+    "expectedRole": "city_region",
+    "gotInstead": "Manali→Manali (town, Tamil Nadu) [asked to check]",
+    "ms": 59.78432699999985,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q051",
+    "group": "region",
+    "query": "Mount Abu",
+    "expectedRole": "city_region",
+    "gotInstead": "Mount Abu→Abu (town, Rajasthan) [asked to check]",
+    "ms": 41.56067200000007,
+    "found": true,
+    "matched": {
+     "name": "Abu",
+     "kind": "town",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q053",
+    "group": "region",
+    "query": "Alleppey",
+    "expectedRole": "city_region",
+    "gotInstead": "Alleppey→Alappuzha (district, Kerala) [asked to check]",
+    "ms": 40.81142100000034,
+    "found": true,
+    "matched": {
+     "name": "Alappuzha",
+     "kind": "district",
+     "state": "Kerala",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q058",
+    "group": "attraction",
+    "query": "Gol Gumbaz",
+    "expectedRole": "attraction",
+    "gotInstead": "Gol Gumbaz→not found",
+    "ms": 40.69124899999997,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q060",
+    "group": "attraction",
+    "query": "Brihadeeswarar Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Brihadeeswarar Temple→not found",
+    "ms": 40.90499799999998,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q061",
+    "group": "attraction",
+    "query": "Padmanabhaswamy Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Padmanabhaswamy Temple→not found",
+    "ms": 41.616231999999854,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q062",
+    "group": "attraction",
+    "query": "Taj Mahal",
+    "expectedRole": "attraction",
+    "gotInstead": "Taj Mahal→not found",
+    "ms": 40.90362300000015,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q063",
+    "group": "attraction",
+    "query": "Agra Fort",
+    "expectedRole": "attraction",
+    "gotInstead": "Agra Fort→Agra (city, Uttar Pradesh) [asked to check]",
+    "ms": 41.75074100000029,
+    "found": true,
+    "matched": {
+     "name": "Agra",
+     "kind": "city",
+     "state": "Uttar Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": false,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q064",
+    "group": "attraction",
+    "query": "Fatehpur Sikri",
+    "expectedRole": "attraction",
+    "gotInstead": "Fatehpur Sikri→Fatehpur Sikri (town, Uttar Pradesh)",
+    "ms": 40.95639400000027,
+    "found": true,
+    "matched": {
+     "name": "Fatehpur Sikri",
+     "kind": "town",
+     "state": "Uttar Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": false,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q065",
+    "group": "attraction",
+    "query": "Qutub Minar",
+    "expectedRole": "attraction",
+    "gotInstead": "Qutub Minar→not found",
+    "ms": 40.890440000000126,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q067",
+    "group": "attraction",
+    "query": "Humayun's Tomb",
+    "expectedRole": "attraction",
+    "gotInstead": "Humayun's Tomb→not found",
+    "ms": 40.77956499999982,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q069",
+    "group": "attraction",
+    "query": "Gateway of India",
+    "expectedRole": "attraction",
+    "gotInstead": "Gateway India→not found",
+    "ms": 40.68141699999978,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q070",
+    "group": "attraction",
+    "query": "Ajanta Caves",
+    "expectedRole": "attraction",
+    "gotInstead": "Ajanta Caves→not found",
+    "ms": 41.37916600000062,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q071",
+    "group": "attraction",
+    "query": "Ellora Caves",
+    "expectedRole": "attraction",
+    "gotInstead": "Ellora Caves→Ellora (town, Maharashtra)",
+    "ms": 42.24529299999995,
+    "found": true,
+    "matched": {
+     "name": "Ellora",
+     "kind": "town",
+     "state": "Maharashtra",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": false,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q073",
+    "group": "attraction",
+    "query": "Amer Fort",
+    "expectedRole": "attraction",
+    "gotInstead": "Amer Fort→Amer (locality, Bihar)",
+    "ms": 43.56913799999984,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q075",
+    "group": "attraction",
+    "query": "Lingaraj Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Lingaraj Temple→Lingaraj (subdistrict, Odisha)",
+    "ms": 43.204642000000604,
+    "found": true,
+    "matched": {
+     "name": "Lingaraj",
+     "kind": "subdistrict",
+     "state": "Odisha",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": false,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q077",
+    "group": "attraction",
+    "query": "Sanchi Stupa",
+    "expectedRole": "attraction",
+    "gotInstead": "Sanchi Stupa→not found",
+    "ms": 43.485649000000194,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q078",
+    "group": "attraction",
+    "query": "Khajuraho Temples",
+    "expectedRole": "attraction",
+    "gotInstead": "Khajuraho Temples→Khajuraho Group of Monuments (town, Madhya Pradesh) [asked to check]",
+    "ms": 41.71299700000054,
+    "found": true,
+    "matched": {
+     "name": "Khajuraho Group of Monuments",
+     "kind": "town",
+     "state": "Madhya Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": false,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q079",
+    "group": "attraction",
+    "query": "Victoria Memorial",
+    "expectedRole": "attraction",
+    "gotInstead": "Victoria Memorial→not found",
+    "ms": 41.07695799999965,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q080",
+    "group": "attraction",
+    "query": "Howrah Bridge",
+    "expectedRole": "attraction",
+    "gotInstead": "Howrah Bridge→not found",
+    "ms": 40.439172000000326,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q082",
+    "group": "attraction",
+    "query": "Kaziranga National Park",
+    "expectedRole": "attraction",
+    "gotInstead": "Kaziranga National Park→not found",
+    "ms": 40.750129999999444,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q083",
+    "group": "attraction",
+    "query": "Tirumala Venkateswara Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Tirumala Venkateswara Temple→not found",
+    "ms": 40.53842900000018,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q084",
+    "group": "attraction",
+    "query": "Kailasagiri",
+    "expectedRole": "attraction",
+    "gotInstead": "Kailasagiri→Kailasagiri (town, Tamil Nadu)",
+    "ms": 40.70738999999958,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q085",
+    "group": "attraction",
+    "query": "Ramoji Film City",
+    "expectedRole": "attraction",
+    "gotInstead": "Ramoji Film City→not found",
+    "ms": 40.640416999999616,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q087",
+    "group": "attraction",
+    "query": "Statue of Unity",
+    "expectedRole": "attraction",
+    "gotInstead": "Statue Unity→not found",
+    "ms": 40.61490700000013,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q088",
+    "group": "attraction",
+    "query": "Somnath Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Somnath Temple→Somnath Temple (sight, Chhattisgarh) [asked to check]",
+    "ms": 40.85650199999964,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q089",
+    "group": "attraction",
+    "query": "Kedarnath Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Kedarnath Temple→Kedarnath (town, Uttarakhand) [asked to check]",
+    "ms": 41.54967800000031,
+    "found": true,
+    "matched": {
+     "name": "Kedarnath",
+     "kind": "town",
+     "state": "Uttarakhand",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": false,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q090",
+    "group": "attraction",
+    "query": "Kashi Vishwanath Temple",
+    "expectedRole": "attraction",
+    "gotInstead": "Kashi Vishwanath Temple→not found",
+    "ms": 42.03908499999943,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q091",
+    "group": "compound",
+    "query": "Hawa Mahal Jaipur",
+    "expectedRole": "attraction",
+    "gotInstead": "Hawa Mahal Jaipur→not found",
+    "ms": 43.70013199999994,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q092",
+    "group": "compound",
+    "query": "Charminar Hyderabad",
+    "expectedRole": "attraction",
+    "gotInstead": "Charminar Hyderabad→not found",
+    "ms": 41.12504499999977,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q093",
+    "group": "compound",
+    "query": "Meenakshi Temple Madurai",
+    "expectedRole": "attraction",
+    "gotInstead": "Meenakshi Temple Madurai→not found",
+    "ms": 40.78917000000001,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q094",
+    "group": "compound",
+    "query": "Kashi Vishwanath temple Varanasi",
+    "expectedRole": "attraction",
+    "gotInstead": "Kashi Vishwanath temple Varanasi→not found",
+    "ms": 40.56162399999994,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q095",
+    "group": "compound",
+    "query": "Golden Temple Amritsar",
+    "expectedRole": "attraction",
+    "gotInstead": "Golden Temple Amritsar→not found",
+    "ms": 41.67396500000086,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q096",
+    "group": "compound",
+    "query": "Mysore Palace Mysuru",
+    "expectedRole": "attraction",
+    "gotInstead": "Mysore Palace Mysuru→not found",
+    "ms": 40.92579099999966,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q097",
+    "group": "compound",
+    "query": "Gateway of India Mumbai",
+    "expectedRole": "attraction",
+    "gotInstead": "Gateway India Mumbai→not found",
+    "ms": 40.603195000000596,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q098",
+    "group": "compound",
+    "query": "Victoria Memorial Kolkata",
+    "expectedRole": "attraction",
+    "gotInstead": "Victoria Memorial Kolkata→not found",
+    "ms": 40.2012620000005,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q099",
+    "group": "compound",
+    "query": "Lingaraj Temple Bhubaneswar",
+    "expectedRole": "attraction",
+    "gotInstead": "Lingaraj Temple Bhubaneswar→not found",
+    "ms": 44.93678799999998,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q100",
+    "group": "compound",
+    "query": "Padmanabhaswamy Temple Thiruvananthapuram",
+    "expectedRole": "attraction",
+    "gotInstead": "Padmanabhaswamy Temple Thiruvananthapuram→not found",
+    "ms": 48.120026999999936,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q101",
+    "group": "compound",
+    "query": "Kailasagiri Visakhapatnam",
+    "expectedRole": "attraction",
+    "gotInstead": "Kailasagiri Visakhapatnam→not found",
+    "ms": 41.94151799999963,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q102",
+    "group": "compound",
+    "query": "Ramoji Film City Hyderabad",
+    "expectedRole": "attraction",
+    "gotInstead": "Ramoji Film City Hyderabad→not found",
+    "ms": 41.23034699999971,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q108",
+    "group": "ambiguous",
+    "query": "City Palace",
+    "expectedRole": "ambiguous",
+    "gotInstead": "City Palace→not found",
+    "ms": 44.02033300000039,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "not_found",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q109",
+    "group": "ambiguous",
+    "query": "Venkateswara Temple",
+    "expectedRole": "ambiguous",
+    "gotInstead": "Venkateswara Temple→not found",
+    "ms": 41.944274999999834,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "not_found",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q110",
+    "group": "ambiguous",
+    "query": "Sun Temple",
+    "expectedRole": "ambiguous",
+    "gotInstead": "Sun Temple→Sun City (locality, Tamil Nadu)",
+    "ms": 41.553789999999935,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "silent_guess",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q111",
+    "group": "ambiguous",
+    "query": "Bijapur",
+    "expectedRole": "ambiguous",
+    "gotInstead": "Bijapur→Bijapur (town, Chhattisgarh)",
+    "ms": 41.613525000000664,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "silent_guess",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q112",
+    "group": "ambiguous",
+    "query": "Raigarh",
+    "expectedRole": "ambiguous",
+    "gotInstead": "Raigarh→Raigarh (city, Chhattisgarh)",
+    "ms": 45.1064980000001,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "silent_guess",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q114",
+    "group": "ambiguous",
+    "query": "Jagannath Temple",
+    "expectedRole": "ambiguous",
+    "gotInstead": "Jagannath Temple→Puri (city, Odisha)",
+    "ms": 49.990968000000066,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "silent_guess",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q123",
+    "group": "alt_spelling",
+    "query": "Baroda",
+    "expectedRole": "city_region",
+    "gotInstead": "Baroda→Baroda (town, Madhya Pradesh) [asked to check]",
+    "ms": 50.356362999999874,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q126",
+    "group": "alt_spelling",
+    "query": "Gurgaon",
+    "expectedRole": "city_region",
+    "gotInstead": "Gurgaon→Gurgaon (locality, Maharashtra) [asked to check]",
+    "ms": 47.7175729999999,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q128",
+    "group": "alt_spelling",
+    "query": "Madras",
+    "expectedRole": "city_region",
+    "gotInstead": "Madras→Chennai (city, Tamil Nadu) [asked to check]",
+    "ms": 43.21993399999974,
+    "found": true,
+    "matched": {
+     "name": "Chennai",
+     "kind": "city",
+     "state": "Tamil Nadu",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q129",
+    "group": "alt_spelling",
+    "query": "Bombay",
+    "expectedRole": "city_region",
+    "gotInstead": "Bombay→not found",
+    "ms": 52.01130899999953,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q132",
+    "group": "alt_spelling",
+    "query": "Mamallapuram",
+    "expectedRole": "city_region",
+    "gotInstead": "Mamallapuram→Mahabalipuram (town, Tamil Nadu) [asked to check]",
+    "ms": 45.15011400000003,
+    "found": true,
+    "matched": {
+     "name": "Mahabalipuram",
+     "kind": "town",
+     "state": "Tamil Nadu",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": null,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q139",
+    "group": "category",
+    "query": "beaches near Visakhapatnam",
+    "expectedRole": "category",
+    "gotInstead": "Visakhapatnam→Visakhapatnam (city, Andhra Pradesh)",
+    "ms": 39.843918999999914,
+    "found": true,
+    "matched": {
+     "name": "Visakhapatnam",
+     "kind": "city",
+     "state": "Andhra Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q140",
+    "group": "category",
+    "query": "temples in Tirupati",
+    "expectedRole": "category",
+    "gotInstead": "Tirupati→Tirupati (city, Andhra Pradesh)",
+    "ms": 40.76972500000011,
+    "found": true,
+    "matched": {
+     "name": "Tirupati",
+     "kind": "city",
+     "state": "Andhra Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q141",
+    "group": "category",
+    "query": "waterfalls near Hyderabad",
+    "expectedRole": "category",
+    "gotInstead": "Hyderabad→Hyderabad (city, Telangana)",
+    "ms": 39.60634000000027,
+    "found": true,
+    "matched": {
+     "name": "Hyderabad",
+     "kind": "city",
+     "state": "Telangana",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q142",
+    "group": "category",
+    "query": "forts in Jaipur",
+    "expectedRole": "category",
+    "gotInstead": "Jaipur→Jaipur (city, Rajasthan) [asked to check]",
+    "ms": 39.33936000000085,
+    "found": true,
+    "matched": {
+     "name": "Jaipur",
+     "kind": "city",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q143",
+    "group": "category",
+    "query": "museums in Delhi",
+    "expectedRole": "category",
+    "gotInstead": "Delhi→Delhi (city, Delhi)",
+    "ms": 70.94142800000009,
+    "found": true,
+    "matched": {
+     "name": "Delhi",
+     "kind": "city",
+     "state": "Delhi",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": false,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q144",
+    "group": "category",
+    "query": "temples near Madurai",
+    "expectedRole": "category",
+    "gotInstead": "Madurai→Madurai (city, Tamil Nadu)",
+    "ms": 42.642500999999356,
+    "found": true,
+    "matched": {
+     "name": "Madurai",
+     "kind": "city",
+     "state": "Tamil Nadu",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q145",
+    "group": "category",
+    "query": "beaches in Goa",
+    "expectedRole": "category",
+    "gotInstead": "Goa→Goa (state, Goa) [asked to check]",
+    "ms": 40.81457099999989,
+    "found": true,
+    "matched": {
+     "name": "Goa",
+     "kind": "state",
+     "state": "Goa",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q146",
+    "group": "category",
+    "query": "forts in Rajasthan",
+    "expectedRole": "category",
+    "gotInstead": "Rajasthan→not found",
+    "ms": 39.77273799999966,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q147",
+    "group": "category",
+    "query": "wildlife near Mysuru",
+    "expectedRole": "category",
+    "gotInstead": "Mysuru→Mysuru (city, Karnataka)",
+    "ms": 39.805890999999974,
+    "found": true,
+    "matched": {
+     "name": "Mysuru",
+     "kind": "city",
+     "state": "Karnataka",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": false,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q148",
+    "group": "category",
+    "query": "lakes in Udaipur",
+    "expectedRole": "category",
+    "gotInstead": "Udaipur→Udaipur (city, Rajasthan) [asked to check]",
+    "ms": 39.72666699999991,
+    "found": true,
+    "matched": {
+     "name": "Udaipur",
+     "kind": "city",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q149",
+    "group": "category",
+    "query": "temples in Kanchipuram",
+    "expectedRole": "category",
+    "gotInstead": "Kanchipuram→Kanchipuram (city, Tamil Nadu)",
+    "ms": 39.709452000000056,
+    "found": true,
+    "matched": {
+     "name": "Kanchipuram",
+     "kind": "city",
+     "state": "Tamil Nadu",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q150",
+    "group": "category",
+    "query": "beaches near Kochi",
+    "expectedRole": "category",
+    "gotInstead": "Kochi→Kochi (city, Kerala)",
+    "ms": 39.30569799999921,
+    "found": true,
+    "matched": {
+     "name": "Kochi",
+     "kind": "city",
+     "state": "Kerala",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": true,
+    "intentOk": null,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q151",
+    "group": "hours_question",
+    "query": "is Charminar open now",
+    "expectedRole": "hours",
+    "gotInstead": "Charminar→Charminar (sight, Telangana)",
+    "ms": 40.360233000000335,
+    "found": true,
+    "matched": {
+     "name": "Charminar",
+     "kind": "sight",
+     "state": "Telangana",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q152",
+    "group": "hours_question",
+    "query": "Golconda Fort timings",
+    "expectedRole": "hours",
+    "gotInstead": "Golconda Fort→Golconda Fort (sight, Telangana)",
+    "ms": 39.497942999999395,
+    "found": true,
+    "matched": {
+     "name": "Golconda Fort",
+     "kind": "sight",
+     "state": "Telangana",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q153",
+    "group": "hours_question",
+    "query": "Taj Mahal opening hours on Friday",
+    "expectedRole": "hours",
+    "gotInstead": "Taj Mahal opening hours Friday→not found",
+    "ms": 39.5175220000001,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q154",
+    "group": "hours_question",
+    "query": "what time does Meenakshi Temple open",
+    "expectedRole": "hours",
+    "gotInstead": "Meenakshi Temple→not found",
+    "ms": 39.99546499999997,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q155",
+    "group": "hours_question",
+    "query": "Gateway of India timings",
+    "expectedRole": "hours",
+    "gotInstead": "Gateway India→not found",
+    "ms": 39.541653000000224,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q156",
+    "group": "hours_question",
+    "query": "Amer Fort closing time",
+    "expectedRole": "hours",
+    "gotInstead": "Amer Fort→Amer (locality, Bihar)",
+    "ms": 40.41567000000032,
+    "found": false,
+    "matched": null,
+    "wrongState": true,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q157",
+    "group": "hours_question",
+    "query": "Mysore Palace visiting hours",
+    "expectedRole": "hours",
+    "gotInstead": "Mysore Palace→Mysore Palace (sight, Karnataka)",
+    "ms": 40.16221299999961,
+    "found": true,
+    "matched": {
+     "name": "Mysore Palace",
+     "kind": "sight",
+     "state": "Karnataka",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q158",
+    "group": "hours_question",
+    "query": "Qutub Minar timings",
+    "expectedRole": "hours",
+    "gotInstead": "Qutub Minar→not found",
+    "ms": 60.20971600000121,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q159",
+    "group": "hours_question",
+    "query": "Konark Sun Temple opening time",
+    "expectedRole": "hours",
+    "gotInstead": "Konark Sun Temple→Konark Sun Temple (sight, Odisha)",
+    "ms": 40.34859800000049,
+    "found": true,
+    "matched": {
+     "name": "Konark Sun Temple",
+     "kind": "sight",
+     "state": "Odisha",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q160",
+    "group": "hours_question",
+    "query": "Victoria Memorial timings",
+    "expectedRole": "hours",
+    "gotInstead": "Victoria Memorial→not found",
+    "ms": 39.51560100000097,
+    "found": false,
+    "matched": null,
+    "wrongState": false,
+    "roleOk": null,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": null
+   },
+   {
+    "id": "q161",
+    "group": "discovery",
+    "query": "things to do in Tirupati",
+    "expectedRole": "discovery",
+    "gotInstead": "Tirupati→Tirupati (city, Andhra Pradesh)",
+    "ms": 40.78332099999898,
+    "found": true,
+    "matched": {
+     "name": "Tirupati",
+     "kind": "city",
+     "state": "Andhra Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q162",
+    "group": "discovery",
+    "query": "what to see in Udaipur",
+    "expectedRole": "discovery",
+    "gotInstead": "Udaipur→Udaipur (city, Rajasthan) [asked to check]",
+    "ms": 40.09773099999984,
+    "found": true,
+    "matched": {
+     "name": "Udaipur",
+     "kind": "city",
+     "state": "Rajasthan",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q163",
+    "group": "discovery",
+    "query": "places to visit in Hyderabad",
+    "expectedRole": "discovery",
+    "gotInstead": "Hyderabad→Hyderabad (city, Telangana)",
+    "ms": 39.463284999999814,
+    "found": true,
+    "matched": {
+     "name": "Hyderabad",
+     "kind": "city",
+     "state": "Telangana",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q164",
+    "group": "discovery",
+    "query": "best places in Goa",
+    "expectedRole": "discovery",
+    "gotInstead": "Goa→Goa (state, Goa) [asked to check]",
+    "ms": 39.227930000000924,
+    "found": true,
+    "matched": {
+     "name": "Goa",
+     "kind": "state",
+     "state": "Goa",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q165",
+    "group": "discovery",
+    "query": "top attractions in Mysuru",
+    "expectedRole": "discovery",
+    "gotInstead": "Mysuru→Mysuru (city, Karnataka)",
+    "ms": 39.43593300000066,
+    "found": true,
+    "matched": {
+     "name": "Mysuru",
+     "kind": "city",
+     "state": "Karnataka",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q166",
+    "group": "discovery",
+    "query": "sightseeing in Agra",
+    "expectedRole": "discovery",
+    "gotInstead": "Agra→Agra (city, Uttar Pradesh) [asked to check]",
+    "ms": 40.110483000000386,
+    "found": true,
+    "matched": {
+     "name": "Agra",
+     "kind": "city",
+     "state": "Uttar Pradesh",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "false_alarm",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q167",
+    "group": "discovery",
+    "query": "what to do in Pondicherry",
+    "expectedRole": "discovery",
+    "gotInstead": "Pondicherry→Puducherry (city, Puducherry)",
+    "ms": 39.531199999999444,
+    "found": true,
+    "matched": {
+     "name": "Puducherry",
+     "kind": "city",
+     "state": "Puducherry",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   },
+   {
+    "id": "q168",
+    "group": "discovery",
+    "query": "places to see in Kochi",
+    "expectedRole": "discovery",
+    "gotInstead": "Kochi→Kochi (city, Kerala)",
+    "ms": 39.41568499999994,
+    "found": true,
+    "matched": {
+     "name": "Kochi",
+     "kind": "city",
+     "state": "Kerala",
+     "stateChecked": true
+    },
+    "wrongState": false,
+    "roleOk": true,
+    "ambiguity": "n/a",
+    "interestOk": null,
+    "intentOk": false,
+    "suggestionsOffered": false
+   }
+  ]
+ },
+ "hours": {
+  "admission": {
+   "shapes": 31,
+   "admitted": {
+    "num": 14,
+    "den": 31,
+    "pct": 45.2
+   },
+   "byCategory": [
+    {
+     "category": "attraction",
+     "num": 2,
+     "den": 2,
+     "pct": 100
+    },
+    {
+     "category": "beach",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "cave",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "church",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "fort",
+     "num": 2,
+     "den": 2,
+     "pct": 100
+    },
+    {
+     "category": "gurdwara",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "lake",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "monument",
+     "num": 2,
+     "den": 3,
+     "pct": 66.7
+    },
+    {
+     "category": "mosque",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "museum",
+     "num": 1,
+     "den": 1,
+     "pct": 100
+    },
+    {
+     "category": "palace",
+     "num": 1,
+     "den": 2,
+     "pct": 50
+    },
+    {
+     "category": "park",
+     "num": 0,
+     "den": 3,
+     "pct": 0
+    },
+    {
+     "category": "peak",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "category": "temple",
+     "num": 3,
+     "den": 8,
+     "pct": 37.5
+    },
+    {
+     "category": "viewpoint",
+     "num": 1,
+     "den": 1,
+     "pct": 100
+    },
+    {
+     "category": "waterfall",
+     "num": 1,
+     "den": 1,
+     "pct": 100
+    },
+    {
+     "category": "zoo",
+     "num": 1,
+     "den": 1,
+     "pct": 100
+    }
+   ],
+   "hoursTagsKept": [
+    {
+     "tag": "opening_hours",
+     "num": 4,
+     "den": 6,
+     "pct": 66.7
+    },
+    {
+     "tag": "opening_hours:url",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "tag": "service_times",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    },
+    {
+     "tag": "website",
+     "num": 0,
+     "den": 1,
+     "pct": 0
+    }
+   ]
+  },
+  "admissionRows": [
+   {
+    "id": "t01",
+    "label": "Hindu temple tagged only as a place of worship",
+    "category": "temple",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t02",
+    "label": "Hindu temple, place of worship, with opening_hours",
+    "category": "temple",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [
+     "opening_hours"
+    ],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t03",
+    "label": "Hindu temple, place of worship, with service_times only",
+    "category": "temple",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [
+     "service_times"
+    ],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t04",
+    "label": "Temple tagged historic=temple",
+    "category": "temple",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t05",
+    "label": "Temple tagged historic=temple with opening_hours",
+    "category": "temple",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [
+     "opening_hours"
+    ],
+    "hoursLikeKept": [
+     "opening_hours"
+    ]
+   },
+   {
+    "id": "t06",
+    "label": "Famous temple: place of worship + tourism=attraction + wikidata",
+    "category": "temple",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t07",
+    "label": "Famous temple: place of worship + heritage + wikipedia",
+    "category": "temple",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t08",
+    "label": "Temple with only a website and an opening_hours:url",
+    "category": "temple",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [
+     "opening_hours:url",
+     "website"
+    ],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t09",
+    "label": "Mosque tagged only as a place of worship",
+    "category": "mosque",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t10",
+    "label": "Church tagged only as a place of worship",
+    "category": "church",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t11",
+    "label": "Gurdwara tagged only as a place of worship",
+    "category": "gurdwara",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t12",
+    "label": "Fort",
+    "category": "fort",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t13",
+    "label": "Fort with opening_hours",
+    "category": "fort",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [
+     "opening_hours"
+    ],
+    "hoursLikeKept": [
+     "opening_hours"
+    ]
+   },
+   {
+    "id": "t14",
+    "label": "Castle / palace tagged historic=castle",
+    "category": "palace",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t15",
+    "label": "Palace tagged only building=palace + heritage",
+    "category": "palace",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t16",
+    "label": "Monument",
+    "category": "monument",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t17",
+    "label": "Archaeological site",
+    "category": "monument",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t18",
+    "label": "Museum with opening_hours",
+    "category": "museum",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [
+     "opening_hours"
+    ],
+    "hoursLikeKept": [
+     "opening_hours"
+    ]
+   },
+   {
+    "id": "t19",
+    "label": "Waterfall",
+    "category": "waterfall",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t20",
+    "label": "Beach",
+    "category": "beach",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t21",
+    "label": "Viewpoint",
+    "category": "viewpoint",
+    "admitted": true,
+    "kind": "viewpoint",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t22",
+    "label": "Lake",
+    "category": "lake",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t23",
+    "label": "Hill / peak",
+    "category": "peak",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t24",
+    "label": "Cave entrance",
+    "category": "cave",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t25",
+    "label": "National park boundary",
+    "category": "park",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t26",
+    "label": "Nature reserve",
+    "category": "park",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t27",
+    "label": "Garden",
+    "category": "park",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [
+     "opening_hours"
+    ],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t28",
+    "label": "Zoo",
+    "category": "zoo",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [
+     "opening_hours"
+    ],
+    "hoursLikeKept": [
+     "opening_hours"
+    ]
+   },
+   {
+    "id": "t29",
+    "label": "Attraction (general)",
+    "category": "attraction",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t30",
+    "label": "Lighthouse tagged man_made + attraction",
+    "category": "attraction",
+    "admitted": true,
+    "kind": "sight",
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t31",
+    "label": "Stepwell tagged historic=wayside_shrine",
+    "category": "monument",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   },
+   {
+    "id": "t32",
+    "label": "Unnamed temple",
+    "category": "temple",
+    "admitted": false,
+    "kind": null,
+    "hoursLikePresent": [],
+    "hoursLikeKept": []
+   }
+  ],
+  "matching": {
+   "rows": [
+    {
+     "id": "n01",
+     "stop": "Charminar",
+     "osm": "Charminar",
+     "why": "identical",
+     "similarity": 1,
+     "shouldMatch": true,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n02",
+     "stop": "Golconda Fort",
+     "osm": "Golkonda Fort",
+     "why": "spelling variant",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n03",
+     "stop": "Mysore Palace",
+     "osm": "Mysuru Palace",
+     "why": "city renamed",
+     "similarity": 0.33,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n04",
+     "stop": "Amer Fort",
+     "osm": "Amber Fort",
+     "why": "spelling variant",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n05",
+     "stop": "Hawa Mahal",
+     "osm": "Hawa Mahal (Palace of Winds)",
+     "why": "added descriptor",
+     "similarity": 0.85,
+     "shouldMatch": true,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n06",
+     "stop": "Meenakshi Temple",
+     "osm": "Meenakshi Amman Temple",
+     "why": "shorter form",
+     "similarity": 0.5,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n07",
+     "stop": "Sri Venkateswara Temple Tirumala",
+     "osm": "Tirumala Sri Venkateswara Swamy Temple",
+     "why": "word order and extra words",
+     "similarity": 0.75,
+     "shouldMatch": true,
+     "matchedNear": true,
+     "matchedFar": false
+    },
+    {
+     "id": "n08",
+     "stop": "Victoria Memorial",
+     "osm": "Victoria Memorial Hall",
+     "why": "extra word",
+     "similarity": 0.85,
+     "shouldMatch": true,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n09",
+     "stop": "Jama Masjid",
+     "osm": "Jama Masjid Delhi",
+     "why": "city appended",
+     "similarity": 0.85,
+     "shouldMatch": true,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n10",
+     "stop": "Brihadeeswarar Temple",
+     "osm": "Brihadisvara Temple",
+     "why": "transliteration variant",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n11",
+     "stop": "Golden Temple",
+     "osm": "Harmandir Sahib",
+     "why": "different name for the same place (needs an alias source)",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n12",
+     "stop": "Mysore Palace",
+     "osm": "Amba Vilas Palace",
+     "why": "different name for the same place (needs an alias source)",
+     "similarity": 0.25,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n13",
+     "stop": "Lotus Temple",
+     "osm": "Bahá'í House of Worship",
+     "why": "different name for the same place (needs an alias source)",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n14",
+     "stop": "Charminar",
+     "osm": "చార్మినార్",
+     "why": "same name in another script (needs script handling)",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n15",
+     "stop": "Taj Mahal",
+     "osm": "తాజ్ మహల్",
+     "why": "same name in another script (needs script handling)",
+     "similarity": 0,
+     "shouldMatch": true,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n16",
+     "stop": "Taj Mahal",
+     "osm": "Taj Mahal Palace Hotel",
+     "why": "a hotel, not the monument",
+     "similarity": 0.85,
+     "shouldMatch": false,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n17",
+     "stop": "Red Fort",
+     "osm": "Red Fort Metro Station",
+     "why": "a station, not the fort",
+     "similarity": 0.85,
+     "shouldMatch": false,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n18",
+     "stop": "Marina Beach",
+     "osm": "Marina Beach Road",
+     "why": "a road, not the beach",
+     "similarity": 0.85,
+     "shouldMatch": false,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n19",
+     "stop": "Gateway of India",
+     "osm": "Gateway of India Restaurant",
+     "why": "a restaurant, not the monument",
+     "similarity": 0.85,
+     "shouldMatch": false,
+     "matchedNear": true,
+     "matchedFar": true
+    },
+    {
+     "id": "n20",
+     "stop": "Konark Sun Temple",
+     "osm": "Konark Beach",
+     "why": "a beach, not the temple",
+     "similarity": 0,
+     "shouldMatch": false,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n21",
+     "stop": "Golconda Fort",
+     "osm": "Golconda Dam",
+     "why": "a dam, not the fort",
+     "similarity": 0,
+     "shouldMatch": false,
+     "matchedNear": false,
+     "matchedFar": false
+    },
+    {
+     "id": "n22",
+     "stop": "Padmanabhaswamy Temple",
+     "osm": "Padmanabha Swamy Temple Road",
+     "why": "a road, not the temple",
+     "similarity": 0,
+     "shouldMatch": false,
+     "matchedNear": false,
+     "matchedFar": false
+    }
+   ],
+   "sameRecall": {
+    "num": 5,
+    "den": 15,
+    "pct": 33.3
+   },
+   "differentKeptApart": {
+    "num": 3,
+    "den": 7,
+    "pct": 42.9
+   }
+  },
+  "truth": {
+   "entries": 0,
+   "measurable": false
+  }
+ },
+ "latencyNote": "speed varies by machine: see baseline.md"
+}

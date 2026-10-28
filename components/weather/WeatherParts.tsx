@@ -53,16 +53,16 @@ export function WeatherAlertRow({ a }: { a: WeatherAlert }) {
 export function DayStrip({ parts, highlight, label }: { parts: DayPart[] | null; highlight: BoardPlace["highlight"]; label: string }) {
   if (!parts) return <div className="h-[4.25rem] rounded-xl bg-sky/60" aria-hidden="true" />;
   return (
-    <ol className="grid grid-cols-4 gap-1.5" aria-label={label}>
+    <ol className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" aria-label={label}>
       {parts.map((p) => {
         const s = partSummary(p);
         const mine = highlight === p.id;
         return (
-          <li key={p.id} className={`flex min-h-[4.25rem] flex-col items-center justify-center rounded-xl px-1 py-1.5 text-center ${mine ? "border-2 border-pine bg-white" : "border border-line bg-sky/60"} ${p.past ? "opacity-55" : ""}`}>
-            <span className="text-xs font-semibold text-ink-muted">{p.label}</span>
+          <li key={p.id} className={`flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center rounded-xl px-1.5 py-2 text-center ${mine ? "border-2 border-pine bg-white" : "border border-line bg-sky/60"} ${p.past ? "opacity-55" : ""}`}>
+            <span className="max-w-full break-words text-xs font-semibold text-ink-muted">{p.label}</span>
             {s.icon && <Glyph name={s.icon} size={16} className={s.icon === "moon" ? "text-ink-muted" : "text-pine"} />}
-            <span className="text-xs font-semibold leading-tight text-pine">{p.past ? "Earlier" : s.word}</span>
-            {!p.past && (s.rain || s.feels) && <span className="text-[11px] leading-tight text-ink-muted">{[s.rain ? `${s.rain} rain` : null, s.feels].filter(Boolean).join(" · ")}</span>}
+            <span className="max-w-full break-words text-xs font-semibold leading-tight text-pine">{p.past ? "Earlier" : s.word}</span>
+            {!p.past && (s.rain || s.feels) && <span className="max-w-full break-words text-[11px] leading-tight text-ink-muted">{[s.rain ? `${s.rain} rain` : null, s.feels].filter(Boolean).join(" · ")}</span>}
             {mine && <span className="sr-only"> (you will be there then)</span>}
             {p.coverage === "partial" && !p.past && <span className="text-[10px] text-ink-muted">part forecast</span>}
           </li>
@@ -79,13 +79,13 @@ export function DayStrip({ parts, highlight, label }: { parts: DayPart[] | null;
 export function NextHoursRow({ hours, label }: { hours: NextHour[]; label: string }) {
   if (hours.length === 0) return <p className="mt-2 text-sm text-ink-muted">No hourly forecast for this place right now.</p>;
   return (
-    <ol aria-label={label} className="mt-2 flex gap-1.5 relative overflow-x-auto pb-1" data-testid="next-hours">
+    <ol aria-label={label} className="relative mt-2 flex snap-x snap-proximity gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" data-testid="next-hours">
       {hours.map((h) => {
         const pct = h.precipProb !== null ? Math.max(0, Math.min(100, Math.round(h.precipProb))) : null;
         const icon: GlyphName | null = pct !== null && pct >= 60 ? "rain" : h.isDay === true ? "sun" : h.isDay === false ? "moon" : null;
         const clock = time12(h.time, INDIA_UTC_OFFSET_MIN);
         return (
-          <li key={h.time} className={`flex w-14 shrink-0 flex-col items-center rounded-xl px-1 py-1.5 text-center ${h.isArrival ? "border-2 border-pine bg-white" : "border border-line bg-sky/50"}`}>
+          <li key={h.time} className={`flex w-14 shrink-0 snap-start flex-col items-center rounded-xl px-1 py-1.5 text-center ${h.isArrival ? "border-2 border-pine bg-white" : "border border-line bg-sky/50"}`}>
             <span className="text-xs font-semibold text-ink-muted">{clock.replace(" AM", "a").replace(" PM", "p")}</span>
             <span className="h-5">{icon && <Glyph name={icon} size={16} className={icon === "moon" ? "text-ink-muted" : "text-pine"} />}</span>
             <span className="text-sm font-semibold text-pine">{h.tempC !== null ? `${Math.round(h.tempC)}°` : "–"}</span>

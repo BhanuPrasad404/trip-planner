@@ -111,9 +111,9 @@ export function PlaceReports({ place, reports, userId, onChanged, now, outbox }:
     <div className="mt-4 border-t border-line pt-3.5">
       {savedOffline && <p role="status" className="mb-2 rounded-xl border border-marigold/40 bg-marigold-light px-3 py-2 text-sm text-ink">Your update about {place.name}: {OFFLINE_SAVED_TEXT}</p>}
       {/* One calm line: what travellers said recently, and a clear button to add to it */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <p className="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-muted">
-          <Glyph name="chat" size={16} className="shrink-0 text-teal" />
+      <div className="flex flex-col items-stretch gap-2.5 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+        <p className="flex min-w-0 flex-1 items-start gap-2 text-sm text-ink-muted">
+          <Glyph name="chat" size={16} className="mt-0.5 shrink-0 text-teal" />
           <span className="min-w-0">
             {summary.count === 0 ? (
               <>No updates from the last 30 days.</>
@@ -129,7 +129,7 @@ export function PlaceReports({ place, reports, userId, onChanged, now, outbox }:
           </span>
         </p>
         {!open && (
-          <Button size="sm" variant="secondary" className="max-sm:min-h-11" onClick={() => setOpen(true)}>
+          <Button size="sm" variant="secondary" className="w-full max-sm:min-h-11 min-[420px]:w-auto" onClick={() => setOpen(true)}>
             <Glyph name="camera" size={16} />Share an update<span className="sr-only"> about {place.name}</span>
           </Button>
         )}

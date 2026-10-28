@@ -9,6 +9,7 @@ import { timingFor, type PlaceTiming, type TypicalView, type ViewMode } from "./
 import { istDayStartMs } from "./ist";
 import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
 import { nextHours, restOfToday, weatherTip, type NextHour } from "./coming";
+import { daySummary, hoursOfDay, type DaySummary } from "./day-summary";
 import type { DayPartId } from "@/lib/weather-rules";
 import type { GeoPoint } from "@/lib/geo";
 
@@ -57,8 +58,12 @@ export type BoardPlace = GeoPoint & {
   typical: TypicalView | null;
   /** Distance from the place to its forecast point (km). */
   kmFromForecast: number;
-  /** The next 12 forecast hours (a stop: centred on its arrival hour), from data already fetched. */
+  /** The next 12 forecast hours (a stop: centred on its arrival hour), from data already fetched. Empty for a stop with no arrival time (see `dayHours`). */
   next: NextHour[];
+  /** A stop with no arrival time but a day: that whole day at the place, in one summary (null when it has a time, or no forecast). */
+  summary: DaySummary | null;
+  /** …and its hourly forecast from 6 AM to 10 PM (hours already over left out). Empty when it has a time. */
+  dayHours: NextHour[];
 };
 
 export type WeatherWindow = { id: string; lat: number; lng: number; from: number; to: number };
@@ -114,7 +119,9 @@ export function buildBoard(input: BoardInput, area: (p: GeoPoint, from: number, 
     const dayISO = timing.status === "no-time" ? timing.dayISO : t !== null ? partOf(t).dayISO : null;
     const moment = t !== null ? momentAt(data, p, t, nowMs, horizonEnd) : null;
     places.push({
-      next: role === "road" ? [] : nextHours(nextData ?? data, p, role === "here" && timing.status === "time" && timing.basis === "now" ? null : t, nowMs, horizonEnd),
+      next: role === "road" || (role === "stop" && t === null) ? [] : nextHours(nextData ?? data, p, role === "here" && timing.status === "time" && timing.basis === "now" ? null : t, nowMs, horizonEnd),
+      summary: role === "stop" && t === null && dayISO ? daySummary(dayParts(data, p, dayISO, nowMs, horizonEnd), dayISO) : null,
+      dayHours: role === "stop" && t === null && dayISO ? hoursOfDay(data, p, dayISO, nowMs, horizonEnd) : [],
       lat: p.lat, lng: p.lng, id, name, note, role, isNext, timing, moment, dayISO,
       parts: dayISO && role !== "road" ? dayParts(data, p, dayISO, nowMs, horizonEnd) : null,
       highlight: t !== null ? partOf(t).id : null,

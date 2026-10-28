@@ -68,24 +68,24 @@ export function WeatherPanel(p: WeatherPanelProps) {
   const asking = p.device?.status === "asking";
 
   return (
-    <section aria-labelledby="wx-panel-heading" className="space-y-3 rounded-2xl border border-line bg-white p-3.5 sm:p-5">
+    <section aria-labelledby="wx-panel-heading" className="space-y-4 rounded-3xl border-2 border-line bg-white p-3.5 shadow-sm sm:p-6">
       <div>
-        <h2 id="wx-panel-heading" className="font-display text-lg font-semibold text-pine">{p.title ?? "Weather on your way"}</h2>
+        <h2 id="wx-panel-heading" className="font-display text-2xl font-bold text-pine">{p.title ?? "Weather on your way"}</h2>
         <StatusLine board={board} nowMs={nowMs} />
       </div>
       {/* Rest of today, then one tip only when it helps. Space is kept while loading so nothing jumps. */}
-      <div className="min-h-6 space-y-1">
+      <div className="min-h-6 space-y-2">
         {board.today ? (
-          <p className="text-sm font-semibold text-pine" data-testid="rest-of-today"><span className="font-normal text-ink-muted">Rest of today{board.today.place ? ` · ${board.today.place}` : ""}: </span>{board.today.text}</p>
-        ) : loading ? <p className="h-5 w-2/3 rounded bg-sky" aria-hidden="true" /> : null}
-        {board.tip && <p className="flex items-start gap-1.5 rounded-xl bg-marigold-light px-3 py-2 text-sm text-[#7a4a00]" data-testid="weather-tip"><Glyph name="idea" size={16} className="mt-0.5 shrink-0" /><span><strong>Tip:</strong> {board.tip}</span></p>}
+          <p className="flex flex-wrap items-center gap-x-1 rounded-2xl border-2 border-teal/30 bg-teal-light/60 px-3.5 py-2.5 text-sm font-bold text-pine" data-testid="rest-of-today"><span className="font-normal text-ink-muted">Rest of today{board.today.place ? ` · ${board.today.place}` : ""}: </span>{board.today.text}</p>
+        ) : loading ? <p className="h-10 w-2/3 rounded-2xl bg-sky" aria-hidden="true" /> : null}
+        {board.tip && <p className="flex items-start gap-2 rounded-2xl border-2 border-marigold/60 bg-marigold-light px-3.5 py-3 text-sm font-medium text-[#7a4a00]" data-testid="weather-tip"><Glyph name="idea" size={16} className="mt-0.5 shrink-0" /><span><strong>Tip:</strong> {board.tip}</span></p>}
       </div>
       <ViewModeSwitch mode={p.mode} setMode={p.setMode} nowMs={nowMs} horizonEnd={horizon} />
 
       {board.alerts.length > 0 && (
         <div>
           <h3 className="sr-only">Weather alerts</h3>
-          <ul className="space-y-1.5">{(allAlerts ? board.alerts : board.alerts.slice(0, ALERTS_OPEN)).map((a) => <WeatherAlertRow key={a.id} a={a} />)}</ul>
+          <ul className="space-y-2.5">{(allAlerts ? board.alerts : board.alerts.slice(0, ALERTS_OPEN)).map((a) => <WeatherAlertRow key={a.id} a={a} />)}</ul>
           {board.alerts.length > ALERTS_OPEN && (
             <button type="button" onClick={() => setAllAlerts((v) => !v)} className="mt-1 min-h-11 text-sm font-semibold text-teal-ink">{allAlerts ? "Show fewer alerts" : `Show ${board.alerts.length - ALERTS_OPEN} more alerts`}</button>
           )}
@@ -110,7 +110,7 @@ export function WeatherPanel(p: WeatherPanelProps) {
 
       {notYet && <div className="space-y-2">{Array.from({ length: p.placeholders! }, (_, i) => <PlaceWeatherCardSkeleton key={i} />)}</div>}
       {shown.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {shown.map((s) => (
             <div key={s.id} className="space-y-1.5">
               {p.headings?.[s.id] && <h3 className="px-1 pt-1 font-display text-base font-semibold text-pine">{p.headings[s.id]}</h3>}

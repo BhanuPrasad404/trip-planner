@@ -11,13 +11,16 @@ import type { WeatherAlert } from "./alerts";
 import type { BoardPlace } from "./board";
 import type { DayPart } from "./day-parts";
 import type { Moment, MomentMissing } from "./moment";
+import { dayWord } from "./day-summary";
 
 const off = INDIA_UTC_OFFSET_MIN;
 const day = (ms: number) => new Date(ms + off * 60_000).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
 /** The main line of a card: when the traveller will be there. */
 export function timeText(p: Pick<BoardPlace, "role" | "timing">, nowMs: number): string {
-  if (p.timing.status === "no-time") return "No arrival time set";
+  // A stop with a day but no arrival time shows that whole day (lib/forecast/day-summary.ts): "Tomorrow · all day". Only a stop with no
+  // day at all has nothing to show.
+  if (p.timing.status === "no-time") return p.timing.dayISO ? `${dayWord(p.timing.dayISO, nowMs)} · all day` : "No arrival time set";
   const { at, basis } = p.timing;
   const clock = time12(at, off);
   const shift = dayShiftLabel(nowMs, at, off);

@@ -107,13 +107,18 @@ describe("the trip's Weather page (real Hyderabad data)", () => {
 
   it("every stop at its arrival time; the dinner stop is the real 9 PM forecast; the planned start is labelled as such; ideas have no numbers", async () => {
     await mount(trip, [dinner, loose, idea], conditions);
-    expect(timeTexts()).toEqual(["Now", "Arrive tomorrow 9:00 PM (planned)", "No arrival time set"]);
+    // The Golconda stop has a day but NO arrival time: it shows that whole day (it used to say "No arrival time set" and show nothing).
+    expect(timeTexts()).toEqual(["Now", "Arrive tomorrow 9:00 PM (planned)", "Tomorrow · all day"]);
     const page = pageText();
     expect(page).toContain("Planned start, not your live location");
     expect(page).toContain("Show weather where I am");
     const dinnerCard = r!.root.findAll((n) => n.props["data-place"] === "p1")[0];
     expect(text(dinnerCard)).toContain("28°"); expect(text(dinnerCard)).toContain("feels 30°"); expect(text(dinnerCard)).toContain("Night"); expect(text(dinnerCard)).toContain("forecast for 9:30 PM");
-    expect(text(r!.root.findAll((n) => n.props["data-place"] === "p2")[0])).toContain("Set an arrival time to see the weather then");
+    const wholeDay = text(r!.root.findAll((n) => n.props["data-place"] === "p2")[0]);
+    expect(wholeDay).toContain("No arrival time set, so this is the whole day");
+    expect(wholeDay).not.toContain("Set an arrival time to see the weather then");
+    expect(wholeDay).toMatch(/\d+°/);                                 // real numbers for the day, not a request to set a time
+    expect(wholeDay).toContain("low ");
     expect(page).toContain("Not in the plan yet"); expect(page).toContain("Shilparamam");
     expect(page).toContain("Day 1 · Fri, 23 Oct");
     // "Hot" only for the real hours that feel 35 °C or more (today 12:30 and 1:30 PM, in "Rest of today"), never on the 9 PM card.

@@ -313,3 +313,90 @@ body {
     .tm-glass { background-color: var(--tm-glass-strong); -webkit-backdrop-filter: none; backdrop-filter: none; }
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   WEATHER SCENES (components/weather/WeatherScene.tsx). Pure CSS, no libraries.
+   Each weather has its own picture and motion: sun with turning rays, a moon and twinkling stars, drifting clouds, rain that falls
+   faster the heavier it is, a storm with lightning, fog that rolls in, heat that shimmers, cold with falling flakes and frost.
+   Rules: the layer never takes a tap (pointer-events none) and never changes the card's size (it fills it); drops and flakes fall through
+   the card's own height (container query units, with a pixel fallback); everything stops for people who ask for less motion, and
+   pauses while the card is off screen (data-paused, set by the component).
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+.wx-scene { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; container-type: size; contain: paint; }
+.wx-scene[data-paused="true"] * { animation-play-state: paused !important; }
+
+/* rain */
+.wx-drop { position: absolute; top: -24px; left: var(--x); width: 2.5px; height: var(--len); border-radius: 2px; opacity: var(--o);
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.9)); transform: rotate(12deg);
+  animation: wx-fall var(--dur) linear var(--delay) infinite; }
+@keyframes wx-fall { from { transform: translate3d(0, 0, 0) rotate(12deg); } to { transform: translate3d(-26px, 460px, 0) rotate(12deg); } }
+@supports (height: 1cqh) { @keyframes wx-fall { from { transform: translate3d(0, 0, 0) rotate(12deg); } to { transform: translate3d(-26px, 125cqh, 0) rotate(12deg); } } }
+
+/* snow and cold flakes */
+.wx-flake { position: absolute; top: -12px; left: var(--x); width: var(--size); height: var(--size); border-radius: 50%; background: #fff; opacity: var(--o);
+  box-shadow: 0 0 6px rgba(255,255,255,0.8); animation: wx-snow var(--dur) linear var(--delay) infinite; }
+@keyframes wx-snow { 0% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(var(--sway), 60px, 0); } 100% { transform: translate3d(0, 300px, 0); } }
+@supports (height: 1cqh) { @keyframes wx-snow { 0% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(var(--sway), 60cqh, 0); } 100% { transform: translate3d(0, 125cqh, 0); } } }
+
+/* sun */
+.wx-sun { position: absolute; top: -28px; right: -22px; width: 150px; height: 150px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #fff7c2 0 28%, #ffe27a 29% 46%, rgba(255,214,102,0.55) 47% 64%, rgba(255,214,102,0) 70%); animation: wx-glow 5s ease-in-out infinite; }
+.wx-rays { position: absolute; top: -90px; right: -84px; width: 280px; height: 280px; border-radius: 50%; opacity: 0.55;
+  background: repeating-conic-gradient(from 0deg, rgba(255,255,255,0.75) 0 5deg, rgba(255,255,255,0) 5deg 22deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 24%, #000 25% 62%, transparent 70%); mask: radial-gradient(circle, transparent 0 24%, #000 25% 62%, transparent 70%);
+  animation: wx-spin 70s linear infinite; }
+.wx-sun-big { top: -44px; right: -36px; width: 200px; height: 200px; }
+@keyframes wx-glow { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.07); filter: brightness(1.12); } }
+@keyframes wx-spin { to { transform: rotate(360deg); } }
+
+/* moon and stars */
+.wx-moon { position: absolute; top: 16px; right: 22px; width: 62px; height: 62px; border-radius: 50%; background: #fdf6d8;
+  box-shadow: inset -14px -6px 0 0 rgba(176,186,230,0.55), 0 0 32px 8px rgba(214,222,255,0.35); animation: wx-glow 7s ease-in-out infinite; }
+.wx-star { position: absolute; top: var(--y); left: var(--x); width: var(--size); height: var(--size); border-radius: 50%; background: #fff; opacity: 0.9;
+  box-shadow: 0 0 6px 1px rgba(255,255,255,0.8); animation: wx-twinkle var(--dur) ease-in-out var(--delay) infinite; }
+@keyframes wx-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.25); } }
+
+/* clouds */
+.wx-cloud { position: absolute; top: var(--y); left: -40%; width: var(--w); height: calc(var(--w) * 0.34); border-radius: 999px; background: rgba(255,255,255,var(--o)); filter: blur(1px);
+  animation: wx-drift var(--dur) linear var(--delay) infinite; }
+.wx-cloud::before, .wx-cloud::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
+.wx-cloud::before { width: 46%; height: 150%; left: 14%; top: -62%; }
+.wx-cloud::after { width: 34%; height: 120%; left: 48%; top: -40%; }
+.wx-cloud-dark { background: rgba(8,20,46,var(--o)); }
+@keyframes wx-drift { from { transform: translateX(0); } to { transform: translateX(260%); } }
+
+/* storm */
+.wx-flash { position: absolute; inset: 0; background: #fff; opacity: 0; animation: wx-lightning var(--dur) linear var(--delay) infinite; mix-blend-mode: screen; }
+.wx-bolt { position: absolute; top: 4%; left: var(--x); width: 34px; height: 62%; opacity: 0; background: linear-gradient(180deg, #fffbe0, #ffe27a);
+  clip-path: polygon(52% 0, 18% 52%, 44% 52%, 30% 100%, 86% 40%, 56% 40%, 78% 0); filter: drop-shadow(0 0 8px rgba(255,236,150,0.95)); animation: wx-lightning var(--dur) linear var(--delay) infinite; }
+@keyframes wx-lightning { 0%, 88%, 100% { opacity: 0; } 89% { opacity: 0.85; } 90% { opacity: 0.1; } 91.5% { opacity: 1; } 94% { opacity: 0; } }
+
+/* fog */
+.wx-mist { position: absolute; left: -30%; top: var(--y); width: 160%; height: 30%; border-radius: 50%; opacity: var(--o); filter: blur(14px);
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.95) 35%, rgba(255,255,255,0.95) 65%, rgba(255,255,255,0)); animation: wx-mist var(--dur) ease-in-out var(--delay) infinite alternate; }
+@keyframes wx-mist { from { transform: translateX(-12%); } to { transform: translateX(12%); } }
+
+/* heat */
+.wx-heat-glow { position: absolute; left: -10%; right: -10%; bottom: -40%; height: 90%; border-radius: 50%; background: radial-gradient(ellipse at 50% 100%, rgba(255,255,255,0.65), rgba(255,255,255,0) 65%); animation: wx-glow 4s ease-in-out infinite; }
+.wx-shimmer { position: absolute; left: 0; right: 0; bottom: 0; height: 55%; opacity: 0.35;
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,0.55) 0 2px, rgba(255,255,255,0) 2px 9px); -webkit-mask: linear-gradient(0deg, #000, transparent); mask: linear-gradient(0deg, #000, transparent);
+  animation: wx-shimmer 2.2s ease-in-out infinite; }
+@keyframes wx-shimmer { 0%, 100% { transform: translateY(0) skewX(0deg); } 50% { transform: translateY(-7px) skewX(1.6deg); } }
+
+/* frost (cold) */
+.wx-frost { position: absolute; inset: 0; background: radial-gradient(120% 70% at 0% 0%, rgba(255,255,255,0.75), rgba(255,255,255,0) 55%), radial-gradient(90% 60% at 100% 100%, rgba(255,255,255,0.55), rgba(255,255,255,0) 60%); animation: wx-glow 6s ease-in-out infinite; }
+
+/* small things: an icon that floats, one that pulses, a card that rises in */
+.wx-float { animation: wx-float 4.5s ease-in-out infinite; }
+.wx-spin-slow { animation: wx-spin 24s linear infinite; }
+.wx-pulse { animation: wx-pulse-soft 2.2s ease-in-out infinite; }
+.wx-rise { animation: tm-rise 0.45s ease-out both; }
+@keyframes wx-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes wx-pulse-soft { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: 0.85; } }
+.wx-bar { transition: height 0.5s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wx-drop, .wx-flake, .wx-sun, .wx-rays, .wx-moon, .wx-star, .wx-cloud, .wx-flash, .wx-bolt, .wx-mist, .wx-heat-glow, .wx-shimmer, .wx-frost,
+  .wx-float, .wx-spin-slow, .wx-pulse, .wx-rise { animation: none !important; }
+  .wx-cloud { left: 8%; } .wx-drop { top: calc(var(--y, 20) * 1%); opacity: 0.35; } .wx-flake { top: calc(var(--y, 20) * 1%); } .wx-bar { transition: none; }
+}

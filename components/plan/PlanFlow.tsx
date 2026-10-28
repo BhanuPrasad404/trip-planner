@@ -28,8 +28,13 @@ import { FitMeterBar } from "./FitMeterBar";
 import { PlaceList } from "./PlaceList";
 import { QuestionCard, questionFor } from "./QuestionCard";
 import { SimilarTray } from "./SimilarTray";
+import { FinishedPlans, PromptChips, TryExamples, WaysIn } from "./StartStep";
+import { ProposePanel } from "./ProposePanel";
+import { JourneyPanel } from "./JourneyPanel";
+import type { JourneyStop } from "@/lib/intake/journey";
+import { distanceKm } from "@/lib/geo";
+import { findHub, placeCategoryFor, placeKindFor, type Hub, type Pick as ProposedPick, type ProposedPlan } from "@/lib/intake/propose";
 import { VoiceButton } from "./VoiceButton";
-import Link from "next/link";
 import { clock12 } from "@/lib/travel/clock";
 import { EXAMPLE_LINKS } from "@/lib/result/example-list";
 import { suggestStartDate } from "@/lib/intake/start-date";
@@ -97,6 +102,8 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
   const [startDate, setStartDate] = useState<string | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** The place "Plan it for me" is built round. Kept once found, so using a plan (which adds many sights) does not make the panel vanish. */
+  const [proposeHub, setProposeHub] = useState<Hub | null>(null);
   const aiCtrl = useRef<AbortController | null>(null);
   const top = useRef<HTMLDivElement>(null);
   const thisMonth = useMemo(() => thisMonthIndia(), []);
@@ -131,6 +138,9 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
   const questions = useMemo(() => questionsToAsk(draft, eff), [draft, eff]);
   const chips = useMemo(() => summaryChips(draft, eff), [draft, eff]);
 
+  const foundHub = useMemo(() => findHub(draft.places), [draft.places]);
+  useEffect(() => { if (foundHub && !proposeHub) queueMicrotask(() => setProposeHub({ lat: foundHub.lat, lng: foundHub.lng, name: foundHub.name })); }, [foundHub, proposeHub]);
+
   const meterPlaces = useMemo<MeterPlace[]>(() => usablePlaces(draft).filter((p) => p.place!.kind !== "state").map((p) => ({ id: p.key, name: p.place!.name, lat: p.place!.lat, lng: p.place!.lng, kind: p.place!.kind, must: p.must })), [draft]);
   const { meter, roads } = useFitMeter({ answers: eff.answers, start: start ? { lat: start.lat, lng: start.lng, name: start.name } : null, places: meterPlaces, online });
 
@@ -153,7 +163,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
     const words = text.trim();
     if (words.length < 2) { setReadError("Write or paste a little more."); return; }
     if (!online) { setReadError("You&apos;re offline. Reading needs the internet; your text is kept here."); return; }
-    setReadError(null); setReading(true);
+    setReadError(null); setReading(true); setProposeHub(null);
     const startAt = startBody();
     const r = await postJson<{ understanding: Draft["understanding"] & object; start: Draft["start"]; places: PlaceMatch[] }>("/api/intake/read", { text: words, start: startAt });
     setReading(false);
@@ -169,6 +179,17 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
     setDraft((d) => ({ ...d, places: [...d.places, { key: `you:${o.lat.toFixed(4)},${o.lng.toFixed(4)}`, said: p.name, must: false, source: "said", evidence: "", status: "sure", reason: null, place: o, alternatives: [] } as DraftPlace] }));
   };
   const addSimilar = (s: Similar) => setDraft((d) => ({ ...d, places: [...d.places, { key: `you:${s.lat.toFixed(4)},${s.lng.toFixed(4)}`, said: s.name, must: false, source: "said", evidence: "", status: "sure", reason: null, place: { id: s.id, name: s.name, lat: s.lat, lng: s.lng, kind: s.kind === "temple" || s.kind === "fort" || s.kind === "heritage" || s.kind === "museum" ? "sight" : s.kind === "waterfall" || s.kind === "lake" ? "water" : s.kind === "beach" ? "coast" : s.kind === "peak" || s.kind === "viewpoint" ? "hill" : "place", area: s.reason, state: null, source: "osm", km: null, calledAs: null }, alternatives: [] } as DraftPlace] }));
+
+  const pickToDraft = (k: ProposedPick): DraftPlace => ({ key: `you:${k.lat.toFixed(4)},${k.lng.toFixed(4)}`, said: k.name, must: false, source: "said", evidence: "", status: "sure", reason: null, category: placeCategoryFor(k.category), place: { id: k.id, name: k.name, lat: k.lat, lng: k.lng, kind: placeKindFor(k.category), area: k.why[0] ?? null, state: null, source: "osm", km: null, calledAs: null }, alternatives: [] } as DraftPlace);
+  const addPicks = (picks: ProposedPick[]) => setDraft((d) => {
+    const have = new Set(d.places.map((p) => p.place?.id));
+    const fresh = picks.filter((k) => !have.has(k.id)).map(pickToDraft);
+    return fresh.length ? { ...d, places: [...d.places, ...fresh] } : d;
+  });
+  const usePlan = (plan: ProposedPlan) => addPicks(plan.days.flatMap((day) => day.picks));
+  const stopToPick = (s: JourneyStop): ProposedPick => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, category: s.category, hubKm: s.alongKm, hubMin: s.driveMin, basis: "road", effort: "easy", notable: s.notable, hours: s.hours, wikipedia: null, why: s.why });
+  const addStops = (stops: JourneyStop[]) => addPicks(stops.map(stopToPick));
+  const addedIds = useMemo(() => new Set(draft.places.map((p) => p.place?.id ?? "")), [draft.places]);
 
   async function planIt() {
     setSaveError(null);
@@ -226,38 +247,13 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
         <section aria-labelledby="h-start" className="space-y-5">
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">Plan your trip</p>
-            <h1 id="h-start" className="mt-1 font-display text-3xl font-semibold text-pine">Saw some places? Let&apos;s make them a real trip.</h1>
-            <p className="mt-1 text-base text-ink-muted">Paste a reel caption, list the places, or just say what you want, in English, Telugu, Hindi, Tamil, Kannada or Marathi.</p>
+            <h1 id="h-start" className="mt-1 text-balance font-display text-3xl font-semibold leading-tight text-pine">Saw some places? Let&apos;s make them a real trip.</h1>
+            <p className="mt-2 text-base text-ink-muted">Tell us in your own words, in English, Telugu, Hindi, Tamil, Kannada or Marathi. We plan real roads: drive times with a safety margin, no driving after dark, opening hours, and night halts in real towns.</p>
           </div>
           <PlaceSearch label="Starting from" value={toPicked(start)} onChange={setStart} currentLocation="auto" recentList="start" placeholder="Your town or area" hint="Used only to plan the route. Your location is used only if you allow it." />
-          <div className="grid gap-3">
-            {([
-              ["paste", "I saw these places", "Paste a reel caption or a list of names", "sparkles"],
-              ["describe", "Describe my trip", "“4 days from Hyderabad with friends, beaches and food”", "chat"],
-              ["manual", "Pick places myself", "Search and add them one by one", "search"],
-            ] as const).map(([m, title, sub, icon]) => (
-              <button key={m} type="button" onClick={() => { setMode(m); if (m === "manual") { setDraft((d) => ({ ...d, ai: "idle" })); setStep("understood"); } else setStep("words"); }}
-                className="flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-line bg-white p-4 text-left shadow-sm hover:border-teal">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-light text-teal-ink"><Glyph name={icon} size={20} /></span>
-                <span><span className="block text-base font-bold text-pine">{title}</span><span className="block text-sm text-ink-muted">{sub}</span></span>
-              </button>
-            ))}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ink">See a finished plan first</p>
-            <ul className="mt-2 grid gap-2">{EXAMPLE_LINKS.map((e) => (
-              <li key={e.slug}><Link href={`/plan/example/${e.slug}`} className="flex min-h-14 items-center gap-3 rounded-2xl border border-line bg-white px-4 py-2.5 hover:border-teal">
-                <Glyph name="pin" size={18} className="shrink-0 text-teal-ink" />
-                <span className="min-w-0"><span className="block font-semibold text-pine">{e.title}</span><span className="block text-sm text-ink-muted">{e.blurb}</span></span>
-              </Link></li>
-            ))}</ul>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ink">Or try an example</p>
-            <ul className="mt-2 space-y-2">{EXAMPLES.map((e) => (
-              <li key={e.text}><button type="button" onClick={() => { setText(e.text); setMode(e.lang === "Reel caption" ? "paste" : "describe"); setStep("words"); }} className="w-full rounded-xl border border-dashed border-line px-3.5 py-2.5 text-left text-sm hover:border-teal"><span className="mr-2 rounded-full bg-sky px-2 py-0.5 text-[11px] font-semibold text-ink-muted">{e.lang}</span><span className="whitespace-pre-line">{e.text}</span></button></li>
-            ))}</ul>
-          </div>
+          <WaysIn onPick={(m) => { setMode(m); if (m === "manual") { setDraft((d) => ({ ...d, ai: "idle" })); setStep("understood"); } else setStep("words"); }} />
+          <FinishedPlans plans={EXAMPLE_LINKS} />
+          <TryExamples examples={EXAMPLES} onPick={(e) => { setText(e.text); setMode(e.lang === "Reel caption" ? "paste" : "describe"); setStep("words"); }} />
         </section>
       )}
 
@@ -268,6 +264,8 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
           <textarea id="trip-words" value={text} onChange={(e) => setText(e.target.value)} rows={6} maxLength={4000} autoFocus
             placeholder={mode === "paste" ? "📍 Gandikota\n📍 Belum Caves\nor the reel's caption…" : "e.g. 4 rojulu Hyderabad nundi, friends tho beaches, night driving vaddu"}
             className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/40" />
+          <p className="-mt-2 text-right text-xs text-ink-muted" aria-live="polite">{`${text.length}/4000`}</p>
+          {mode === "describe" && <PromptChips text={text} onAdd={(c) => setText((cur) => (cur.trim() ? `${cur.trim()}, ${c.toLowerCase()}` : c))} />}
           <p className="flex items-start gap-1.5 rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted"><Glyph name="info" size={15} className="mt-0.5" />We can&apos;t open Instagram or YouTube links. Paste the place names or the caption instead. Google Maps links work.</p>
           <VoiceButton onText={(t) => setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t))} />
           <FormError message={readError} />
@@ -297,6 +295,19 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
               <p className="font-semibold text-ink">The AI also suggested (not in your words, so not used):</p>
               <ul className="mt-1 space-y-1">{unbacked.map((u) => <li key={`${u.key}-${String(u.value)}`} className="flex flex-wrap items-center gap-2 text-ink-muted">{unbackedText(u.key as AnswerKey, u.value, thisMonth)} <span className="text-xs">({u.why})</span> <button type="button" onClick={() => choose(u.key as AnswerKey, u.value)} className="tm-action min-h-11 font-semibold">Use it</button></li>)}</ul>
             </div>
+          )}
+          {proposeHub && start && distanceKm(start, proposeHub) >= 80 && (
+            <JourneyPanel
+              input={{ start: { lat: start.lat, lng: start.lng, name: start.name }, dest: proposeHub, interests: eff.answers.interests ?? [], maxDriveHours: eff.source.maxDriveHours === "said" || eff.source.maxDriveHours === "you" ? eff.answers.maxDriveHours ?? null : null, roundTrip: eff.answers.endMode !== "place", via: draft.places.filter((p) => p.place?.kind === "state" && p.place.name !== proposeHub.name && p.status !== "missing").map((p) => p.place!.name.replace(/^State of /, "")) }}
+              online={online} added={addedIds} onAdd={(s) => addStops([s])} onAddAll={addStops}
+            />
+          )}
+          {proposeHub && (
+            <ProposePanel
+              input={{ hub: proposeHub, start: start ? { lat: start.lat, lng: start.lng, name: start.name } : null, roundTrip: eff.answers.endMode !== "place", days: eff.answers.days ?? 3, group: eff.answers.group ?? null, interests: eff.answers.interests ?? [], pace: null, maxDriveHours: eff.source.maxDriveHours === "said" || eff.source.maxDriveHours === "you" ? eff.answers.maxDriveHours ?? null : null }}
+              online={online} added={addedIds} onUse={usePlan} onAdd={(k) => addPicks([k])}
+              onDays={eff.source.days === "said" || eff.source.days === "you" || eff.source.days === "ai" ? undefined : (n) => choose("days", n)}
+            />
           )}
           <PlaceList places={draft.places} near={start ? { lat: start.lat, lng: start.lng } : null} onChange={(places) => setDraft((d) => ({ ...d, places }))} />
           <PlaceSearch label="Add a place" value={null} onChange={addPlace} near={start ? { lat: start.lat, lng: start.lng } : null} recentList="places" placeholder="Search a place to add" preview={false} />

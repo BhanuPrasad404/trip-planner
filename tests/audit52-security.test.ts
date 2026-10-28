@@ -103,7 +103,7 @@ describe("every API route authenticates (or is secret-gated)", () => {
   // visitor"). Each must identify the visitor (signed-in user, or a hashed random cookie + hashed network), apply the per-minute limit,
   // validate its input, set the visitor cookie, and never use the service-role key itself (guest daily limits go through
   // lib/places/visitor.ts, which only calls one locked-down database function).
-  const GUEST_ROUTES = new Set(["place-search/route.ts", "place-here/route.ts", "place-suggest/route.ts", "intake/read/route.ts", "intake/ai/route.ts", "intake/voice/route.ts", "intake/roads/route.ts", "intake/season/route.ts", "intake/similar/route.ts", "poll/[code]/route.ts"]);
+  const GUEST_ROUTES = new Set(["place-search/route.ts", "place-here/route.ts", "place-suggest/route.ts", "intake/read/route.ts", "intake/ai/route.ts", "intake/voice/route.ts", "intake/roads/route.ts", "intake/season/route.ts", "intake/similar/route.ts", "intake/propose/route.ts", "intake/journey/route.ts", "poll/[code]/route.ts"]);
   it.each(routes.map((p) => [p.split("/app/api/")[1], p] as const))("%s", (n, p) => {
     const src = readFileSync(decodeURIComponent(p).replace(/^\/([A-Za-z]:)/, "$1"), "utf8");
     if (GUEST_ROUTES.has(n)) {

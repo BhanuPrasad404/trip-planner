@@ -1,0 +1,2431 @@
+{
+ "_about": "Labelled queries for the place-understanding baseline. Labels are ground truth written by a person, NOT produced by TrailMate: review and correct them. expect.role is what the traveller is asking about; expect.entity lists acceptable names (any one matches) and the state; ambiguous=true means several notable places share the name, so the right behaviour is to ask, not to guess.",
+ "queries": [
+  {
+   "id": "q001",
+   "group": "city",
+   "query": "Tirupati",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Tirupati"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q002",
+   "group": "city",
+   "query": "Visakhapatnam",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Visakhapatnam"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q003",
+   "group": "city",
+   "query": "Vijayawada",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Vijayawada"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q004",
+   "group": "city",
+   "query": "Hyderabad",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Hyderabad"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q005",
+   "group": "city",
+   "query": "Warangal",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Warangal"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q006",
+   "group": "city",
+   "query": "Bengaluru",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Bengaluru",
+      "Bangalore"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q007",
+   "group": "city",
+   "query": "Mysuru",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mysuru",
+      "Mysore"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q008",
+   "group": "city",
+   "query": "Chennai",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Chennai"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q009",
+   "group": "city",
+   "query": "Madurai",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Madurai"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q010",
+   "group": "city",
+   "query": "Coimbatore",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Coimbatore"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q011",
+   "group": "city",
+   "query": "Kochi",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Kochi",
+      "Cochin"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q012",
+   "group": "city",
+   "query": "Thiruvananthapuram",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Thiruvananthapuram",
+      "Trivandrum"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q013",
+   "group": "city",
+   "query": "Mumbai",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mumbai"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q014",
+   "group": "city",
+   "query": "Pune",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Pune"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q015",
+   "group": "city",
+   "query": "Nashik",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Nashik"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q016",
+   "group": "city",
+   "query": "Ahmedabad",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Ahmedabad"
+     ],
+     "state": "Gujarat"
+    }
+   }
+  },
+  {
+   "id": "q017",
+   "group": "city",
+   "query": "Surat",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Surat"
+     ],
+     "state": "Gujarat"
+    }
+   }
+  },
+  {
+   "id": "q018",
+   "group": "city",
+   "query": "Jaipur",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Jaipur"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q019",
+   "group": "city",
+   "query": "Udaipur",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Udaipur"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q020",
+   "group": "city",
+   "query": "Jodhpur",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Jodhpur"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q021",
+   "group": "city",
+   "query": "Varanasi",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Varanasi"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q022",
+   "group": "city",
+   "query": "Agra",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Agra"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q023",
+   "group": "city",
+   "query": "Lucknow",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Lucknow"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q024",
+   "group": "city",
+   "query": "Bhopal",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Bhopal"
+     ],
+     "state": "Madhya Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q025",
+   "group": "city",
+   "query": "Indore",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Indore"
+     ],
+     "state": "Madhya Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q026",
+   "group": "city",
+   "query": "Kolkata",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Kolkata",
+      "Calcutta"
+     ],
+     "state": "West Bengal"
+    }
+   }
+  },
+  {
+   "id": "q027",
+   "group": "city",
+   "query": "Bhubaneswar",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Bhubaneswar"
+     ],
+     "state": "Odisha"
+    }
+   }
+  },
+  {
+   "id": "q028",
+   "group": "city",
+   "query": "Patna",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Patna"
+     ],
+     "state": "Bihar"
+    }
+   }
+  },
+  {
+   "id": "q029",
+   "group": "city",
+   "query": "Amritsar",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Amritsar"
+     ],
+     "state": "Punjab"
+    }
+   }
+  },
+  {
+   "id": "q030",
+   "group": "city",
+   "query": "Dehradun",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Dehradun"
+     ],
+     "state": "Uttarakhand"
+    }
+   }
+  },
+  {
+   "id": "q031",
+   "group": "city",
+   "query": "Shimla",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Shimla"
+     ],
+     "state": "Himachal Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q032",
+   "group": "city",
+   "query": "Srinagar",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Srinagar"
+     ],
+     "state": "Jammu and Kashmir"
+    }
+   }
+  },
+  {
+   "id": "q033",
+   "group": "city",
+   "query": "Guwahati",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Guwahati"
+     ],
+     "state": "Assam"
+    }
+   }
+  },
+  {
+   "id": "q034",
+   "group": "city",
+   "query": "Gangtok",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Gangtok"
+     ],
+     "state": "Sikkim"
+    }
+   }
+  },
+  {
+   "id": "q035",
+   "group": "city",
+   "query": "Raipur",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Raipur"
+     ],
+     "state": "Chhattisgarh"
+    }
+   }
+  },
+  {
+   "id": "q036",
+   "group": "city",
+   "query": "Ranchi",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Ranchi"
+     ],
+     "state": "Jharkhand"
+    }
+   }
+  },
+  {
+   "id": "q037",
+   "group": "region",
+   "query": "Goa",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Goa"
+     ],
+     "state": "Goa"
+    }
+   }
+  },
+  {
+   "id": "q038",
+   "group": "region",
+   "query": "Coorg",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Coorg",
+      "Kodagu"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q039",
+   "group": "region",
+   "query": "Munnar",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Munnar"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q040",
+   "group": "region",
+   "query": "Ooty",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Ooty",
+      "Udhagamandalam",
+      "Ootacamund"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q041",
+   "group": "region",
+   "query": "Kodaikanal",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Kodaikanal"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q042",
+   "group": "region",
+   "query": "Darjeeling",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Darjeeling",
+      "Darjiling"
+     ],
+     "state": "West Bengal"
+    }
+   }
+  },
+  {
+   "id": "q043",
+   "group": "region",
+   "query": "Manali",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Manali"
+     ],
+     "state": "Himachal Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q044",
+   "group": "region",
+   "query": "Rishikesh",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Rishikesh"
+     ],
+     "state": "Uttarakhand"
+    }
+   }
+  },
+  {
+   "id": "q045",
+   "group": "region",
+   "query": "Araku Valley",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Araku Valley",
+      "Araku"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q046",
+   "group": "region",
+   "query": "Gokarna",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Gokarna"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q047",
+   "group": "region",
+   "query": "Pushkar",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Pushkar"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q048",
+   "group": "region",
+   "query": "Varkala",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Varkala"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q049",
+   "group": "region",
+   "query": "Mahabalipuram",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mahabalipuram",
+      "Mamallapuram"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q050",
+   "group": "region",
+   "query": "Shillong",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Shillong"
+     ],
+     "state": "Meghalaya"
+    }
+   }
+  },
+  {
+   "id": "q051",
+   "group": "region",
+   "query": "Mount Abu",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mount Abu",
+      "Abu"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q052",
+   "group": "region",
+   "query": "Lonavala",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Lonavala",
+      "Lonavla"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q053",
+   "group": "region",
+   "query": "Alleppey",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Alappuzha",
+      "Alleppey"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q054",
+   "group": "region",
+   "query": "Wayanad",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Wayanad"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q055",
+   "group": "attraction",
+   "query": "Charminar",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Charminar"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q056",
+   "group": "attraction",
+   "query": "Golconda Fort",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Golconda",
+      "Golkonda"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q057",
+   "group": "attraction",
+   "query": "Mysore Palace",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Mysore Palace",
+      "Mysuru Palace",
+      "Amba Vilas"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q058",
+   "group": "attraction",
+   "query": "Gol Gumbaz",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Gol Gumbaz",
+      "Gol Gumbad"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q059",
+   "group": "attraction",
+   "query": "Meenakshi Amman Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Meenakshi"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q060",
+   "group": "attraction",
+   "query": "Brihadeeswarar Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Brihadeeswarar",
+      "Brihadisvara",
+      "Brihadeshwara"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q061",
+   "group": "attraction",
+   "query": "Padmanabhaswamy Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Padmanabhaswamy",
+      "Padmanabhaswami",
+      "Padmanabha Swamy"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q062",
+   "group": "attraction",
+   "query": "Taj Mahal",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Taj Mahal"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q063",
+   "group": "attraction",
+   "query": "Agra Fort",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Agra Fort"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q064",
+   "group": "attraction",
+   "query": "Fatehpur Sikri",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Fatehpur Sikri"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q065",
+   "group": "attraction",
+   "query": "Qutub Minar",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Qutub Minar",
+      "Qutb Minar"
+     ],
+     "state": "Delhi"
+    }
+   }
+  },
+  {
+   "id": "q066",
+   "group": "attraction",
+   "query": "India Gate",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "India Gate"
+     ],
+     "state": "Delhi"
+    }
+   }
+  },
+  {
+   "id": "q067",
+   "group": "attraction",
+   "query": "Humayun's Tomb",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Humayun"
+     ],
+     "state": "Delhi"
+    }
+   }
+  },
+  {
+   "id": "q068",
+   "group": "attraction",
+   "query": "Lotus Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Lotus Temple"
+     ],
+     "state": "Delhi"
+    }
+   }
+  },
+  {
+   "id": "q069",
+   "group": "attraction",
+   "query": "Gateway of India",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Gateway of India"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q070",
+   "group": "attraction",
+   "query": "Ajanta Caves",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Ajanta"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q071",
+   "group": "attraction",
+   "query": "Ellora Caves",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Ellora",
+      "Verul"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q072",
+   "group": "attraction",
+   "query": "Hawa Mahal",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Hawa Mahal"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q073",
+   "group": "attraction",
+   "query": "Amer Fort",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Amer Fort",
+      "Amber Fort",
+      "Amer"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q074",
+   "group": "attraction",
+   "query": "Konark Sun Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Konark"
+     ],
+     "state": "Odisha"
+    }
+   }
+  },
+  {
+   "id": "q075",
+   "group": "attraction",
+   "query": "Lingaraj Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Lingaraj"
+     ],
+     "state": "Odisha"
+    }
+   }
+  },
+  {
+   "id": "q076",
+   "group": "attraction",
+   "query": "Golden Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Golden Temple",
+      "Harmandir"
+     ],
+     "state": "Punjab"
+    }
+   }
+  },
+  {
+   "id": "q077",
+   "group": "attraction",
+   "query": "Sanchi Stupa",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Sanchi"
+     ],
+     "state": "Madhya Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q078",
+   "group": "attraction",
+   "query": "Khajuraho Temples",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Khajuraho"
+     ],
+     "state": "Madhya Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q079",
+   "group": "attraction",
+   "query": "Victoria Memorial",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Victoria Memorial"
+     ],
+     "state": "West Bengal"
+    }
+   }
+  },
+  {
+   "id": "q080",
+   "group": "attraction",
+   "query": "Howrah Bridge",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Howrah Bridge"
+     ],
+     "state": "West Bengal"
+    }
+   }
+  },
+  {
+   "id": "q081",
+   "group": "attraction",
+   "query": "Dal Lake",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Dal Lake"
+     ],
+     "state": "Jammu and Kashmir"
+    }
+   }
+  },
+  {
+   "id": "q082",
+   "group": "attraction",
+   "query": "Kaziranga National Park",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Kaziranga"
+     ],
+     "state": "Assam"
+    }
+   }
+  },
+  {
+   "id": "q083",
+   "group": "attraction",
+   "query": "Tirumala Venkateswara Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Tirumala",
+      "Venkateswara"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q084",
+   "group": "attraction",
+   "query": "Kailasagiri",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Kailasagiri",
+      "Kailasagiri"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q085",
+   "group": "attraction",
+   "query": "Ramoji Film City",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Ramoji"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q086",
+   "group": "attraction",
+   "query": "Marina Beach",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Marina Beach"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q087",
+   "group": "attraction",
+   "query": "Statue of Unity",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Statue of Unity"
+     ],
+     "state": "Gujarat"
+    }
+   }
+  },
+  {
+   "id": "q088",
+   "group": "attraction",
+   "query": "Somnath Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Somnath"
+     ],
+     "state": "Gujarat"
+    }
+   }
+  },
+  {
+   "id": "q089",
+   "group": "attraction",
+   "query": "Kedarnath Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Kedarnath"
+     ],
+     "state": "Uttarakhand"
+    }
+   }
+  },
+  {
+   "id": "q090",
+   "group": "attraction",
+   "query": "Kashi Vishwanath Temple",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Kashi Vishwanath",
+      "Vishwanath"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q091",
+   "group": "compound",
+   "query": "Hawa Mahal Jaipur",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Hawa Mahal"
+     ],
+     "state": "Rajasthan"
+    }
+   }
+  },
+  {
+   "id": "q092",
+   "group": "compound",
+   "query": "Charminar Hyderabad",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Charminar"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q093",
+   "group": "compound",
+   "query": "Meenakshi Temple Madurai",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Meenakshi"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q094",
+   "group": "compound",
+   "query": "Kashi Vishwanath temple Varanasi",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Kashi Vishwanath",
+      "Vishwanath"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q095",
+   "group": "compound",
+   "query": "Golden Temple Amritsar",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Golden Temple",
+      "Harmandir"
+     ],
+     "state": "Punjab"
+    }
+   }
+  },
+  {
+   "id": "q096",
+   "group": "compound",
+   "query": "Mysore Palace Mysuru",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Mysore Palace",
+      "Mysuru Palace",
+      "Amba Vilas"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q097",
+   "group": "compound",
+   "query": "Gateway of India Mumbai",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Gateway of India"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q098",
+   "group": "compound",
+   "query": "Victoria Memorial Kolkata",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Victoria Memorial"
+     ],
+     "state": "West Bengal"
+    }
+   }
+  },
+  {
+   "id": "q099",
+   "group": "compound",
+   "query": "Lingaraj Temple Bhubaneswar",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Lingaraj"
+     ],
+     "state": "Odisha"
+    }
+   }
+  },
+  {
+   "id": "q100",
+   "group": "compound",
+   "query": "Padmanabhaswamy Temple Thiruvananthapuram",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Padmanabhaswamy",
+      "Padmanabhaswami",
+      "Padmanabha Swamy"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q101",
+   "group": "compound",
+   "query": "Kailasagiri Visakhapatnam",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Kailasagiri"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q102",
+   "group": "compound",
+   "query": "Ramoji Film City Hyderabad",
+   "expect": {
+    "role": "attraction",
+    "entity": {
+     "names": [
+      "Ramoji"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q103",
+   "group": "ambiguous",
+   "query": "Aurangabad",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Maharashtra city and a Bihar district"
+  },
+  {
+   "id": "q104",
+   "group": "ambiguous",
+   "query": "Hamirpur",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Himachal Pradesh and Uttar Pradesh"
+  },
+  {
+   "id": "q105",
+   "group": "ambiguous",
+   "query": "Bilaspur",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Chhattisgarh and Himachal Pradesh"
+  },
+  {
+   "id": "q106",
+   "group": "ambiguous",
+   "query": "Pratapgarh",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Uttar Pradesh and Rajasthan"
+  },
+  {
+   "id": "q107",
+   "group": "ambiguous",
+   "query": "Jama Masjid",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Delhi, Agra, Bijapur and many more"
+  },
+  {
+   "id": "q108",
+   "group": "ambiguous",
+   "query": "City Palace",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Jaipur, Udaipur and more"
+  },
+  {
+   "id": "q109",
+   "group": "ambiguous",
+   "query": "Venkateswara Temple",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "hundreds across India"
+  },
+  {
+   "id": "q110",
+   "group": "ambiguous",
+   "query": "Sun Temple",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Konark, Modhera and more"
+  },
+  {
+   "id": "q111",
+   "group": "ambiguous",
+   "query": "Bijapur",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Karnataka town and Chhattisgarh district"
+  },
+  {
+   "id": "q112",
+   "group": "ambiguous",
+   "query": "Raigarh",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Chhattisgarh city and Maharashtra's Raigad"
+  },
+  {
+   "id": "q113",
+   "group": "ambiguous",
+   "query": "Ramnagar",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Uttarakhand, Uttar Pradesh, Karnataka"
+  },
+  {
+   "id": "q114",
+   "group": "ambiguous",
+   "query": "Jagannath Temple",
+   "expect": {
+    "role": "ambiguous",
+    "ambiguous": true
+   },
+   "note": "Puri and many more"
+  },
+  {
+   "id": "q115",
+   "group": "alt_spelling",
+   "query": "Bangalore",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Bengaluru",
+      "Bangalore"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q116",
+   "group": "alt_spelling",
+   "query": "Vizag",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Visakhapatnam"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q117",
+   "group": "alt_spelling",
+   "query": "Mysore",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mysuru",
+      "Mysore"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q118",
+   "group": "alt_spelling",
+   "query": "Banaras",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Varanasi",
+      "Banaras"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q119",
+   "group": "alt_spelling",
+   "query": "Benares",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Varanasi",
+      "Benares"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q120",
+   "group": "alt_spelling",
+   "query": "Trivandrum",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Thiruvananthapuram",
+      "Trivandrum"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q121",
+   "group": "alt_spelling",
+   "query": "Calcutta",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Kolkata",
+      "Calcutta"
+     ],
+     "state": "West Bengal"
+    }
+   }
+  },
+  {
+   "id": "q122",
+   "group": "alt_spelling",
+   "query": "Cochin",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Kochi",
+      "Cochin"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q123",
+   "group": "alt_spelling",
+   "query": "Baroda",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Vadodara",
+      "Baroda"
+     ],
+     "state": "Gujarat"
+    }
+   }
+  },
+  {
+   "id": "q124",
+   "group": "alt_spelling",
+   "query": "Pondicherry",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Puducherry",
+      "Pondicherry"
+     ],
+     "state": "Puducherry"
+    }
+   }
+  },
+  {
+   "id": "q125",
+   "group": "alt_spelling",
+   "query": "Allahabad",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Prayagraj",
+      "Allahabad"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q126",
+   "group": "alt_spelling",
+   "query": "Gurgaon",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Gurugram",
+      "Gurgaon"
+     ],
+     "state": "Haryana"
+    }
+   }
+  },
+  {
+   "id": "q127",
+   "group": "alt_spelling",
+   "query": "Poona",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Pune",
+      "Poona"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q128",
+   "group": "alt_spelling",
+   "query": "Madras",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Chennai",
+      "Madras"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q129",
+   "group": "alt_spelling",
+   "query": "Bombay",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mumbai",
+      "Bombay"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q130",
+   "group": "alt_spelling",
+   "query": "Udhagamandalam",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Ooty",
+      "Udhagamandalam",
+      "Ootacamund"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q131",
+   "group": "alt_spelling",
+   "query": "Alappuzha",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Alappuzha",
+      "Alleppey"
+     ],
+     "state": "Kerala"
+    }
+   }
+  },
+  {
+   "id": "q132",
+   "group": "alt_spelling",
+   "query": "Mamallapuram",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mahabalipuram",
+      "Mamallapuram"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q133",
+   "group": "native_script",
+   "query": "తిరుపతి",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Tirupati"
+     ],
+     "state": "Andhra Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q134",
+   "group": "native_script",
+   "query": "హైదరాబాద్",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Hyderabad"
+     ],
+     "state": "Telangana"
+    }
+   }
+  },
+  {
+   "id": "q135",
+   "group": "native_script",
+   "query": "சென்னை",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Chennai"
+     ],
+     "state": "Tamil Nadu"
+    }
+   }
+  },
+  {
+   "id": "q136",
+   "group": "native_script",
+   "query": "ಬೆಂಗಳೂರು",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Bengaluru",
+      "Bangalore"
+     ],
+     "state": "Karnataka"
+    }
+   }
+  },
+  {
+   "id": "q137",
+   "group": "native_script",
+   "query": "मुंबई",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Mumbai"
+     ],
+     "state": "Maharashtra"
+    }
+   }
+  },
+  {
+   "id": "q138",
+   "group": "native_script",
+   "query": "वाराणसी",
+   "expect": {
+    "role": "city_region",
+    "entity": {
+     "names": [
+      "Varanasi"
+     ],
+     "state": "Uttar Pradesh"
+    }
+   }
+  },
+  {
+   "id": "q139",
+   "group": "category",
+   "query": "beaches near Visakhapatnam",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Visakhapatnam"
+     ],
+     "state": "Andhra Pradesh"
+    },
+    "interest": [
+     "beaches"
+    ]
+   }
+  },
+  {
+   "id": "q140",
+   "group": "category",
+   "query": "temples in Tirupati",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Tirupati"
+     ],
+     "state": "Andhra Pradesh"
+    },
+    "interest": [
+     "temples"
+    ]
+   }
+  },
+  {
+   "id": "q141",
+   "group": "category",
+   "query": "waterfalls near Hyderabad",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Hyderabad"
+     ],
+     "state": "Telangana"
+    },
+    "interest": [
+     "nature",
+     "adventure"
+    ]
+   }
+  },
+  {
+   "id": "q142",
+   "group": "category",
+   "query": "forts in Jaipur",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Jaipur"
+     ],
+     "state": "Rajasthan"
+    },
+    "interest": [
+     "history"
+    ]
+   }
+  },
+  {
+   "id": "q143",
+   "group": "category",
+   "query": "museums in Delhi",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Delhi"
+     ],
+     "state": "Delhi"
+    },
+    "interest": [
+     "history"
+    ]
+   }
+  },
+  {
+   "id": "q144",
+   "group": "category",
+   "query": "temples near Madurai",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Madurai"
+     ],
+     "state": "Tamil Nadu"
+    },
+    "interest": [
+     "temples"
+    ]
+   }
+  },
+  {
+   "id": "q145",
+   "group": "category",
+   "query": "beaches in Goa",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Goa"
+     ],
+     "state": "Goa"
+    },
+    "interest": [
+     "beaches"
+    ]
+   }
+  },
+  {
+   "id": "q146",
+   "group": "category",
+   "query": "forts in Rajasthan",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Rajasthan"
+     ],
+     "state": "Rajasthan"
+    },
+    "interest": [
+     "history"
+    ]
+   }
+  },
+  {
+   "id": "q147",
+   "group": "category",
+   "query": "wildlife near Mysuru",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Mysuru",
+      "Mysore"
+     ],
+     "state": "Karnataka"
+    },
+    "interest": [
+     "nature",
+     "adventure"
+    ]
+   }
+  },
+  {
+   "id": "q148",
+   "group": "category",
+   "query": "lakes in Udaipur",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Udaipur"
+     ],
+     "state": "Rajasthan"
+    },
+    "interest": [
+     "nature"
+    ]
+   }
+  },
+  {
+   "id": "q149",
+   "group": "category",
+   "query": "temples in Kanchipuram",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Kanchipuram"
+     ],
+     "state": "Tamil Nadu"
+    },
+    "interest": [
+     "temples"
+    ]
+   }
+  },
+  {
+   "id": "q150",
+   "group": "category",
+   "query": "beaches near Kochi",
+   "expect": {
+    "role": "category",
+    "entity": {
+     "names": [
+      "Kochi",
+      "Cochin"
+     ],
+     "state": "Kerala"
+    },
+    "interest": [
+     "beaches"
+    ]
+   }
+  },
+  {
+   "id": "q151",
+   "group": "hours_question",
+   "query": "is Charminar open now",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Charminar"
+     ],
+     "state": "Telangana"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q152",
+   "group": "hours_question",
+   "query": "Golconda Fort timings",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Golconda",
+      "Golkonda"
+     ],
+     "state": "Telangana"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q153",
+   "group": "hours_question",
+   "query": "Taj Mahal opening hours on Friday",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Taj Mahal"
+     ],
+     "state": "Uttar Pradesh"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q154",
+   "group": "hours_question",
+   "query": "what time does Meenakshi Temple open",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Meenakshi"
+     ],
+     "state": "Tamil Nadu"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q155",
+   "group": "hours_question",
+   "query": "Gateway of India timings",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Gateway of India"
+     ],
+     "state": "Maharashtra"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q156",
+   "group": "hours_question",
+   "query": "Amer Fort closing time",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Amer Fort",
+      "Amber Fort",
+      "Amer"
+     ],
+     "state": "Rajasthan"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q157",
+   "group": "hours_question",
+   "query": "Mysore Palace visiting hours",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Mysore Palace",
+      "Mysuru Palace",
+      "Amba Vilas"
+     ],
+     "state": "Karnataka"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q158",
+   "group": "hours_question",
+   "query": "Qutub Minar timings",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Qutub Minar",
+      "Qutb Minar"
+     ],
+     "state": "Delhi"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q159",
+   "group": "hours_question",
+   "query": "Konark Sun Temple opening time",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Konark"
+     ],
+     "state": "Odisha"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q160",
+   "group": "hours_question",
+   "query": "Victoria Memorial timings",
+   "expect": {
+    "role": "hours",
+    "entity": {
+     "names": [
+      "Victoria Memorial"
+     ],
+     "state": "West Bengal"
+    },
+    "intent": "hours"
+   }
+  },
+  {
+   "id": "q161",
+   "group": "discovery",
+   "query": "things to do in Tirupati",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Tirupati"
+     ],
+     "state": "Andhra Pradesh"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q162",
+   "group": "discovery",
+   "query": "what to see in Udaipur",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Udaipur"
+     ],
+     "state": "Rajasthan"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q163",
+   "group": "discovery",
+   "query": "places to visit in Hyderabad",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Hyderabad"
+     ],
+     "state": "Telangana"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q164",
+   "group": "discovery",
+   "query": "best places in Goa",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Goa"
+     ],
+     "state": "Goa"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q165",
+   "group": "discovery",
+   "query": "top attractions in Mysuru",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Mysuru",
+      "Mysore"
+     ],
+     "state": "Karnataka"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q166",
+   "group": "discovery",
+   "query": "sightseeing in Agra",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Agra"
+     ],
+     "state": "Uttar Pradesh"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q167",
+   "group": "discovery",
+   "query": "what to do in Pondicherry",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Puducherry",
+      "Pondicherry"
+     ],
+     "state": "Puducherry"
+    },
+    "intent": "discovery"
+   }
+  },
+  {
+   "id": "q168",
+   "group": "discovery",
+   "query": "places to see in Kochi",
+   "expect": {
+    "role": "discovery",
+    "entity": {
+     "names": [
+      "Kochi",
+      "Cochin"
+     ],
+     "state": "Kerala"
+    },
+    "intent": "discovery"
+   }
+  }
+ ]
+}

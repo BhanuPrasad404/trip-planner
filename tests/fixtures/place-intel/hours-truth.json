@@ -1,0 +1,13 @@
+{
+ "_about": "TRUTH for opening hours: what a trusted source says, one entry per place. It is EMPTY on purpose. Entries must be copied by a person from an official or otherwise trusted source, with the page address and the date it was read. Nothing may be written here from memory or by an AI. Correctness of hours cannot be measured until this has entries, and the baseline report says so.",
+ "schema": {
+  "placeName": "string",
+  "state": "string",
+  "officialUrl": "https://...",
+  "readOn": "YYYY-MM-DD",
+  "schedule": "opening_hours-style text, exactly as the source gives it",
+  "notes": "closures, darshan or ticket rules, anything a traveller must know",
+  "reader": "who read it"
+ },
+ "entries": []
+}

@@ -4,6 +4,8 @@ import { AiNotConfiguredError, AiRequestError, PROVIDER_NAME, callTool } from "@
 import { jsonError } from "@/lib/api";
 import { aiProviderId, diagnoseAi } from "@/lib/config";
 import { consumeQuota } from "@/lib/quota";
+import { geminiApiKey } from "@/lib/config";
+import { listGeminiModels } from "@/lib/ai/gemini";
 
 export const maxDuration = 30;
 
@@ -31,6 +33,13 @@ export async function POST() {
       return NextResponse.json({ ok: false, message: `${PROVIDER_NAME[aiProviderId()]} rejected the key (invalid or revoked). Create a new one, update it in your environment settings, and restart the server.` }, { status: 200 });
     }
     if (e instanceof AiRequestError && e.status === 429) return NextResponse.json({ ok: false, message: "The key works but its rate limit is used up for now (free keys are limited). Wait a minute and try again." }, { status: 200 });
-    return NextResponse.json({ ok: false, message: `The key is set, but the AI service refused the test. ${e instanceof AiRequestError ? e.message : ""} If it mentions the model, set GEMINI_MODEL / OPENAI_MODEL to a model your provider lists.`.replace(/\s+/g, " ").trim() }, { status: 200 });
+    // The key is fine, but the service refused the request itself. Say exactly what it said and which models this key can really use.
+    const detail = e instanceof AiRequestError ? e.detail.slice(0, 8) : [];
+    let models: string[] = [];
+    const key = geminiApiKey();
+    if (aiProviderId() === "gemini" && key) models = await listGeminiModels(key).then((m) => m.slice(0, 6)).catch(() => []);
+    const why = e instanceof AiRequestError ? e.message : "";
+    const fix = models.length ? ` Your key can use: ${models.join(", ")}. Set GEMINI_MODEL=${models[0]} in your environment and restart.` : " If it mentions the model, set GEMINI_MODEL / OPENAI_MODEL to a model your provider lists.";
+    return NextResponse.json({ ok: false, message: `The key is set, but the AI service refused the test (${why}).${fix}`.replace(/\s+/g, " ").trim(), detail, models }, { status: 200 });
   }
 }

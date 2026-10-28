@@ -1,8 +1,10 @@
 "use client";
 
-// Optional voice input: say the trip instead of typing it, in English, Telugu, Hindi, Tamil, Kannada or Marathi. It uses the browser's
-// own speech recognition (this app records nothing), so the screen says plainly where the audio goes, shows the words as they are heard,
-// keeps listening through pauses until you tap stop, and says exactly why when it can't work.
+// Voice input: say the trip instead of typing it, in English, Telugu, Hindi, Tamil, Kannada or Marathi.
+// One big mic button. It uses the browser's own live speech recognition when that works on this phone; when it doesn't (Chrome's voice
+// service answers "network" on many Android phones), it records the voice here and our server turns it into words.
+// What the traveller always sees: whether the phone can hear them (level bars + timer), a way to cancel, and, if turning the recording
+// into text fails, a Try again that re-sends the SAME recording. Nothing they said is lost because a service was busy.
 import { useEffect, useRef, useState } from "react";
 import { Glyph } from "@/components/ui/Glyph";
 import { Select } from "@/components/ui/Select";
@@ -21,6 +23,21 @@ export function speechRecognition(): RecCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const INSECURE = "Voice input only works on the secure (https) site, not on a plain http address. You can type instead.";
+/** Which sentences mean "the recording is fine, the service wasn't": the same recording can be sent again. */
+const RETRYABLE = /busy|couldn't turn that into text|No connection|Slow down/i;
+
+/** Five bars that rise with the voice. They sit still (no motion) when the traveller prefers reduced motion. */
+function LevelBars({ level }: { level: number }) {
+  const heights = [0.45, 0.8, 1, 0.8, 0.45];
+  return (
+    <span aria-hidden="true" className="flex h-8 items-center gap-1">
+      {heights.map((h, i) => <span key={i} className="w-1.5 rounded-full bg-white/90 motion-safe:transition-[height] motion-safe:duration-100" style={{ height: `${Math.round(18 + level * h * 82)}%` }} />)}
+    </span>
+  );
+}
+
 export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   // null = not checked yet (server render), so the first paint matches on server and phone.
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -28,80 +45,110 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // The backup: record here, and the server turns the recording into words (when the browser's own recogniser is missing or fails).
   const [canRecord, setCanRecord] = useState(false);
   const [recording, setRecording] = useState<number | null>(null);
+  const [level, setLevel] = useState(0);
   const [converting, setConverting] = useState(false);
-  // True once the browser's own recogniser has failed on this phone: Record becomes the main button instead of the backup.
+  /** True once the browser's own recogniser failed on this phone: recording becomes the way it works from now on. */
   const [preferRecord, setPreferRecord] = useState(false);
-  const session = useRef<{ stop: () => void } | null>(null);
-  useEffect(() => { queueMicrotask(() => { setSupported(!!speechRecognition()); setCanRecord(recorderSupported()); setPreferRecord(browserVoiceFailedRecently(window.localStorage, Date.now())); }); }, []);
-  useEffect(() => () => session.current?.stop(), []);
-  if (supported === null) return null;
+  /** The last recording, kept until its words arrive, so a busy service never costs the traveller their speech. */
+  const [pending, setPending] = useState<Blob | null>(null);
+  const [switched, setSwitched] = useState(false);
+  const session = useRef<{ stop: () => void; cancel?: () => void } | null>(null);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; queueMicrotask(() => { setSupported(!!speechRecognition()); setCanRecord(recorderSupported()); setPreferRecord(browserVoiceFailedRecently(window.localStorage, Date.now())); }); return () => { alive.current = false; session.current?.cancel?.(); session.current?.stop(); }; }, []);
+  if (supported === null) return <div className="h-24 rounded-2xl border border-line bg-sky/60" aria-hidden="true" />;
   if (!supported && !canRecord) {
     return <p className="flex items-start gap-1.5 rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted"><Glyph name="info" size={15} className="mt-0.5" />Voice input isn&apos;t available in this browser. Chrome on Android or desktop has it, or you can type.</p>;
   }
 
-  async function toggleRecord() {
-    if (recording !== null) { session.current?.stop(); return; }
-    if (typeof window !== "undefined" && window.isSecureContext === false) { setError("Voice input only works on the secure (https) site, not on a plain http address. You can type instead."); return; }
-    setError(null); setHeard(""); setRecording(0);
+  const useRecord = canRecord && (!supported || preferRecord);
+  const busy = listening || recording !== null || converting;
+
+  async function convert(blob: Blob) {
+    setPending(blob); setConverting(true); setError(null);
+    const r = await recordingToText(blob, lang);
+    if (!alive.current) return;
+    setConverting(false);
+    if ("error" in r) { setError(r.error); if (!RETRYABLE.test(r.error)) setPending(null); return; }
+    setPending(null);
+    if (r.text) onText(r.text); else setError("We didn't hear anything. Try again, a little closer to the phone.");
+  }
+
+  async function startRecord() {
+    if (window.isSecureContext === false) { setError(INSECURE); return; }
+    setError(null); setHeard(""); setPending(null); setLevel(0); setRecording(0);
     session.current = await startRecording({
       onTick: setRecording,
-      onError: (m) => { setRecording(null); setError(m); },
-      onDone: async (blob) => {
-        setRecording(null); setConverting(true);
-        const r = await recordingToText(blob, lang);
-        setConverting(false);
-        if ("error" in r) setError(r.error); else if (r.text) onText(r.text);
-      },
+      onLevel: setLevel,
+      onError: (m) => { setRecording(null); setLevel(0); setError(m); },
+      onDone: (blob) => { setRecording(null); setLevel(0); void convert(blob); },
     });
   }
 
-  function toggle() {
-    if (listening) { session.current?.stop(); return; }
+  function startLive() {
     const Ctor = speechRecognition();
     if (!Ctor) return;
-    if (typeof window !== "undefined" && window.isSecureContext === false) { setError("Voice input only works on the secure (https) site, not on a plain http address. You can type instead."); return; }
-    setError(null); setHeard("");
+    if (window.isSecureContext === false) { setError(INSECURE); return; }
+    setError(null); setHeard(""); setSwitched(false);
     session.current = startVoice(Ctor, lang, {
       onFinal: (t) => onText(t),
       onInterim: setHeard,
       onListening: setListening,
       onError: (message, code) => {
+        console.warn("[voice]", code);
+        // This phone's live voice can't work: remember it, and carry on with recording instead of making the traveller work it out.
+        if (canRecord && browserVoiceUnreliable(code)) { rememberBrowserVoiceFailed(window.localStorage, Date.now()); setPreferRecord(true); setSwitched(true); setError(null); return; }
         setError(message);
-        if (typeof console !== "undefined") console.warn("[voice]", code);
-        // The recogniser can't work on this phone: remember it, so next time Record is the first thing offered.
-        if (canRecord && browserVoiceUnreliable(code)) { rememberBrowserVoiceFailed(window.localStorage, Date.now()); setPreferRecord(true); }
       },
     });
   }
 
-  const recordMain = canRecord && (!supported || preferRecord);   // Record is the main button (the browser's own voice is missing or didn't work here)
-  const recordLabel = converting ? "Turning your voice into text…" : recording !== null ? `Recording ${Math.floor(recording / 60)}:${String(recording % 60).padStart(2, "0")} · tap to stop` : recordMain ? "Record your voice" : "Record, then convert to text";
+  function main() {
+    if (listening || recording !== null) { session.current?.stop(); return; }
+    if (converting) return;
+    if (useRecord) void startRecord(); else startLive();
+  }
+  const stateLabel = converting ? "Turning your voice into text…" : recording !== null ? `Recording ${clock(recording)} · tap to finish` : listening ? "Listening · tap to finish" : useRecord ? "Tap and speak" : "Tap and speak";
+  const active = listening || recording !== null;
+
   return (
-    <div className="rounded-xl border border-line bg-sky/60 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {supported && !recordMain && (
-          <button type="button" onClick={toggle} disabled={recording !== null || converting} aria-pressed={listening} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${listening ? "bg-clay text-white" : "bg-pine text-white"}`}>
-            <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${listening ? "animate-pulse bg-white" : "bg-marigold"}`} />
-            {listening ? "Listening… tap to stop" : "Say it instead"}
-          </button>
-        )}
-        {canRecord && (recordMain || error !== null || recording !== null || converting) && (
-          <button type="button" onClick={() => void toggleRecord()} disabled={listening || converting} aria-pressed={recording !== null} className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60 ${recording !== null ? "bg-clay text-white" : recordMain ? "bg-pine text-white" : "border-2 border-pine bg-white text-pine"}`}>
-            <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${recording !== null ? "animate-pulse bg-white" : "bg-marigold"}`} />
-            {supported && !recordMain && recording === null && !converting ? "Not working? Record instead" : recordLabel}
-          </button>
-        )}
-        <label className="sr-only" htmlFor="voice-lang">Language you will speak</label>
-        <span className="min-w-[9rem]"><Select id="voice-lang" label="Language you will speak" value={lang} disabled={listening || recording !== null || converting} onChange={setLang} options={VOICE_LANGS.map((l) => ({ value: l.code, label: l.label }))} /></span>
+    <div className="rounded-2xl border border-line bg-sky/60 p-3">
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={main} disabled={converting} aria-pressed={active} aria-label={active ? "Stop and use what you said" : "Start speaking"}
+          className={`relative inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-white shadow-md outline-none transition-colors focus-visible:ring-4 focus-visible:ring-teal/40 disabled:opacity-60 ${active ? "bg-clay" : "bg-pine"}`}>
+          {active && <span aria-hidden="true" className="absolute inset-0 rounded-full bg-clay/40 motion-safe:animate-ping" />}
+          <span className="relative">{active && recording !== null ? <LevelBars level={level} /> : <Glyph name={active ? "stop" : "mic"} size={26} />}</span>
+        </button>
+        <div className="min-w-0 flex-1">
+          <p role="status" aria-live="polite" className="text-base font-bold text-pine">{stateLabel}</p>
+          <p className="text-sm text-ink-muted">{active ? "Pauses are fine." : converting ? "This takes a few seconds." : "Say the trip in your own words."}</p>
+        </div>
+        {active && recording !== null && <button type="button" onClick={() => { session.current?.cancel?.(); setRecording(null); setLevel(0); }} className="tm-action min-h-11 shrink-0 px-2 text-sm font-semibold">Cancel</button>}
       </div>
-      {listening && <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-ink">{heard ? <>{heard}</> : <span className="text-ink-muted">Speak now. Pauses are fine; tap stop when you are done.</span>}</p>}
-      {recording !== null && <p role="status" aria-live="polite" className="mt-2 text-sm text-ink-muted">Speak now. Pauses are fine; tap stop when you are done.</p>}
-      <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted"><Glyph name="info" size={13} className="mt-0.5" />{recordMain ? "Your recording is sent to our speech service to turn it into text, and is not kept." : "Your browser turns speech into text. On Chrome the audio is sent to Google to do that."} Nothing is sent until you tap{canRecord && supported && !recordMain ? "; \"Record instead\" sends a short recording to our speech service, and it is not kept" : ""}.</p>
-      {recordMain && supported && recording === null && !converting && <button type="button" onClick={() => { forgetBrowserVoiceFailed(window.localStorage); setPreferRecord(false); setError(null); }} className="tm-action mt-1 min-h-11 text-sm font-semibold">Try live voice again</button>}
-      {error && <p role="alert" className="mt-1.5 text-sm font-medium text-clay-ink">{error}</p>}
+
+      {listening && <p aria-live="polite" className="mt-2 min-h-5 rounded-lg bg-white/70 px-3 py-2 text-sm text-ink">{heard || <span className="text-ink-muted">Speak now…</span>}</p>}
+
+      <div className="mt-3 flex items-center gap-2">
+        <label htmlFor="voice-lang" className="sr-only">Language you will speak</label>
+        <span className="min-w-0 flex-1"><Select id="voice-lang" label="Language you will speak" value={lang} disabled={busy} onChange={setLang} options={VOICE_LANGS.map((l) => ({ value: l.code, label: l.label }))} /></span>
+      </div>
+
+      {switched && useRecord && !error && <p role="status" className="mt-2 flex items-start gap-1.5 text-sm text-ink-muted"><Glyph name="info" size={14} className="mt-0.5" />Live voice didn&apos;t connect on this phone, so we&apos;ll record you instead. Tap the mic again.</p>}
+      {error && (
+        <div role="alert" className="mt-2 rounded-xl border border-clay/30 bg-clay-light px-3 py-2.5 text-sm font-medium text-clay-ink">
+          <p>{error}</p>
+          <div className="mt-1 flex flex-wrap gap-x-4">
+            {pending && !converting && <button type="button" onClick={() => void convert(pending)} className="tm-action min-h-11 font-bold">Try again with the same recording</button>}
+            {!pending && !busy && <button type="button" onClick={main} className="tm-action min-h-11 font-bold">Try again</button>}
+          </div>
+        </div>
+      )}
+
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted"><Glyph name="info" size={13} className="mt-0.5" />
+        {useRecord ? "Your recording is sent to our speech service to turn it into text, and is not kept." : "Your browser turns speech into text. On Chrome the audio is sent to Google to do that."} Nothing is sent until you tap the mic.
+      </p>
+      {useRecord && supported && !busy && <button type="button" onClick={() => { forgetBrowserVoiceFailed(window.localStorage); setPreferRecord(false); setSwitched(false); setError(null); }} className="tm-action min-h-11 text-sm font-semibold">Try live voice again</button>}
     </div>
   );
 }

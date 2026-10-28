@@ -6,8 +6,11 @@ export class AiNotConfiguredError extends Error {
   }
 }
 export class AiRequestError extends Error {
-  constructor(message: string, readonly status?: number) {
+  /** Every attempt that was made and why it failed (never a key). Shown in the setup check so a problem can be fixed, not guessed at. */
+  detail: string[];
+  constructor(message: string, readonly status?: number, detail: string[] = []) {
     super(message);
+    this.detail = detail;
   }
 }
 

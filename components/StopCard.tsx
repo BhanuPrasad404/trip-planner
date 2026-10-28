@@ -97,7 +97,7 @@ export function StopCard({
       <header className="flex items-start gap-2.5 sm:gap-3">
         {photo && <PlacePhoto photo={photo} name={place.name} sizes="64px" className={`h-12 w-12 sm:h-16 sm:w-16 ${skipped ? "opacity-60" : ""}`} fallback={<CategoryGlyph category={category} size={22} />} />}
         <div className="min-w-0 flex-1">
-          <h3 className={`break-words text-[17px] font-semibold leading-snug text-pine ${skipped ? "text-ink-muted" : ""} ${done ? "decoration-teal/60" : ""}`}>
+          <h3 lang="en" className={`text-pretty break-words text-base font-semibold leading-snug text-pine [hyphens:auto] sm:text-[17px] ${skipped ? "text-ink-muted" : ""} ${done ? "decoration-teal/60" : ""}`}>
             {!scheduled && <CategoryGlyph category={category} size={17} className="mr-1.5 inline align-text-bottom text-teal" />}
             {place.name}
             <span className="sr-only"> ({cat.label})</span>
@@ -153,7 +153,7 @@ export function StopCard({
           </Menu>
         )}
       </header>
-      {photo && <PhotoCredit photo={photo} className="mt-2 break-words" />}
+      {photo && <PhotoCredit photo={photo} className="mt-1.5" />}
 
       {(done || skipped) && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -182,23 +182,23 @@ export function StopCard({
 
       {/* The few things you do all the time */}
       {((onStatus && scheduled) || (!scheduled && onMove)) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={`Progress for ${place.name}`}>
+        <div className="mt-3 flex items-center gap-2" role="group" aria-label={`Progress for ${place.name}`}>
 {onStatus && scheduled && (finished ? (
-            <Button size="sm" variant="secondary" className="max-sm:min-h-11" loading={busy} onClick={() => onStatus(place.id, "planned")}>
+            <Button size="sm" variant="secondary" className="min-h-11 flex-1 sm:flex-none" loading={busy} onClick={() => onStatus(place.id, "planned")}>
               <Glyph name="uturn" size={15} />Undo<span className="sr-only"> {place.status} for {place.name}</span>
             </Button>
           ) : (
             <>
-              <Button size="sm" variant="secondary" className="max-sm:min-h-11" disabled={busy} onClick={() => onStatus(place.id, "skipped")}>
+              <Button size="sm" variant="secondary" className="min-h-11 flex-1 sm:flex-none" disabled={busy} onClick={() => onStatus(place.id, "skipped")}>
                 <Glyph name="skip" size={15} />Skip<span className="sr-only"> {place.name}</span>
               </Button>
-              <Button size="sm" className="max-sm:min-h-11" disabled={busy} onClick={() => onStatus(place.id, "done")}>
+              <Button size="sm" className="min-h-11 flex-[1.4] sm:flex-none" disabled={busy} onClick={() => onStatus(place.id, "done")}>
                 <Glyph name="check" size={16} />Done<span className="sr-only"> with {place.name}</span>
               </Button>
             </>
           ))}
           {onShowOnMap && (
-            <button type="button" onClick={() => onShowOnMap(place.id)} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-teal-ink hover:bg-sky sm:hidden">
+            <button type="button" onClick={() => onShowOnMap(place.id)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-semibold text-teal-ink hover:bg-sky sm:hidden">
               <Glyph name="pin" size={16} />Map<span className="sr-only"> for {place.name}</span>
             </button>
           )}
@@ -316,9 +316,9 @@ export function StopCard({
 
   const rail = done ? "bg-teal text-white" : skipped ? "bg-line text-ink-muted" : needsAttention ? "bg-clay-light text-clay-ink" : "bg-teal-light text-teal-ink";
   return (
-    <li id={`stop-${place.id}`} className="group grid scroll-mt-24 grid-cols-[3rem_minmax(0,1fr)] gap-x-3 sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-x-4">
+    <li id={`stop-${place.id}`} className="group grid scroll-mt-24 grid-cols-[2.75rem_minmax(0,1fr)] gap-x-2 sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-x-4">
       <div className="flex flex-col items-center">
-        <span className={`mt-3.5 grid h-10 w-10 place-items-center rounded-full ring-4 ring-white ${rail}`}>
+        <span className={`mt-3.5 grid h-9 w-9 place-items-center rounded-full ring-4 ring-white sm:h-10 sm:w-10 ${rail}`}>
           {done ? <Glyph name="check" size={18} strokeWidth={2.6} /> : <CategoryGlyph category={category} size={18} />}
         </span>
         <span className="mt-1.5 text-center font-mono text-[11px] font-medium leading-tight text-ink-muted">

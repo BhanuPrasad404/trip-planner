@@ -34,6 +34,23 @@ export function toGeminiSchema(node: unknown): unknown {
   return out;
 }
 
+/** The smallest schema Gemini always accepts: types, properties, items, required, enum, description. Used when the full one is refused. */
+const PLAIN_ALLOWED = new Set(["type", "description", "nullable", "enum", "items", "properties", "required"]);
+export function toPlainGeminiSchema(node: unknown): unknown {
+  const full = toGeminiSchema(node);
+  const strip = (n: unknown): unknown => {
+    if (Array.isArray(n)) return n.map(strip);
+    if (!n || typeof n !== "object") return n;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(n as Record<string, unknown>)) {
+      if (!PLAIN_ALLOWED.has(k)) continue;
+      out[k] = k === "properties" && v && typeof v === "object" ? Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([pk, pv]) => [pk, strip(pv)])) : k === "items" ? strip(v) : v;
+    }
+    return out;
+  };
+  return strip(full);
+}
+
 const part = (b: ContentBlock) => (b.type === "text" ? { text: b.text } : { inline_data: { mime_type: b.source.media_type, data: b.source.data } });
 
 /**
@@ -54,15 +71,14 @@ export const THINKING_CHAIN: ThinkingMode[] = ["budget0", "minimal", "low", "non
 export const thinkingConfigFor = (m: ThinkingMode): Record<string, unknown> | null => (m === "budget0" ? { thinkingBudget: 0 } : m === "minimal" ? { thinkingLevel: "minimal" } : m === "low" ? { thinkingLevel: "low" } : null);
 /** First setting to try for a model: every Flash model is a form-filler candidate; others (Pro) always think. */
 export const startThinking = (model: string): ThinkingMode => (/flash/i.test(model) ? "budget0" : "none");
-const learnedThinking = new Map<string, ThinkingMode>();
 
-export function buildGeminiRequest(args: { system: string; content: ContentBlock[]; tool: ToolSpec; maxTokens: number; model?: string; thinking?: ThinkingMode }) {
+export function buildGeminiRequest(args: { system: string; content: ContentBlock[]; tool: ToolSpec; maxTokens: number; model?: string; thinking?: ThinkingMode; plain?: boolean }) {
   return {
     systemInstruction: { parts: [{ text: args.system }] },
     contents: [{ role: "user", parts: args.content.map(part) }],
-    tools: [{ functionDeclarations: [{ name: args.tool.name, description: args.tool.description, parameters: toGeminiSchema(args.tool.input_schema) }] }],
-    // Force the model to answer through our one tool: structured output, never free text.
-    toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: [args.tool.name] } },
+    tools: [{ functionDeclarations: [{ name: args.tool.name, description: args.tool.description, parameters: args.plain ? toPlainGeminiSchema(args.tool.input_schema) : toGeminiSchema(args.tool.input_schema) }] }],
+    // Force the model to answer through our one tool: structured output, never free text. (The plain request leaves the name list out.)
+    toolConfig: { functionCallingConfig: args.plain ? { mode: "ANY" } : { mode: "ANY", allowedFunctionNames: [args.tool.name] } },
     generationConfig: (() => {
       if (args.thinking) {
         const cfg = thinkingConfigFor(args.thinking);
@@ -99,13 +115,28 @@ export function providerMessage(body: string): string {
   }
 }
 
+/**
+ * Everything useful Google said about a refused request: the message, its status word (INVALID_ARGUMENT…) and the exact fields it
+ * objected to (error.details[].fieldViolations). Safe to show: it never includes the key.
+ */
+export function providerDetail(body: string): string {
+  try {
+    const e = (JSON.parse(body) as { error?: { message?: string; status?: string; details?: { fieldViolations?: { field?: string; description?: string }[] }[] } }).error;
+    if (!e) return "";
+    const fields = (e.details ?? []).flatMap((d) => d.fieldViolations ?? []).map((v) => [v.field, v.description].filter(Boolean).join(": ")).filter(Boolean).slice(0, 3);
+    return [e.status, (e.message ?? "").replace(/\s+/g, " "), ...fields].filter(Boolean).join(" · ").slice(0, 320);
+  } catch {
+    return "";
+  }
+}
+
 /** Google's free tier is often busy (503) or briefly over its limit (429). Retrying and falling back hides most of that. */
 export const GEMINI_FALLBACK_MODEL = "gemini-flash-lite-latest";
 const RETRY_DELAYS_MS = [600];
 const RETRY_SAME_MODEL = new Set([500, 503]);
 /** 408 = this request hung until its own time limit: retrying the same model would only burn the wait, so the lighter model gets the next turn. */
 export const TIMED_OUT = 408;
-const TRY_OTHER_MODEL = new Set([404, 408, 429, 500, 503, 504]);
+const TRY_OTHER_MODEL = new Set([400, 404, 408, 429, 500, 503, 504]); // 400 only reaches here after every way of asking was refused
 
 /**
  * How long ONE request may take. Filling a form with thinking switched off answers in a few seconds; a request still silent after this is
@@ -114,9 +145,44 @@ const TRY_OTHER_MODEL = new Set([404, 408, 429, 500, 503, 504]);
 export const ATTEMPT_TIMEOUT_MS = Math.max(3_000, Number(process.env.GEMINI_ATTEMPT_TIMEOUT_MS) || 9_000);
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-type AskArgs = Omit<Parameters<typeof buildGeminiRequest>[0], "model" | "thinking"> & { signal?: AbortSignal };
+type AskArgs = Omit<Parameters<typeof buildGeminiRequest>[0], "model" | "thinking" | "plain"> & { signal?: AbortSignal };
 
-async function askOnce(model: string, apiKey: string, args: AskArgs, thinking: ThinkingMode): Promise<unknown> {
+/**
+ * One way of asking. Google answers an unsupported setting with the bare words "Request contains an invalid argument." (no mention of
+ * thinking), so we can't read the cause from the message: on ANY refused request (HTTP 400) the next rung is tried. The first four vary
+ * only how the model is asked not to think; the last also sends the smallest schema Gemini accepts.
+ */
+export type Rung = { thinking: ThinkingMode; plain: boolean };
+export const RUNGS: Rung[] = [...THINKING_CHAIN.map((thinking) => ({ thinking, plain: false })), { thinking: "none", plain: true }];
+export const rungName = (r: Rung) => `${r.thinking}${r.plain ? "+plain" : ""}`;
+const learnedRung = new Map<string, string>();
+
+const isKeyProblem = (e: AiRequestError) => e.status === 401 || e.status === 403;
+
+/** Run `attempt` down the rungs (starting at the one that worked last time) until one is accepted. Throws the last error with every attempt listed. */
+export async function walkRungs<T>(model: string, attempt: (r: Rung) => Promise<T>, trail: string[] = []): Promise<T> {
+  const remembered = RUNGS.findIndex((r) => rungName(r) === learnedRung.get(model));
+  const first = remembered >= 0 ? remembered : Math.max(0, RUNGS.findIndex((r) => r.thinking === startThinking(model) && !r.plain));
+  const order = [...RUNGS.slice(first), ...RUNGS.slice(0, first)];
+  let last: AiRequestError | null = null;
+  for (const rung of order) {
+    try {
+      const out = await attempt(rung);
+      learnedRung.set(model, rungName(rung));
+      return out;
+    } catch (e) {
+      if (!(e instanceof AiRequestError)) throw e;
+      last = e;
+      trail.push(`${model} (${rungName(rung)}): ${e.message}`);
+      if (e.status !== 400 || isKeyProblem(e)) break; // only a refused request is worth another way of asking
+    }
+  }
+  const err = last ?? new AiRequestError("AI request failed");
+  err.detail = trail;
+  throw err;
+}
+
+async function askOnce(model: string, apiKey: string, args: AskArgs, rung: Rung): Promise<unknown> {
   let res: Response;
   const started = Date.now();
   try {
@@ -124,7 +190,7 @@ async function askOnce(model: string, apiKey: string, args: AskArgs, thinking: T
       method: "POST",
       // The key goes in a header, never in the URL (URLs end up in logs).
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(buildGeminiRequest({ system: args.system, content: args.content, tool: args.tool, maxTokens: args.maxTokens, model, thinking })),
+      body: JSON.stringify(buildGeminiRequest({ system: args.system, content: args.content, tool: args.tool, maxTokens: args.maxTokens, model, thinking: rung.thinking, plain: rung.plain })),
       signal: args.signal ? AbortSignal.any([AbortSignal.timeout(ATTEMPT_TIMEOUT_MS), args.signal]) : AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
     });
   } catch (err) {
@@ -140,27 +206,35 @@ async function askOnce(model: string, apiKey: string, args: AskArgs, thinking: T
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("[ai] Gemini error status", res.status, model);
+    const said = providerDetail(body);
+    console.error(`[ai] Gemini refused: HTTP ${res.status} model=${model} setting=${rungName(rung)}${said ? ` — ${said}` : ""}`);
     // Gemini reports a bad key as HTTP 400 "API key not valid"; treat it like a rejected key.
     const status = res.status === 400 && /API key not valid|API_KEY_INVALID/i.test(body) ? 401 : res.status;
-    throw new AiRequestError(`AI service returned ${res.status}${providerMessage(body) ? `: ${providerMessage(body)}` : ""}`, status);
+    throw new AiRequestError(`HTTP ${res.status}${said ? ` ${said}` : ""}`, status);
   }
   return parseGeminiResponse(await res.json(), args.tool.name);
 }
 
-/** One request, trying the "don't think" settings in turn when the model rejects one (HTTP 400 mentioning thinking). */
-async function askWithThinking(model: string, apiKey: string, args: AskArgs): Promise<unknown> {
-  let i = Math.max(0, THINKING_CHAIN.indexOf(learnedThinking.get(model) ?? startThinking(model)));
-  for (;;) {
-    try {
-      const out = await askOnce(model, apiKey, args, THINKING_CHAIN[i]);
-      learnedThinking.set(model, THINKING_CHAIN[i]);
-      return out;
-    } catch (e) {
-      if (e instanceof AiRequestError && e.status === 400 && /thinking/i.test(e.message) && i < THINKING_CHAIN.length - 1) { i++; continue; }
-      throw e;
-    }
-  }
+/** Which models this key may really call, newest Flash first. Google's own list, so a retired or renamed model can never be the problem. */
+export function pickModels(list: unknown): string[] {
+  const models = ((list as { models?: { name?: string; supportedGenerationMethods?: string[] }[] } | null)?.models ?? [])
+    .filter((m) => m.name && (m.supportedGenerationMethods ?? []).includes("generateContent"))
+    .map((m) => m.name!.replace(/^models\//, ""))
+    .filter((n) => /^gemini-/.test(n) && !/image|tts|live|audio|embed|vision|robotics|computer|learnlm|customtools|thinking-exp/i.test(n));
+  const stable = (n: string) => !/preview|exp/i.test(n);
+  const version = (n: string) => Number(/gemini-(\d+(?:\.\d+)?)/.exec(n)?.[1] ?? 0);
+  const rank = (n: string) => (/flash/i.test(n) ? 2 : 0) + (/lite/i.test(n) ? -1 : 0) + (stable(n) ? 1 : 0);
+  return [...new Set(models)].sort((a, b) => rank(b) - rank(a) || version(b) - version(a) || a.localeCompare(b));
+}
+
+let modelCache: { at: number; models: string[] } | null = null;
+export async function listGeminiModels(apiKey: string, signal?: AbortSignal): Promise<string[]> {
+  if (modelCache && Date.now() - modelCache.at < 3_600_000) return modelCache.models;
+  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": apiKey }, signal: signal ? AbortSignal.any([AbortSignal.timeout(8_000), signal]) : AbortSignal.timeout(8_000) });
+  if (!res.ok) throw new AiRequestError(`Could not list models: HTTP ${res.status}`, res.status);
+  const models = pickModels(await res.json());
+  modelCache = { at: Date.now(), models };
+  return models;
 }
 
 export const callGemini: ToolCaller = async ({ system, content, tool, maxTokens = 1500, signal }) => {
@@ -169,23 +243,46 @@ export const callGemini: ToolCaller = async ({ system, content, tool, maxTokens 
   const primary = (process.env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL).trim();
   const fallback = (process.env.GEMINI_FALLBACK_MODEL || GEMINI_FALLBACK_MODEL).trim();
   const args: AskArgs = { system, content, tool, maxTokens, signal };
+  const trail: string[] = [];
+  const tried = new Set<string>();
 
-  let last: AiRequestError | null = null;
-  for (const model of primary === fallback ? [primary] : [primary, fallback]) {
+  const state: { last: AiRequestError | null } = { last: null };
+  async function tryModel(model: string): Promise<{ done: true; out: unknown } | { done: false }> {
+    tried.add(model);
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-      if (signal?.aborted) throw last ?? new AiRequestError("AI request stopped: the wait was over", 503);
+      if (signal?.aborted) throw state.last ?? new AiRequestError("AI request stopped: the wait was over", 503, trail);
       try {
-        return await askWithThinking(model, apiKey, args);
+        return { done: true, out: await walkRungs(model, (r) => askOnce(model, apiKey!, args, r), trail) };
       } catch (e) {
         if (!(e instanceof AiRequestError)) throw e;
-        last = e;
+        state.last = e;
         const status = e.status ?? 0;
-        if (status === 401 || status === 403 || status === 400) throw e;           // the key or the request is wrong: retrying won't help
+        if (isKeyProblem(e)) { e.detail = trail; throw e; }                          // the key is wrong: no other model will help
         if (RETRY_SAME_MODEL.has(status) && attempt < RETRY_DELAYS_MS.length) { await sleep(RETRY_DELAYS_MS[attempt]); continue; } // busy: wait and retry
-        break;                                                                      // give this model up…
+        return { done: false };                                                       // give this model up
       }
     }
-    if (last && !TRY_OTHER_MODEL.has(last.status ?? 0)) throw last;                 // …and try the lighter one only for busy / limit / gone
+    return { done: false };
   }
-  throw last ?? new AiRequestError("AI request failed");
+
+  for (const model of primary === fallback ? [primary] : [primary, fallback]) {
+    const r = await tryModel(model);
+    if (r.done) return r.out;
+    if (state.last && !TRY_OTHER_MODEL.has(state.last.status ?? 0)) { state.last.detail = trail; throw state.last; }
+  }
+  // Both named models were refused or are gone: ask Google which models this key can use, and try the best one we haven't.
+  if (state.last && (state.last.status === 400 || state.last.status === 404) && !signal?.aborted) {
+    try {
+      const candidates = (await listGeminiModels(apiKey, signal)).filter((m) => !tried.has(m)).slice(0, 2);
+      for (const model of candidates) {
+        const r = await tryModel(model);
+        if (r.done) { console.warn(`[ai] ${primary} was refused; using ${model}. Set GEMINI_MODEL=${model} to skip the search.`); return r.out; }
+      }
+    } catch (e) {
+      trail.push(`model list: ${e instanceof Error ? e.message : "failed"}`);
+    }
+  }
+  const err = state.last ?? new AiRequestError("AI request failed");
+  err.detail = trail;
+  throw err;
 };

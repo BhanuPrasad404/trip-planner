@@ -112,6 +112,23 @@ describe("POST /api/intel", () => {
     expect(json.result.aheadByKind.fuel[0].reasons.join(" ")).toMatch(/right on your road/);
   });
 
+  it("a hung map server doesn't cost the whole answer: it answers in time, with what it has, and says the rest is still loading", async () => {
+    // Before: the request waited for the public map server, outlived the platform's 30 s limit, and the phone saw only
+    // "Couldn't get suggestions right now".
+    const saved = svc;
+    svc = new PoiService(new MemoryPoiStore(), { id: "hung", fetchPlaces: () => new Promise(() => undefined) });
+    vi.useFakeTimers();
+    try {
+      const pending = post(body({ route: fakeRoute }));
+      await vi.advanceTimersByTimeAsync(12_000);
+      const res = await pending;
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.coverage).toMatchObject({ total: 1, ready: 0, pending: 1, failed: 0 });   // the app keeps asking while places load
+      expect(json.result.notes.join(" ")).toMatch(/still loading/);
+    } finally { vi.useRealTimers(); svc = saved; }
+  });
+
   it("uses personalisation from the database, never from the request", async () => {
     await post({ ...body({ route: fakeRoute }), trip_type: "biker", vehicle_range_km: 1500 });
     expect(buildIntelSpy.mock.calls[0][0].prefs).toEqual({ tripType: "family", vehicleRangeKm: 200 });

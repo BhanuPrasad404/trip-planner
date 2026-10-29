@@ -11,12 +11,16 @@ import { exploreCategoryLabel } from "@/lib/explore/categories";
 import type { Ask, Pick, PlanId, ProposedPlan } from "@/lib/intake/propose";
 import type { ProposeAnswer } from "@/lib/intake/propose-service";
 import { placeCategoryFor } from "@/lib/intake/propose";
+import { PlaceHours, exploreItemRef } from "@/components/place/PlaceHours";
+import { addDaysISO } from "@/lib/result/trip-clock";
 
 export type ProposeInput = { hub: Ask["hub"]; /** Where the trip starts, so a faraway hub is said plainly. */ start?: Ask["hub"] | null; roundTrip?: boolean; days: number; group: Ask["group"]; interests: Ask["interests"]; pace: Ask["pace"]; maxDriveHours: Ask["maxDriveHours"] };
 const hm = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`);
 
-export function ProposePanel({ input, online, added, onUse, onAdd, defaultPlan, onDays }: {
+export function ProposePanel({ input, online, added, onUse, onAdd, defaultPlan, onDays, startDate }: {
   input: ProposeInput; online: boolean;
+  /** The trip's first day (YYYY-MM-DD), so each stop's hours are for its own day. Without it, hours are for today (changeable). */
+  startDate?: string | null;
   /** Given when the traveller has not said how many days: the panel then asks, with one tap. */
   onDays?: (days: number) => void;
   /** Ids (osm:…) of the places already in the trip, so the panel shows them as added. */
@@ -143,9 +147,11 @@ export function ProposePanel({ input, online, added, onUse, onAdd, defaultPlan, 
                         </div>
                         <ul className="mt-2 space-y-1 text-sm text-ink">
                           {k.why.map((w) => <li key={w} className="flex items-start gap-1.5"><Glyph name="check" size={13} className="mt-1 text-teal" /><span className="min-w-0 break-words">{w}</span></li>)}
-                          {k.hours && <li className="flex items-start gap-1.5 text-ink-muted"><Glyph name="recent" size={13} className="mt-1" /><span className="min-w-0 break-words">Hours on the map: {k.hours}</span></li>}
                           {k.source && <li className="text-xs text-ink-muted">Source: {k.source}</li>}
                         </ul>
+                        <details className="mt-1 text-sm"><summary className="min-h-11 cursor-pointer py-2 font-semibold text-teal-ink">Opening hours{startDate ? ` on day ${d.day}` : ""}</summary>
+                          <PlaceHours place={exploreItemRef(k)} date={startDate ? addDaysISO(startDate, d.day - 1) : null} />
+                        </details>
                         <button type="button" onClick={() => onAdd(k)} disabled={done} aria-label={done ? `${k.name} is in your trip` : `Add ${k.name} to your trip`} className={`mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold disabled:cursor-default ${done ? "border-teal bg-teal-light/50 text-teal-ink" : "border-line bg-white text-pine hover:border-teal"}`}>
                           <Glyph name={done ? "check" : "plus"} size={14} />{done ? "In your trip" : "Add this one"}
                         </button>

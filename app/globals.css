@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eaf4f1;
+  /* TrailMate's look: a warm white page, white cards with a fine warm hairline, deep pine for headings and solid surfaces, trail
+     teal for "this is on / this is you", marigold for the one action to take, clay for care. Every colour in the app comes from
+     these tokens, so the look can be changed here, in one place. */
+  --background: #faf8f3;
   --foreground: #1c2430;
 
   /* Trailmate design tokens */
@@ -9,13 +12,18 @@
   --teal: #1c7c6d;
   --teal-light: #e4f2ee;
   --marigold: #e8a33d;
+  --marigold-deep: #c98015;     /* the firm bottom edge of a marigold button */
   --marigold-light: #fcf0dc;
   --clay: #c1542c;
   --clay-light: #fbeae2;
-  --sky: #eaf4f1;
+  --sky: #f5f2ea;               /* the page, and quiet tinted blocks inside white cards */
   --ink: #1c2430;
   --ink-soft: #5b6866;
-  --line: #d8e3e0;
+  --line: #e5e0d4;
+
+  /* Elevation: one soft shadow for resting cards, one for things that float above the page (bottom bar, toasts, sheets). */
+  --tm-shadow-card: 0 1px 2px rgba(28, 36, 48, 0.07), 0 2px 0 rgba(28, 36, 48, 0.035), 0 8px 20px -10px rgba(28, 36, 48, 0.18);
+  --tm-shadow-float: 0 2px 6px rgba(28, 36, 48, 0.08), 0 14px 32px -10px rgba(11, 61, 58, 0.28);
 
   /* Text-safe variants — meet WCAG AA (≥4.5:1) on their tinted backgrounds */
   --teal-ink: #14624f;
@@ -38,15 +46,15 @@
   --tm-scrim: rgba(11, 61, 58, 0.45);
 
   /* Opening screen (components/ui/AppLoader.tsx): a road into the hills at dawn. */
-  --tm-load-sky-top: #fbe3b8;
-  --tm-load-sky-bottom: #eaf4f1;
+  --tm-load-sky-top: #fbdca4;
+  --tm-load-sky-bottom: #fbf3e2;
   --tm-load-sun: #e8a33d;
-  --tm-load-hill-far: #6aa99b;
+  --tm-load-hill-far: #7fb5a7;
   --tm-load-hill-near: #1c7c6d;
   --tm-load-road: #0b3d3a;
   --tm-load-line: #f5f0e4;
-  --tm-load-ring: #d8e3e0;
-  --tm-load-shadow: rgba(11, 61, 58, 0.18);
+  --tm-load-ring: #e5e0d4;
+  --tm-load-shadow: rgba(11, 61, 58, 0.16);
 }
 
 /* A stand-alone action that used to be an underlined text link ("Show more", "Search more", "Cancel"): a clear pill button built from
@@ -59,7 +67,8 @@
   gap: 0.375rem;
   padding-inline: 1rem;
   border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--teal) 45%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--teal) 50%, transparent);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--teal) 30%, transparent);
   background-color: var(--teal-light);
   color: var(--teal-ink);
   font-weight: 600;
@@ -67,7 +76,7 @@
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
   &:hover { border-color: var(--teal); }
-  &:active { transform: scale(0.98); }
+  &:active { transform: translateY(2px); box-shadow: 0 0 0 transparent; }
   &:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
   &:disabled { opacity: 0.6; cursor: default; transform: none; }
 }
@@ -92,6 +101,9 @@
   --color-marigold-ink: var(--marigold-ink);
   --color-ink-muted: var(--ink-muted);
 
+  --shadow-card: var(--tm-shadow-card);
+  --shadow-float: var(--tm-shadow-float);
+
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
@@ -100,6 +112,11 @@
 html {
   color-scheme: light;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;   /* the pressed states are ours; no grey flash on a tap */
+  /* With only `body` clipping, the browser hands that setting to the whole page and the body itself clips nothing: one stray wide element
+     then makes a phone zoom the WHOLE app out to fit it (the page looks small, with a blank strip on the right and the bottom bars wider
+     than the content). Clipping on `html` too keeps the body's own clip, so the page can never be wider than the phone. */
+  overflow-x: clip;
 }
 
 body {
@@ -110,11 +127,26 @@ body {
      sticky headers working and never creates a scroll box. */
   overflow-x: clip;
 }
-/* Visible keyboard focus everywhere, without showing rings on mouse click. */
+::selection { background: #f7dfae; color: var(--pine); }
+/* Taps act at once (no double-tap-to-zoom delay) on everything you press. */
+a, button, summary, label, select, [role="button"], [role="tab"], [role="radio"] { touch-action: manipulation; }
+
+/* Visible keyboard focus everywhere, without showing rings on mouse click. Teal on the white app (3:1 or better against it); marigold
+   on the deep-green surfaces, where teal would not show. */
 :focus-visible {
-  outline: 3px solid var(--marigold);
+  outline: 3px solid var(--teal);
   outline-offset: 2px;
   border-radius: 6px;
+}
+:is(.bg-pine, [class*="bg-pine/"], aside, [data-dark-surface]) :focus-visible { outline-color: var(--marigold); }
+
+/* Small uppercase kickers ("PLAN YOUR TRIP") in marigold are about 2:1 on white. On the white app they use the text-safe marigold; on the
+   deep-green surfaces, where marigold reads well, they keep it. */
+.text-marigold.uppercase { color: var(--marigold-ink); }
+:is([class*="bg-pine"], aside, [data-dark-surface]) .text-marigold.uppercase { color: var(--marigold); }
+/* Resting cards (white, rounded, bordered) lift off the page with one soft shadow. In a layer, so a component's own shadow-* wins. */
+@layer components {
+  :is([class~="bg-white"]):is([class*="rounded-2xl"], [class*="rounded-3xl"], [class*="rounded-[1.75rem]"])[class~="border"] { box-shadow: var(--tm-shadow-card); }
 }
 /* Containers that only receive focus from code (to move a screen-reader user to a new result) are not keyboard stops, so they get no ring. */
 [tabindex="-1"]:focus-visible { outline: none; }
@@ -186,10 +218,14 @@ body {
 .tm-roadload-sun { animation: tm-sunrise 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .tm-roadload-line { animation: tm-roadline 0.8s linear infinite; }
 .tm-roadload-name { animation: tm-rise 0.6s 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
-@media (prefers-reduced-motion: reduce) { .tm-roadload-sun, .tm-roadload-line, .tm-roadload-name { animation: none; } }
+.tm-roadload-tag { animation: tm-rise 0.6s 0.75s cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* The whole screen eases in (opacity only: nothing here may become a containing block for fixed elements). */
+@keyframes tm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.tm-roadload { animation: tm-fade-in 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .tm-roadload-sun, .tm-roadload-line, .tm-roadload-name, .tm-roadload-tag, .tm-roadload { animation: none; } }
 /* Skeletons: a soft light sweep over a quiet block (still, not animated, for people who prefer less motion). */
 @keyframes tm-shimmer { 100% { transform: translateX(100%); } }
-.tm-skeleton { position: relative; overflow: hidden; background: rgba(216, 227, 224, 0.7); }
+.tm-skeleton { position: relative; overflow: hidden; background: rgba(229, 224, 212, 0.75); }
 .tm-skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent); animation: tm-shimmer 1.4s ease-in-out infinite; }
 .tm-skeleton-dark { background: rgba(255, 255, 255, 0.12); }
 .tm-skeleton-dark::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent); }
@@ -211,107 +247,20 @@ body {
 
 
 
-/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
-   MOBILE THEME — "forest at golden hour". Phones only (below 768 px): tablets and desktops keep the light theme above, untouched.
-   Pure presentation: no markup, no logic, no data. Everything is re-skinned from here, in three steps:
-     1. the design tokens that have ONE role (a text colour, or a tinted background) are re-mapped;
-     2. the few that have TWO roles (--pine is a text colour AND a button background) are handled per class, with the exceptions named;
-     3. the ~30 hard-coded light colours in components are re-mapped one by one.
-   Utilities live in a CSS layer and this block is outside any layer, so these rules win without !important.
-   Contrast is checked by tests/mobile-theme.test.ts (every text/surface pair, over the brightest part of the backdrop).
-   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ══ PHONES (below 768 px) ══ the same white app, tuned for a thumb. Presentation only: no markup, no logic, no data. ════════════════ */
 @media (max-width: 767px) {
-  :root {
-    --background: #06201c;
-    --foreground: #edf3ee;
+  /* Text fields are at least 16 px, so a phone does not zoom the page when one is tapped. */
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea { font-size: max(16px, 1em); }
+  /* Anchors scrolled into view clear the floating bottom bar. */
+  html { scroll-padding-bottom: 6.5rem; }
+}
 
-    /* one-role tokens: translucent tints on the dark backdrop instead of pale fills */
-    --sky: rgba(255, 255, 255, 0.07);
-    --tm-day-1: #4fd1b5;
-    --tm-day-2: #ff9a6b;
-    --tm-day-3: #8fb4ff;
-    --tm-day-4: #f2c14e;
-    --tm-day-5: #d3a6ff;
-    --tm-day-6: #b8e0d6;
-    --tm-map-stop: #f5f0e4;
-    --tm-map-stop-text: #06201c;
-    --tm-scrim: rgba(0, 0, 0, 0.6);
-    --teal-light: rgba(79, 209, 181, 0.17);
-    --marigold-light: rgba(232, 163, 61, 0.2);
-    --clay-light: rgba(224, 110, 70, 0.22);
-    --line: rgba(255, 255, 255, 0.15);
-
-    /* text-only tokens: light, and AA on every surface above */
-    --ink: #edf3ee;
-    --ink-soft: #bccdc8;
-    --ink-muted: #bccdc8;
-    --teal-ink: #7fe3cc;
-    --clay-ink: #ffbca4;
-    --marigold-ink: #ffd9a0;
-
-    /* the glass surface that replaces white cards */
-    --tm-glass: rgba(7, 38, 34, 0.9);
-    --tm-glass-strong: rgba(5, 28, 25, 0.96);
-    --tm-glass-edge: rgba(255, 255, 255, 0.16);
-    --tm-cream: #f5f0e4;
-
-    /* opening screen: the same road at dusk */
-    --tm-load-sky-top: #1d5a4f;
-    --tm-load-sky-bottom: #0b2f29;
-    --tm-load-sun: #f2b450;
-    --tm-load-hill-far: #12483f;
-    --tm-load-hill-near: #082c26;
-    --tm-load-road: #03130f;
-    --tm-load-line: #f2c14e;
-    --tm-load-ring: rgba(255, 255, 255, 0.16);
-    --tm-load-shadow: rgba(0, 0, 0, 0.45);
-  }
-  /* Headings may sit straight on the photo: a soft shadow keeps them readable over any bright part of it. */
-  :is(h1, h2, h3) { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); }
-  html { color-scheme: dark; } /* native date/time pickers, selects, checkboxes and scrollbars turn dark too */
-  body { background: var(--background); color: var(--foreground); }
-  ::placeholder { color: rgba(237, 243, 238, 0.55); opacity: 1; }
-
-  /* White cards become glass. Only the surface colours: the faint white overlays (bg-white/5…/25) stay as highlights on dark bars. */
-  :is([class~="bg-white"], [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"], [class~="bg-white/70"], [class~="bg-white/60"], [class~="bg-white/50"]) {
-    background-color: var(--tm-glass);
-  }
-  :is([class~="bg-white"], [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"], [class~="bg-white/70"]):is([class*="rounded-2xl"], [class*="rounded-3xl"]) {
-    border-color: var(--tm-glass-edge);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  }
-
-  /* --pine is both a text colour (titles on cards) and a button background. As TEXT it becomes cream… */
-  .text-pine { color: var(--tm-cream); }
-  /* …except on the bright marigold buttons, where it must stay dark to be readable. */
-  .text-pine:where([class*="bg-marigold"]:not([class*="bg-marigold-light"]), [class*="bg-[#f0b254]"], [class*="bg-[#d9942d]"]) { color: #0b3d3a; }
-  /* As a BACKGROUND (buttons, chips, the turn banner) it stays a deep green, a little brighter so it separates from the backdrop. */
-  .bg-pine { background-color: #0f5a50; }
-  .text-teal { color: #5fd8bd; }
-  .text-ink-muted { color: var(--ink-muted); }
-
-  /* Hard-coded light colours in components, re-mapped one by one (each pairs with its own text colour below). */
-  [class*="text-[#7a4a00]"] { color: #ffd9a0; }
-  [class*="text-[#6B2D12]"], [class*="text-[#8F3A18]"] { color: #ffc4ac; }
-  [class*="text-[#2f4a60]"], [class*="text-[#274a6d]"], [class*="text-[#12546b]"] { color: #cfe4f2; }
-  [class*="text-[#1a73e8]"] { color: #8ab4f8; }
-  [class*="text-[#d93025]"] { color: #ff8a80; } /* the red flag icon: the original red is only 1.9:1 on dark glass */
-  [class*="bg-[#e8f0fe]"] { background-color: rgba(26, 115, 232, 0.26); }
-  [class*="bg-[#EDF2F6]"], [class*="bg-[#EAF1F8]"], [class*="bg-[#E6F3F8]"] { background-color: rgba(120, 170, 210, 0.17); }
-  [class*="bg-[#FBEAE2]"], [class*="bg-[#f7d9cc]"] { background-color: rgba(224, 110, 70, 0.22); }
-  [class*="border-[#b9cfe3]"], [class*="border-[#b8c7d3]"], [class*="border-[#9ec9d9]"], [class*="border-[#E7B7A6]"] { border-color: rgba(255, 255, 255, 0.2); }
-
-  /* Reusable glass for the few places that ARE blurred on purpose (the bottom bar, the search pill). Not applied to cards: backdrop
-     blur makes position:fixed children misbehave and is slow on low-end phones. */
-  .tm-glass {
-    background-color: var(--tm-glass);
-    border: 1px solid var(--tm-glass-edge);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    backdrop-filter: blur(18px) saturate(1.2);
-  }
-  @media (prefers-reduced-transparency: reduce) {
-    .tm-glass { background-color: var(--tm-glass-strong); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  }
+/* The floating surface used by the phone's top search pill, bottom bar and menu: white, hairline edge, soft shadow (no blur: cheap to
+   scroll under on a low-end phone, and a blurred parent breaks position:fixed children). */
+.tm-glass {
+  background-color: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--line);
+  box-shadow: var(--tm-shadow-float);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════

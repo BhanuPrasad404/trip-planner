@@ -19,6 +19,10 @@ export const GROUP_FILTERS: Record<PoiGroup, string[]> = {
     '["tourism"~"^(attraction|viewpoint|museum|zoo|theme_park|gallery)$"]',
     '["historic"~"^(fort|castle|monument|temple|archaeological_site|ruins)$"]',
     '["natural"="waterfall"]',
+    // Places of worship only when notable or carrying hours data (lib/poi/taxonomy.ts keeps the same ones).
+    '["amenity"="place_of_worship"]["wikidata"]', '["amenity"="place_of_worship"]["wikipedia"]', '["amenity"="place_of_worship"]["heritage"]',
+    '["amenity"="place_of_worship"]["opening_hours"]', '["amenity"="place_of_worship"]["service_times"]',
+    '["amenity"="place_of_worship"]["opening_hours:url"]',
   ],
   parking: ['["amenity"="parking"]["access"!~"^(private|customers|permit)$"]'],
 };

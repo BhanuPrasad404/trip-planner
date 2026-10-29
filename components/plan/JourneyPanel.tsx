@@ -12,10 +12,12 @@ import { placeCategoryFor } from "@/lib/intake/propose";
 import { kindsForInterests, type JourneyStop } from "@/lib/intake/journey";
 import type { JourneyAnswer } from "@/lib/intake/journey-service";
 import type { Interest } from "@/lib/intake/types";
+import { PlaceHours, exploreItemRef } from "@/components/place/PlaceHours";
+import { addDaysISO } from "@/lib/result/trip-clock";
 
 export type JourneyInput = { start: Hub; dest: Hub; interests: Interest[]; maxDriveHours: number | null; roundTrip: boolean; /** Big states the traveller named (Karnataka): the road goes through them. */ via: string[] };
 
-export function JourneyPanel({ input, online, added, onAdd, onAddAll }: { input: JourneyInput; online: boolean; added: ReadonlySet<string>; onAdd: (s: JourneyStop) => void; onAddAll: (s: JourneyStop[]) => void }) {
+export function JourneyPanel({ input, online, added, onAdd, onAddAll, startDate }: { input: JourneyInput; online: boolean; added: ReadonlySet<string>; onAdd: (s: JourneyStop) => void; onAddAll: (s: JourneyStop[]) => void; /** The first driving day (YYYY-MM-DD), for each stop's hours on its own day. */ startDate?: string | null }) {
   const [state, setState] = useState<{ key: string; status: "loading" | "done" | "error"; answer: JourneyAnswer | null } | null>(null);
   const [retry, setRetry] = useState(0);
   const [autoTried, setAutoTried] = useState(false);
@@ -112,9 +114,11 @@ export function JourneyPanel({ input, online, added, onAdd, onAddAll }: { input:
                       </div>
                       <ul className="mt-2 space-y-1 text-sm text-ink">
                         {k.why.map((w) => <li key={w} className="flex items-start gap-1.5"><Glyph name="check" size={13} className="mt-1 text-teal" /><span className="min-w-0 break-words">{w}</span></li>)}
-                        {k.hours && <li className="flex items-start gap-1.5 text-ink-muted"><Glyph name="recent" size={13} className="mt-1" /><span className="min-w-0 break-words">Hours on the map: {k.hours}</span></li>}
                         {k.source && <li className="text-xs text-ink-muted">Source: {k.source}</li>}
                       </ul>
+                      <details className="mt-1 text-sm"><summary className="min-h-11 cursor-pointer py-2 font-semibold text-teal-ink">Opening hours{startDate ? ` on driving day ${d}` : ""}</summary>
+                        <PlaceHours place={exploreItemRef(k)} date={startDate ? addDaysISO(startDate, d - 1) : null} />
+                      </details>
                       <button type="button" onClick={() => onAdd(k)} disabled={done} aria-label={done ? `${k.name} is in your trip` : `Add ${k.name} to your trip`} className={`mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold disabled:cursor-default ${done ? "border-teal bg-teal-light/50 text-teal-ink" : "border-line bg-white text-pine hover:border-teal"}`}>
                         <Glyph name={done ? "check" : "plus"} size={14} />{done ? "In your trip" : "Add this stop"}
                       </button>

@@ -23,6 +23,7 @@ export function hoursOf(p: Record<string, unknown>): { hours: string | null; hou
   return ok ? { hours: text, hoursSource: source, hoursConfirmed: source === "traveller" || p.hours_confirmed_at != null } : { hours: null, hoursSource: null, hoursConfirmed: false };
 }
 import type { EndMode } from "@/lib/trip-builder/types";
+import { PLAN_HALT_SOURCE } from "@/lib/engine/halt-stops";
 
 export type BuilderLoad =
   | { ok: true; input: BuilderInput; result: BuilderResult; signature: string; unscheduledIds: string[]; /** The trip row (for the guided-flow answers in `intake`). */ trip: Row; /** Places of this trip the traveller chose to skip (left out of the plan). */ skipped: { id: string; name: string; lat: number; lng: number }[] }
@@ -53,7 +54,8 @@ export async function loadBuilder(supabase: SupabaseClient, tripId: string, opts
 
   const { data: rows, error: placesError } = await supabase.from("places").select("*, season_tags(category, good_months)").eq("trip_id", tripId);
   if (placesError) return { ok: false, status: 500, error: "Couldn't load the places." };
-  const all = (rows ?? []) as Row[];
+  // Overnight-halt stops that a saved plan made for its drive days are results of the plan, not places to plan (lib/engine/halt-stops.ts).
+  const all = ((rows ?? []) as Row[]).filter((p) => p.source_type !== PLAN_HALT_SOURCE);
   if (all.some((p) => p.status === "done" || p.status === "skipped")) {
     return { ok: false, status: 409, error: "This trip is already under way. Use “Re-plan from now” on the Live page so finished stops stay as they are." };
   }

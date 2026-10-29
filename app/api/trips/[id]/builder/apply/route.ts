@@ -6,6 +6,9 @@ import { loadBuilder } from "@/lib/server/builder";
 import { runEngine } from "@/lib/server/trip-engine";
 import { todayISO } from "@/lib/server/trip-data";
 import { clock24 } from "@/lib/trip-builder";
+import { randomUUID } from "node:crypto";
+import { haltRows, PLAN_HALT_SOURCE } from "@/lib/engine/halt-stops";
+import type { TransitDay } from "@/lib/engine/types";
 import { builderApplySchema, uuid } from "@/lib/validation/schemas";
 
 export const maxDuration = 30;
@@ -27,12 +30,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!r.ok) return jsonError(r.error, r.status);
   if (r.signature !== input.signature) return jsonError("Your places or dates changed since this preview. Refresh the options and choose again.", 409);
   let option = r.result.options[0];
+  let transit: TransitDay[] = [];
   if (input.engine) {
     // The engine's plan, re-computed the same way the preview was (tolls are not needed to save a plan). Its day numbers already count
     // the drive days to a far-away area, so places land on the right trip day.
     try {
       const run = await runEngine(r.input, { intake: r.trip.intake ?? null, todayISO: today, nightDriving: input.night_driving, maxDriveHours: input.max_drive_hours, checkTolls: false });
-      option = run.plan.variants.find((v) => v.option.style === input.style)?.option ?? option;
+      const chosen = run.plan.variants.find((v) => v.option.style === input.style);
+      option = chosen?.option ?? option;
+      transit = [...(chosen?.transitOut ?? []), ...(chosen?.transitBack ?? [])];
     } catch (e) {
       console.error("engine: apply failed", e);
       return jsonError("Couldn't re-check this plan right now. Please try again.", 503);
@@ -52,7 +58,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return { ...row, trip_id: id, name: p.name, lat: p.lat, lng: p.lng };
   });
   if (rows.length === 0) return jsonError("Nothing to apply.", 422);
-  const { error } = await supabase.from("places").upsert(rows, { onConflict: "id" });
+  // The drive days (to a far-away area and home) end at a halt town: saved as that day's stop, so the day is not empty on the Plan, Map and
+  // Live screens. Halts from an earlier plan are replaced.
+  const halts = haltRows(transit, id, user.id, randomUUID);
+  const { error } = await supabase.from("places").upsert([...rows, ...halts], { onConflict: "id" });
   if (error) return dbError(error, "builder: apply");
-  return NextResponse.json({ ok: true, placed: placed.length, movedToIdeas: dropped.length, daysUsed: option.totals.daysUsed });
+  const stale = supabase.from("places").delete().eq("trip_id", id).eq("source_type", PLAN_HALT_SOURCE);
+  const { error: staleError } = await (halts.length ? stale.not("id", "in", `(${halts.map((h) => h.id).join(",")})`) : stale);
+  if (staleError) return dbError(staleError, "builder: apply (old halts)");
+  return NextResponse.json({ ok: true, placed: placed.length, movedToIdeas: dropped.length, daysUsed: option.totals.daysUsed, halts: halts.length });
 }

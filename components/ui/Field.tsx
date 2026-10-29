@@ -3,8 +3,8 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 
 const control =
-  "w-full min-h-12 rounded-xl border border-line bg-white px-3.5 py-2.5 text-base text-ink " +
-  "placeholder:text-ink-soft/70 outline-none focus:border-teal focus:ring-2 focus:ring-teal/40 " +
+  "w-full min-h-12 rounded-xl border-2 border-line bg-white px-3.5 py-2.5 text-base text-ink shadow-[inset_0_1px_2px_rgba(28,36,48,0.04)] transition-[border-color,box-shadow] " +
+  "placeholder:text-ink-soft/70 outline-none hover:border-ink-soft/40 focus:border-teal focus:ring-4 focus:ring-teal/20 " +
   "aria-[invalid=true]:border-clay disabled:bg-sky disabled:text-ink-soft";
 
 type FieldShellProps = {

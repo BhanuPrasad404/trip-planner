@@ -30,6 +30,8 @@ import { QuestionCard, questionFor } from "./QuestionCard";
 import { SimilarTray } from "./SimilarTray";
 import { FinishedPlans, PromptChips, TryExamples, WaysIn } from "./StartStep";
 import { ProposePanel } from "./ProposePanel";
+import { PlaceHours } from "@/components/place/PlaceHours";
+import type { AroundItem } from "@/lib/place-intel/hours-answer";
 import { JourneyPanel } from "./JourneyPanel";
 import type { JourneyStop } from "@/lib/intake/journey";
 import { distanceKm } from "@/lib/geo";
@@ -189,6 +191,10 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
   const usePlan = (plan: ProposedPlan) => addPicks(plan.days.flatMap((day) => day.picks));
   const stopToPick = (s: JourneyStop): ProposedPick => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, category: s.category, hubKm: s.alongKm, hubMin: s.driveMin, basis: "road", effort: "easy", notable: s.notable, hours: s.hours, wikipedia: null, why: s.why, source: s.source });
   const addStops = (stops: JourneyStop[]) => addPicks(stops.map(stopToPick));
+  // A place to visit in or around the destination town: ADDED next to the town, never in its place.
+  const siteId = (i: AroundItem) => (i.osmId ? `osm:${i.osmId}` : i.key);
+  const addSite = (i: AroundItem) => setDraft((d) => d.places.some((p) => p.place?.id === siteId(i)) ? d : ({ ...d, places: [...d.places, { key: `you:${i.lat.toFixed(4)},${i.lng.toFixed(4)}`, said: i.name, must: false, source: "said", evidence: "", status: "sure", reason: null, category: placeCategoryFor(i.category), place: { id: siteId(i), name: i.name, lat: i.lat, lng: i.lng, kind: placeKindFor(i.category), area: i.reasons[0] ?? null, state: null, source: "osm", km: null, calledAs: null }, alternatives: [] } as DraftPlace] }));
+  const hubPlace = foundHub ? draft.places[foundHub.index]?.place ?? null : null;
   const addedIds = useMemo(() => new Set(draft.places.map((p) => p.place?.id ?? "")), [draft.places]);
 
   async function planIt() {
@@ -296,14 +302,20 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
               <ul className="mt-1 space-y-1">{unbacked.map((u) => <li key={`${u.key}-${String(u.value)}`} className="flex flex-wrap items-center gap-2 text-ink-muted">{unbackedText(u.key as AnswerKey, u.value, thisMonth)} <span className="text-xs">({u.why})</span> <button type="button" onClick={() => choose(u.key as AnswerKey, u.value)} className="tm-action min-h-11 font-semibold">Use it</button></li>)}</ul>
             </div>
           )}
+          {hubPlace && (
+            <details className="rounded-2xl border border-line bg-white p-4">
+              <summary className="min-h-11 cursor-pointer py-2 font-semibold text-pine">Opening hours and places to visit in {hubPlace.name}</summary>
+              <PlaceHours place={{ name: hubPlace.name, lat: hubPlace.lat, lng: hubPlace.lng, kind: hubPlace.kind, state: hubPlace.state }} date={chosenStart} onAdd={addSite} added={(i) => addedIds.has(siteId(i))} />
+            </details>
+          )}
           {proposeHub && start && distanceKm(start, proposeHub) >= 80 && (
-            <JourneyPanel
+            <JourneyPanel startDate={chosenStart}
               input={{ start: { lat: start.lat, lng: start.lng, name: start.name }, dest: proposeHub, interests: eff.answers.interests ?? [], maxDriveHours: eff.source.maxDriveHours === "said" || eff.source.maxDriveHours === "you" ? eff.answers.maxDriveHours ?? null : null, roundTrip: eff.answers.endMode !== "place", via: draft.places.filter((p) => p.place?.kind === "state" && p.place.name !== proposeHub.name && p.status !== "missing").map((p) => p.place!.name.replace(/^State of /, "")) }}
               online={online} added={addedIds} onAdd={(s) => addStops([s])} onAddAll={addStops}
             />
           )}
           {proposeHub && (
-            <ProposePanel
+            <ProposePanel startDate={chosenStart}
               input={{ hub: proposeHub, start: start ? { lat: start.lat, lng: start.lng, name: start.name } : null, roundTrip: eff.answers.endMode !== "place", days: eff.answers.days ?? 3, group: eff.answers.group ?? null, interests: eff.answers.interests ?? [], pace: null, maxDriveHours: eff.source.maxDriveHours === "said" || eff.source.maxDriveHours === "you" ? eff.answers.maxDriveHours ?? null : null }}
               online={online} added={addedIds} onUse={usePlan} onAdd={(k) => addPicks([k])}
               onDays={eff.source.days === "said" || eff.source.days === "you" || eff.source.days === "ai" ? undefined : (n) => choose("days", n)}

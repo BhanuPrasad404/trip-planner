@@ -1,6 +1,7 @@
 // The first thing anyone sees while Trailmate opens: the start of a road trip in the round window of the logo. A dawn sun rises once
 // behind two layers of hills while the road's centre line keeps flowing towards you; the name settles in underneath. Colours are the
-// theme's --tm-load-* tokens (app/globals.css), so the light and phone themes each have their own sky. Still for reduced motion.
+// theme's --tm-load-* tokens (app/globals.css): a pale dawn on the app's warm white, the same warm white the phone shows as its own
+// splash before this appears (app/manifest.ts), so opening the installed app is one continuous screen. Still for reduced motion.
 export function AppLoader({ size = 168, label = "Loading Trailmate" }: { size?: number; label?: string }) {
   return (
     <span role="status" className="tm-roadload inline-flex flex-col items-center gap-4">
@@ -29,7 +30,10 @@ export function AppLoader({ size = 168, label = "Loading Trailmate" }: { size?: 
         </g>
         <circle cx="100" cy="100" r="98" fill="none" stroke="var(--tm-load-ring)" strokeWidth="2" />
       </svg>
-      <span aria-hidden="true" className="tm-roadload-name font-display text-[28px] font-semibold tracking-tight text-pine">TrailMate</span>
+      <span aria-hidden="true" className="flex flex-col items-center gap-1.5">
+        <span className="tm-roadload-name font-display text-[28px] font-semibold leading-none tracking-tight text-pine">TrailMate</span>
+        <span className="tm-roadload-tag text-[13px] font-medium text-ink-muted">Plan · Ride · Explore</span>
+      </span>
       <span className="sr-only">{label}</span>
     </span>
   );

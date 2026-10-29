@@ -29,6 +29,21 @@ const WX_ROAD_STEP_M = 50_000;
 const MAX_ROAD_WX_POINTS = 3;
 /** Two days of hours: a stop reached tomorrow evening still has its forecast. */
 const WX_HOURS = 48;
+/**
+ * Time budgets. The places, weather and road-detour lookups all depend on public servers; when one is slow, the whole request used to outlive
+ * the platform's 30 s limit and the phone only saw "Couldn't get suggestions right now". Now each step gets a share of the time, and an
+ * answer always comes back in time: with what we have, and a plain note about what is still loading.
+ */
+const PLACES_BUDGET_MS = 11_000;
+const WEATHER_BUDGET_MS = 7_000;
+const DETOUR_BUDGET_MS = 6_000;
+const TIMED_OUT = Symbol("timed out");
+async function within<T>(ms: number, work: Promise<T>): Promise<T | typeof TIMED_OUT> {
+  work.catch(() => undefined); // if it fails after we stopped waiting, nobody is listening: that is not an error
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try { return await Promise.race([work, new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), ms); })]); }
+  finally { if (timer) clearTimeout(timer); }
+}
 
 // Trip Intelligence: where you are + the road ahead + what's near it + weather + who you're travelling as
 // → Smart Stops and "what should I do next?". Places come from OUR database (filled tile by tile), never per request from a public map server.
@@ -111,11 +126,17 @@ export async function POST(req: Request) {
   let pois: Awaited<ReturnType<typeof poiService.corridor>> = [];
   const placesStart = performance.now();
   try {
-    const cov = await poiService.ensureCoverage(ahead, BUFFER_KM, groups, { syncBudget: 2 });
-    coverage = { total: cov.total, ready: cov.ready, pending: cov.pending.length, failed: cov.failed };
-    if (cov.pending.length > 0) {
-      const run = () => runBackground(cov.pending);
-      try { after(run); } catch { void run(); } // outside a request scope (tests) just run it
+    const cov = await within(PLACES_BUDGET_MS, poiService.ensureCoverage(ahead, BUFFER_KM, groups, { syncBudget: 2 }));
+    if (cov === TIMED_OUT) {
+      // The map servers are slow: answer with the places we already have, and say the rest is still loading (the app asks again shortly).
+      coverage = { total: 1, ready: 0, pending: 1, failed: 0 };
+      notes.push("Places along your road are still loading, so suggestions may be incomplete for now. They will fill in shortly.");
+    } else {
+      coverage = { total: cov.total, ready: cov.ready, pending: cov.pending.length, failed: cov.failed };
+      if (cov.pending.length > 0) {
+        const run = () => runBackground(cov.pending);
+        try { after(run); } catch { void run(); } // outside a request scope (tests) just run it
+      }
     }
     pois = await poiService.corridor(ahead, BUFFER_KM * 1000, KINDS, 800);
   } catch (e) {
@@ -125,7 +146,10 @@ export async function POST(req: Request) {
   timings.places = Math.round(performance.now() - placesStart);
 
   // 3. Weather (already running; hourly forecasts are cached per ~10 km cell and shared between requests).
-  const weather: WeatherSample[] = [...(await weatherPromise), ...(await roadWeatherPromise)];
+  // Weather is best-effort: a slow forecast server must not cost the whole answer.
+  const [wxHere, wxRoad] = await Promise.all([within(WEATHER_BUDGET_MS, weatherPromise), within(WEATHER_BUDGET_MS, roadWeatherPromise)]);
+  if (wxHere === TIMED_OUT || wxRoad === TIMED_OUT) notes.push("The weather forecast is slow to load right now, so weather is left out of these suggestions.");
+  const weather: WeatherSample[] = [...(wxHere === TIMED_OUT ? [] : wxHere), ...(wxRoad === TIMED_OUT ? [] : wxRoad)];
 
   // 4. Fresh community updates near the candidates (best-effort; used ONLY as a ranking signal — never as a picture of a place).
   let reports: ReportLite[] = [];
@@ -167,8 +191,9 @@ export async function POST(req: Request) {
   let result = buildIntel(intelInput);
   const candidates = shortlistForDetour(result);
   if (candidates.length > 0) {
-    const roadDetours = await timed("detour", measureRoadDetours(candidates, full, (pts) => routingProvider().matrix(pts)));
-    if (Object.keys(roadDetours).length > 0) result = buildIntel({ ...intelInput, roadDetours });
+    // Real road detours sharpen the order of the few places we show; the quick estimates already stand if the road service is slow.
+    const roadDetours = await within(DETOUR_BUDGET_MS, timed("detour", measureRoadDetours(candidates, full, (pts) => routingProvider().matrix(pts))));
+    if (roadDetours !== TIMED_OUT && Object.keys(roadDetours).length > 0) result = buildIntel({ ...intelInput, roadDetours });
   }
   result.notes.push(...notes);
 

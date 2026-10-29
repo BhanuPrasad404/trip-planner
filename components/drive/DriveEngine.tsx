@@ -22,6 +22,7 @@ import type { Vehicle } from "@/lib/vehicle";
 import type { PlaceWithSeason } from "@/lib/types";
 import { useWeatherBoard, type WeatherBoard } from "@/lib/client/use-weather-board";
 import { useWeatherDriveAlerts } from "@/lib/client/use-weather-drive-alerts";
+import { useHoursDriveAlerts, type DriveHoursStop } from "@/lib/client/use-hours-drive-alerts";
 import { useDeviceHere, type DeviceHere } from "@/lib/client/use-device-here";
 import { liveStopEtas, roadPointsAhead } from "@/lib/forecast/route-times";
 import { DEFAULT_VIEW, plannedInstant, typicalView, type ViewMode } from "@/lib/forecast/view-time";
@@ -184,6 +185,13 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
     : null;
   const board = useWeatherBoard({ enabled: here !== null || boardStops.length > 0, nowMs: weatherNow, mode: weatherMode, here, stops: boardStops, road });
   useWeatherDriveAlerts(board.alerts, drive.active, weatherNow, { notify: alerts.notify, update: alerts.update, escalate: alerts.escalate, withdraw: alerts.withdraw });
+  // ── Opening hours at each coming stop's LIVE arrival time (lib/travel/hours-alerts.ts): confirmed and unconfirmed hours worded apart. ──
+  const hoursStops = useMemo<DriveHoursStop[]>(() => live.remaining.map((p) => ({
+    id: p.id, name: p.name, etaMs: etas.get(p.id) ?? null, visitMin: visitOf(p.id), hours: p.opening_hours ?? null,
+    hoursSource: p.hours_source === "traveller" ? "user" : p.hours_source === "map_data" ? "osm" : null,
+    hoursConfirmed: p.hours_source === "traveller" || !!p.hours_confirmed_at,
+  })), [live.remaining, etas, visitOf]);
+  useHoursDriveAlerts(trip.id, drive.active, weatherNow, hoursStops, { notify: alerts.notify, update: alerts.update, escalate: alerts.escalate, withdraw: alerts.withdraw });
 
   // ── Ends by itself: hours without a GPS reading (a forgotten drive must not keep sharing or chiming). ──
   const fixAt = drive.me && !drive.me.manual ? drive.me.at : null;

@@ -8,6 +8,7 @@ import { REGIONS } from "@/lib/explore/regions";
 import { sameName } from "@/lib/engine/settlement";
 import { normalizeName, type PlaceKind } from "@/lib/places/types";
 import { placeRole, CITY_MIN_POP, type PlaceRole, type RoleAnswer } from "./role";
+import { osmHoursOf, type OsmHoursRow } from "./hours-sources";
 
 /** One catalogue row as catalog_sites returns it (supabase/migrations/20261030000000_place_roles.sql). */
 export type CatalogSite = {
@@ -15,6 +16,8 @@ export type CatalogSite = {
   wikidata: string | null; wikipedia: string | null; sitelinks: number; hours: string | null; website: string | null;
   osm_id: string | null; osm_date: string | null; wd_date: string | null; region_code: string | null;
   wd_type: string | null; osm_type: string | null; located_in: string | null; located_in_name: string | null; part_of: string | null;
+  /** The map's other hours facts (supabase/migrations/20261031000000_place_hours_tags.sql); absent before that migration. */
+  service_times?: string | null; hours_url?: string | null; check_date?: string | null;
 };
 
 export type Parent = { name: string; lat: number; lng: number; kind: PlaceKind; population?: number | null; /** State name ("Andhra Pradesh") or null. */ state: string | null };
@@ -32,6 +35,8 @@ export type Attraction = {
   reasons: string[];
   wikidata: string | null; osmId: string | null; regionCode: string | null;
   sources: { name: "OpenStreetMap" | "Wikidata"; date: string }[];
+  /** The map's hours facts for this place (its own row, joined twins included), so its hours can be answered without another read. */
+  hoursRows: OsmHoursRow[];
 };
 
 export type AttractionList = {
@@ -121,7 +126,8 @@ export function rankAttractions(parentIn: Parent, rows: CatalogSite[], opts: { l
     const k = pool[i];
     pool[i] = { ...k, wikipedia: k.wikipedia ?? r.wikipedia, sitelinks: Math.max(k.sitelinks, r.sitelinks), heritage: k.heritage || r.heritage, notable: k.notable || r.notable,
       wd_type: k.wd_type ?? r.wd_type, osm_type: k.osm_type ?? r.osm_type, located_in: k.located_in ?? r.located_in, located_in_name: k.located_in_name ?? r.located_in_name,
-      part_of: k.part_of ?? r.part_of, osm_id: k.osm_id ?? r.osm_id, osm_date: k.osm_date ?? r.osm_date, wd_date: k.wd_date ?? r.wd_date, hours: k.hours ?? r.hours, website: k.website ?? r.website };
+      part_of: k.part_of ?? r.part_of, osm_id: k.osm_id ?? r.osm_id, osm_date: k.osm_date ?? r.osm_date, wd_date: k.wd_date ?? r.wd_date, hours: k.hours ?? r.hours, website: k.website ?? r.website,
+      service_times: k.service_times ?? r.service_times, hours_url: k.hours_url ?? r.hours_url, check_date: k.check_date ?? r.check_date };
     dropped.duplicates++;
   }
 
@@ -159,7 +165,7 @@ export function rankAttractions(parentIn: Parent, rows: CatalogSite[], opts: { l
       key: r.key, name: r.name, category: r.category, lat: r.lat, lng: r.lng, km: Math.round(r.km * 10) / 10,
       score: Math.round((n.score + (parts && parts.count >= 2 ? 1 : 0) - near) * 100) / 100,
       role: placeRole({ name: r.name, category: r.category, wdType: r.wd_type, osmType: r.osm_type, parts }),
-      parts: parts?.count ?? 0, notable: r.notable, reasons, wikidata: r.wikidata, osmId: r.osm_id, regionCode: r.region_code, sources,
+      parts: parts?.count ?? 0, notable: r.notable, reasons, wikidata: r.wikidata, osmId: r.osm_id, regionCode: r.region_code, sources, hoursRows: osmHoursOf([r]),
     });
   }
   const kept = scored.sort((a, b) => Number(b.notable) - Number(a.notable) || b.score - a.score || a.km - b.km || a.key.localeCompare(b.key));

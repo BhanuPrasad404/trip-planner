@@ -32,6 +32,9 @@ export type PickedPlace = {
   /** "gps" = the phone's own position ("Use my current location"). */
   origin?: "gps" | "search";
   accuracyM?: number | null;
+  /** What the search said it is (city, town, sight…) and its state, when it came from a search: lets a screen tell a town from a sight. */
+  kind?: PlaceHit["kind"];
+  state?: string | null;
 };
 
 type Props = {
@@ -130,7 +133,7 @@ export function PlaceSearch({ label, hint, placeholder, near = null, value, onCh
   }, [open, close]);
 
   const choose = useCallback((hit: PlaceHit) => {
-    onChange({ name: hit.name, address: hit.area, lat: hit.lat, lng: hit.lng, origin: "search" });
+    onChange({ name: hit.name, address: hit.area, lat: hit.lat, lng: hit.lng, origin: "search", kind: hit.kind, state: hit.state });
     setRecent(rememberRecent({ name: hit.name, area: hit.area, lat: hit.lat, lng: hit.lng, kind: hit.kind }, recentList));
     setQuery("");
     close();

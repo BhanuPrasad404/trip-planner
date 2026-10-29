@@ -47,7 +47,8 @@ export const metadata: Metadata = {
   description,
   applicationName: "Trailmate",
   // Installed on an iPhone home screen: opens like an app, with the Trailmate name under the icon (app/apple-icon.tsx).
-  appleWebApp: { capable: true, title: "Trailmate", statusBarStyle: "black-translucent" },
+  // "default": the phone's clock and battery are drawn dark on the warm-white app (black-translucent would draw them white on white).
+  appleWebApp: { capable: true, title: "Trailmate", statusBarStyle: "default" },
   formatDetection: { telephone: false },
   openGraph: {
     type: "website",
@@ -66,8 +67,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // The phone's address bar takes the deep forest green of the mobile theme (the light theme keeps the original green).
-  themeColor: [{ media: "(max-width: 767px)", color: "#06201c" }, { color: "#0b3d3a" }],
+  // The phone's address bar takes the page's own warm white; larger screens keep the brand's deep green.
+  themeColor: [{ media: "(max-width: 767px)", color: "#faf8f3" }, { color: "#0b3d3a" }],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

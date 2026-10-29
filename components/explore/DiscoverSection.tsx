@@ -188,7 +188,7 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
               </>
             )}
           </div>
-          <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL) and Wikidata (CC0); each place shows its source and the date of that data. Opening hours are shown as listed on the map and are not checked. Price and rating filters will appear once a source for them is connected; we don&apos;t guess.</p>
+          <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL) and Wikidata (CC0); each place shows its source and the date of that data. Opening hours say where they come from and whether anyone confirmed them; unconfirmed map hours are labelled so. Price and rating filters will appear once a source for them is connected; we don&apos;t guess.</p>
         </>
       )}
     </section>

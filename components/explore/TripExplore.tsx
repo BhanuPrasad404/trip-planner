@@ -133,7 +133,7 @@ export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) 
         <AddStopSheet tripId={tripId} place={{ id: stopFor.id, name: stopFor.name, lat: stopFor.lat, lng: stopFor.lng, category: stopFor.category }} onClose={() => setStopFor(null)}
           onSaveIdea={() => void addIdea({ key: stopFor.id, name: stopFor.name, lat: stopFor.lat, lng: stopFor.lng, category: plannerCategory(stopFor.category) })} />
       )}
-      <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL). Opening hours are shown as listed on the map and are not checked. We don&apos;t show crowds, ratings or &ldquo;open now&rdquo; because we have no reliable source for them here. Traveller reports come from posts in Discover; each shows how old it is.</p>
+      <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL). Opening hours say where they come from and whether anyone confirmed them; unconfirmed map hours are labelled so. We don&apos;t show crowds, ratings or &ldquo;open now&rdquo; because we have no reliable source for them here. Traveller reports come from posts in Discover; each shows how old it is.</p>
     </section>
   );
 }

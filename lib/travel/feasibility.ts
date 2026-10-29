@@ -110,6 +110,14 @@ export function checkDeparture(input: { departureMs: number; stops: FeasStop[]; 
   };
 }
 
+/**
+ * One stop judged at an arrival you already know (Live mode's live ETA) with its range, by the very same rules as checkDeparture: the
+ * same "it depends" when the range straddles a change, the same softening for unconfirmed map data. `fromMs` is "now", for "next day".
+ */
+export function judgeArrival(s: FeasStop, arriveMs: number, earliestMs: number, latestMs: number, fromMs: number, config?: Partial<FeasConfig>): StopVerdict {
+  return judge(s, arriveMs, earliestMs, latestMs, fromMs, { ...DEFAULT_FEAS, ...config });
+}
+
 function blank(s: FeasStop, state: StopState, severity: Verdict, headline: string, detail: string, options: Option[]): StopVerdict {
   return { stopId: s.id, name: s.name, state, severity, arriveMs: null, earliestMs: null, latestMs: null, arriveClock: null, windowClock: null, dayShift: null, closesAt: null, opensAt: null, headline, detail, fix: null, options, hoursSource: s.hoursSource ?? null, night: false };
 }

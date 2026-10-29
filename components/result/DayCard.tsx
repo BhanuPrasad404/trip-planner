@@ -43,7 +43,9 @@ export function DayCard({ d, numbers, halt, mustIds, onStop }: { d: DayPlan; num
       {halt && (
         <p className="mt-2 flex items-start gap-1.5 text-sm text-ink-muted">
           <Glyph name="stay" size={15} className="mt-0.5 shrink-0" />
-          <span>Night: <strong className="text-pine">{halt.town}</strong>{halt.atStop ? "" : ` · about ${km(halt.km)}, ${duration(halt.driveMin)} (estimated)`}{halt.checkStays ? " · small town, check stays" : ""}</span>
+          {halt.noTown
+            ? <span>Night: near <strong className="text-pine">{halt.town}</strong> · no town in our map data nearby, so plan this night yourself</span>
+            : <span>Night: <strong className="text-pine">{halt.town}</strong>{halt.atStop ? "" : ` · about ${km(halt.km)}, ${duration(halt.driveMin)} (estimated)`}{halt.checkStays ? " · small town, check stays" : ""}</span>}
         </p>
       )}
     </article>

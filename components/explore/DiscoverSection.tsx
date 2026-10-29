@@ -164,7 +164,8 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
             {state.status === "error" && (
               <p role="alert" className="rounded-2xl border border-line bg-clay-light/40 p-4 text-sm font-semibold text-clay-ink">{state.error} <Button size="sm" variant="ghost" onClick={state.retry}>Try again</Button></p>
             )}
-            {state.status === "ready" && state.stale && <p className="mb-2 rounded-xl bg-sky px-3 py-2 text-xs text-ink-muted">The map servers are busy, so this is the list we saved{state.fetchedAt ? ` on ${new Date(state.fetchedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}` : ""}. It may be slightly out of date.</p>}
+            {state.status === "ready" && state.stale && state.items.some((i) => i.origin === "geonames") && <p className="mb-2 rounded-xl bg-sky px-3 py-2 text-xs text-ink-muted">The live map can&apos;t be reached right now, so these come from our offline place list (data © GeoNames, CC BY 4.0): fewer places, picked by name, opening hours unknown.</p>}
+            {state.status === "ready" && state.stale && !state.items.some((i) => i.origin === "geonames") && <p className="mb-2 rounded-xl bg-sky px-3 py-2 text-xs text-ink-muted">The map servers are busy, so this is the list we saved{state.fetchedAt ? ` on ${new Date(state.fetchedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}` : ""}. It may be slightly out of date.</p>}
             {state.status === "ready" && state.items.length === 0 && (
               <p className="rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">
                 {q.trim() ? `Nothing in these results matches “${q.trim()}”.` : `No ${catLabel} found in ${where}. The map may list few places there.`}{" "}
@@ -187,7 +188,7 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
               </>
             )}
           </div>
-          <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL). Opening hours are shown as listed on the map and are not checked. Price and rating filters will appear once a source for them is connected; we don&apos;t guess.</p>
+          <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL) and Wikidata (CC0); each place shows its source and the date of that data. Opening hours are shown as listed on the map and are not checked. Price and rating filters will appear once a source for them is connected; we don&apos;t guess.</p>
         </>
       )}
     </section>

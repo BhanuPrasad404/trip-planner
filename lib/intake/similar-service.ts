@@ -8,8 +8,11 @@ import { MIN_PLACES, NEAR_TRIP_KM, fromExplore, insertionCosts, kindsToFind, pic
 import type { Interest } from "./types";
 
 export type SimilarDeps = {
-  /** Explore's shared, cached list for a state and kind (may call OpenStreetMap once, then cached for everyone). Throws when unavailable. */
-  explore: (stateCode: string, kind: ExploreCategoryId) => Promise<ExploreItem[]>;
+  /**
+   * Explore's shared, cached list for a state and SEVERAL kinds in one question (may call OpenStreetMap once, then cached for everyone).
+   * Throws when unavailable. One question per state, never one per kind: the free servers allow about two at a time.
+   */
+  explore: (stateCode: string, kinds: ExploreCategoryId[]) => Promise<ExploreItem[]>;
   researched: () => Promise<{ id: string; name: string; lat: number; lng: number; months: number[] }[]>;
   saved: () => Promise<{ key: string; name: string; lat: number; lng: number }[]>;
   matrix: (points: { lat: number; lng: number }[]) => Promise<Matrix>;
@@ -32,7 +35,8 @@ export async function findSimilar(input: { start: { lat: number; lng: number }; 
   const kinds = kindsToFind(places, input.interests);
   const states = statesOf(places);
   let partial = false;
-  const lists = await Promise.all(states.flatMap((s) => kinds.map((k) => within(deps.explore(s, k.kind), waitMs).catch(() => { partial = true; return [] as ExploreItem[]; }))));
+  const wanted = [...new Set(kinds.map((k) => k.kind))];
+  const lists = wanted.length === 0 ? [] : await Promise.all(states.map((s) => within(deps.explore(s, wanted), waitMs).catch(() => { partial = true; return [] as ExploreItem[]; })));
   const [researched, saved] = await Promise.all([deps.researched().catch(() => []), deps.saved().catch(() => [])]);
   const candidates: Candidate[] = [
     ...fromExplore(lists.flat()),

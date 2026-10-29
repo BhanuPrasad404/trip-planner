@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CHUNK_POINTS, MAX_CHUNKS, chunkLine, fetchTollsAlong, tollQuery } from "@/lib/providers/tolls-overpass";
 import type { LngLat } from "@/lib/trip/toll";
+import { resetOverpassHealth } from "@/lib/overpass-health";
 
 const state = { user: { id: "u1" } as { id: string } | null, quotaOk: true };
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.user } }) } }) }));
@@ -17,6 +18,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) => POST(new R
 let calls: { url: string; body: string }[]; let answers: (() => Response | Promise<Response>)[];
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json" } });
 beforeEach(() => {
+  resetOverpassHealth();                                                    // each test is a fresh server process: nothing remembered as down
   state.user = { id: "u1" }; state.quotaOk = true; calls = []; answers = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, body: decodeURIComponent(String(init.body)) }); const a = answers.shift(); if (!a) throw new Error("no answer"); return a(); }));
 });

@@ -7,15 +7,23 @@
 // The traveller's own time at a place and any known kind of place (temple, beach…) always win.
 import type { BuilderPlace } from "@/lib/trip-builder/types";
 
-export type Settlement = "city" | "town";
+/** "area": a mandal / tehsil or a district (Araku Valley is one): a stretch of country with sights in it, neither one sight nor a town. */
+export type Settlement = "city" | "town" | "area";
 export type Nearby = { name: string; otherNames?: string[]; kind: string; pop: number; km: number };
 
 /** A city this big is many sights; smaller places are towns (Nalgonda ≈ 1.6 lakh, Tirupati ≈ 3.7 lakh, Vizag ≈ 20 lakh). */
 export const CITY_MIN_POP = 300_000;
-/** A town: a short stop (tea, fuel, a look around). A city: time in the city until the traveller adds the sights they want there. */
-export const SETTLEMENT_VISIT_MIN: Record<Settlement, number> = { town: 30, city: 120 };
-/** The settlement must be this close to the point the traveller picked. */
+/**
+ * A town: a short stop (tea, fuel, a look around). A city: time in the city until the traveller adds the sights they want there.
+ * An area: half a day, a stated PLACEHOLDER (never a "30-minute stop"); the traveller sets their own time, or adds the sights in it.
+ */
+export const SETTLEMENT_VISIT_MIN: Record<Settlement, number> = { town: 30, city: 120, area: 240 };
+const TOWN_KINDS = new Set(["city", "town", "locality"]);
+const AREA_KINDS = new Set(["subdistrict", "district"]);
+/** A town or city must be this close to the point the traveller picked. */
 export const SETTLEMENT_MATCH_KM = 6;
+/** An area's point is the middle of a mandal or district (often 20 to 30 km across), so it may be further; its NAME must still match. */
+export const AREA_MATCH_KM = 15;
 export const SETTLEMENT_KINDS = ["city", "town", "locality", "subdistrict", "district"] as const;
 
 const norm = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\b(city|town|district|mandal|nagar palika|municipality)\b/g, "").replace(/[^a-z\u0900-\u0dff]/g, "");
@@ -44,9 +52,13 @@ export function sameName(a: string, b: string): boolean {
 /** The settlement this place IS (not merely near), or null. Only for places whose kind is unknown and whose time the traveller hasn't set. */
 export function settlementOf(p: Pick<BuilderPlace, "name" | "lat" | "lng" | "category" | "visitMin">, nearby: Nearby[]): { role: Settlement; pop: number } | null {
   if (p.category !== "other" || (p.visitMin ?? null) !== null) return null;
-  const hit = nearby.find((c) => c.km <= SETTLEMENT_MATCH_KM && (SETTLEMENT_KINDS as readonly string[]).includes(c.kind) && [c.name, ...(c.otherNames ?? [])].some((n) => sameName(p.name, n)));
-  if (!hit) return null;
-  return { role: hit.pop >= CITY_MIN_POP ? "city" : "town", pop: hit.pop };
+  const named = nearby.filter((c) => c.km <= (AREA_KINDS.has(c.kind) ? AREA_MATCH_KM : SETTLEMENT_MATCH_KM) && (SETTLEMENT_KINDS as readonly string[]).includes(c.kind) && [c.name, ...(c.otherNames ?? [])].some((n) => sameName(p.name, n)));
+  // A town or city of that name wins ("Nalgonda" is a town AND a district: the traveller means the town). Only when the name is an
+  // administrative area alone is the place an area; its population is the whole area's, so it never makes it a "city".
+  const town = named.find((c) => TOWN_KINDS.has(c.kind));
+  if (town) return { role: town.pop >= CITY_MIN_POP ? "city" : "town", pop: town.pop };
+  const area = named.find((c) => AREA_KINDS.has(c.kind));
+  return area ? { role: "area", pop: area.pop } : null;
 }
 
 /** The places with towns and cities timed as what they are, and one plain note for each. */
@@ -57,7 +69,9 @@ export function markSettlements(places: BuilderPlace[], find: (lat: number, lng:
     if (!s) return p;
     notes.push(s.role === "town"
       ? `${p.name} is a town, not a sight, so it is planned as a ${SETTLEMENT_VISIT_MIN.town}-minute stop (a break on the way, or where you stay). Add the places you want to see there.`
-      : `${p.name} is a city with many things to see, not one sight. We kept about ${SETTLEMENT_VISIT_MIN.city / 60} hours for it: add the sights you want there (a beach, a temple, a viewpoint…) for a real plan.`);
+      : s.role === "area"
+        ? `${p.name} is an area with places to see in it (a mandal or district), not one sight or a town. We kept half a day for it as a placeholder: set "Time there" for it on the trip's Plan page (half a day, a day…), or add the sights you want there.`
+        : `${p.name} is a city with many things to see, not one sight. We kept about ${SETTLEMENT_VISIT_MIN.city / 60} hours for it: add the sights you want there (a beach, a temple, a viewpoint…) for a real plan.`);
     return { ...p, visitMin: SETTLEMENT_VISIT_MIN[s.role], settlement: s.role };
   });
   return { places: out, notes };

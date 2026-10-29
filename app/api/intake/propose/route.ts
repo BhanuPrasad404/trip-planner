@@ -4,6 +4,8 @@ import { rateLimiter } from "@/lib/rate-limit";
 import { getMatrix } from "@/lib/routing";
 import { loadExplore } from "@/lib/explore/service";
 import { getExploreStore } from "@/lib/explore/store";
+import { loadOfflineExplore } from "@/lib/explore/offline-load";
+import { getCatalogReader } from "@/lib/catalog/read-server";
 import { proposeTrip } from "@/lib/intake/propose-service";
 import { PER_MINUTE } from "@/lib/places/limits";
 import { allowCall, burstKey, identify, rememberVisitor } from "@/lib/places/visitor";
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
   const answer = await proposeTrip(
     { hub: input.hub, start: input.start, roundTrip: input.round_trip, days: input.days, group: input.group, interests: input.interests, pace: input.pace, maxDriveHours: input.max_drive_hours },
     {
-      around: async (hub, radiusKm) => (await loadExplore({ kind: "point", lat: hub.lat, lng: hub.lng, radius_km: radiusKm, notableOnly: true }, "all", { store: getExploreStore(), allowUpstream: () => allowCall(visitor, "explore") })).items,
+      around: async (hub, radiusKm) => (await loadExplore({ kind: "point", lat: hub.lat, lng: hub.lng, radius_km: radiusKm, notableOnly: true }, "all", { store: getExploreStore(), allowUpstream: () => allowCall(visitor, "explore"), offline: loadOfflineExplore, catalog: getCatalogReader() })).items,
       matrix: (points) => getMatrix(points),
     },
   );

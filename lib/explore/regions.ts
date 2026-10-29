@@ -34,7 +34,7 @@ export const REGIONS: readonly Region[] = [
   { code: "PY", name: "Puducherry", kind: "ut", iso: ["PY"] },
   { code: "RJ", name: "Rajasthan", kind: "state", iso: ["RJ"] },
   { code: "SK", name: "Sikkim", kind: "state", iso: ["SK"] },
-  { code: "TG", name: "Telangana", kind: "state", iso: ["TG"] },
+  { code: "TG", name: "Telangana", kind: "state", iso: ["TG", "TS"] }, // OpenStreetMap uses the newer IN-TS
   { code: "TN", name: "Tamil Nadu", kind: "state", iso: ["TN"] },
   { code: "TR", name: "Tripura", kind: "state", iso: ["TR"] },
   { code: "UP", name: "Uttar Pradesh", kind: "state", iso: ["UP"] },

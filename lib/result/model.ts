@@ -13,6 +13,26 @@ export type ResultData = {
   end: (Pt & { label: string }) | null;
 };
 
+/**
+ * The style whose card is actually SHOWN for a chosen style. Identical plans are shown once (under the first of them), so choosing a
+ * hidden duplicate (the recommendation is often one) means its shown twin: the highlighted card, the details and the "Use the … plan"
+ * button then always name the same plan.
+ */
+export function shownStyle(engine: Pick<EngineView, "sameAs" | "variants">, style: string): string {
+  const id = engine.variants.find((v) => v.style === style)?.id;
+  const twin = id ? engine.sameAs[id] : undefined;
+  return (twin && engine.variants.find((v) => v.id === twin)?.style) || style;
+}
+
+/** "All three paces give the same plan…": why identical plans are shown as one, in plain words. Null when they all differ. */
+export function sameNoteFor(engine: Pick<EngineView, "sameAs" | "variants">, placeCount: number): string | null {
+  const pairs = Object.entries(engine.sameAs);
+  if (pairs.length === 0) return null;
+  const label = (id: string) => engine.variants.find((x) => x.id === id)?.label ?? id;
+  if (pairs.length >= 2 && engine.variants.length === 3) return `All three paces give the same plan here: with ${placeCount} ${placeCount === 1 ? "place" : "places"} and these days, there is nothing to trade between them.`;
+  return pairs.map(([a, b]) => `${label(a)} gives the same plan as ${label(b)}.`).join(" ");
+}
+
 /** The plan for a style, and the engine's extras for it. */
 export function variantOf(d: ResultData, style: string) {
   const option = d.options.find((o) => o.style === style) ?? d.options[0] ?? null;

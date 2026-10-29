@@ -24,7 +24,25 @@ export type ExploreItem = {
   photo: NearbyPhoto | null;
   /** Kilometres from the anchor, only when one was given. */
   km?: number;
+  /** Set only for places from our offline list (lib/explore/offline.ts); absent = OpenStreetMap (live, or in our place catalogue). */
+  origin?: "geonames";
+  /** Where our place catalogue got this place, and the date of that data (lib/catalog/read.ts). Absent for a live map answer. */
+  sources?: { name: "OpenStreetMap" | "Wikidata"; date: string }[];
 };
+
+/**
+ * Where a place came from, in words, for the label under it: "OpenStreetMap, 28 Oct 2026 · Wikidata, 29 Oct 2026" (our catalogue),
+ * "Offline list (GeoNames)", or null for a live map answer (the screen's own "© OpenStreetMap contributors" line covers it).
+ */
+export function sourceLabel(item: Pick<ExploreItem, "sources" | "origin">): string | null {
+  if (item.origin === "geonames") return "Offline list (GeoNames)";
+  if (!item.sources?.length) return null;
+  const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return item.sources.map((s) => `${s.name}, ${day(s.date)}`).join(" · ");
+}
+
+/** A stable id that says where the place came from: "osm:way/123", "wd:Q123" (Wikidata only) or "gn:456" (offline list). */
+export const exploreRef = (item: Pick<ExploreItem, "id" | "origin">): string => (item.origin === "geonames" || item.id.includes(":") ? item.id : `osm:${item.id}`);
 
 type Element = { type?: string; id?: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> };
 
@@ -49,7 +67,7 @@ export function englishWikipediaUrl(tag: unknown): string | null {
 
 const QID = /^Q\d{1,12}$/;
 /** Names worth showing: the English name when the map has one, otherwise the local name; never a bare number or symbol. */
-function displayName(tags: Record<string, string>): string | null {
+export function displayName(tags: Record<string, string>): string | null {
   const name = clip(tags["name:en"], 100) || clip(tags.name, 100);
   return name.length >= 2 && /\p{L}/u.test(name) ? name : null;
 }

@@ -13,7 +13,7 @@ import { suggestStartDate } from "@/lib/intake/start-date";
 import { EXAMPLE_LINKS } from "@/lib/result/example-list";
 import { exampleDraft } from "@/lib/result/example-draft";
 import { EXAMPLES, exampleBySlug } from "@/lib/result/examples";
-import { dayPoints, stopNumbers, variantOf, verdict } from "@/lib/result/model";
+import { dayPoints, sameNoteFor, shownStyle, stopNumbers, variantOf, verdict } from "@/lib/result/model";
 
 const router = { push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() };
 const render = (el: ReturnType<typeof h>) => renderToStaticMarkup(h(AppRouterContext.Provider, { value: router as never }, el));
@@ -56,6 +56,30 @@ describe("the result screen (example)", () => {
   });
   it("a signed-in visitor saves without the sign-up words", () => {
     expect(render(h(ResultView, { kind: "example", example: kochi, signedIn: true }))).toContain(">Save this trip<");
+  });
+});
+
+// T11 / screenshot S1: the card said "Relaxed" but the button said "Use the Balanced plan". Identical plans are shown once (under the
+// first), but the chosen plan stayed the recommended one, which was the HIDDEN twin: no card was highlighted and the button named it.
+describe("identical plans: the shown card, the highlight and the plan used are always the same plan", () => {
+  const relaxed = kochi.data.engine.variants.find((v) => v.id === "relaxed")!.style;
+  const balanced = kochi.data.engine.variants.find((v) => v.id === "balanced")!.style;
+  const allSame = { ...kochi, data: { ...kochi.data, engine: { ...kochi.data.engine, recommendedStyle: balanced, sameAs: { balanced: "relaxed" as const, most: "relaxed" as const } } } };
+  it("choosing a hidden twin means its shown card", () => {
+    expect(shownStyle(allSame.data.engine, balanced)).toBe(relaxed);
+    expect(shownStyle(allSame.data.engine, relaxed)).toBe(relaxed);
+    expect(shownStyle(kochi.data.engine, balanced)).toBe(kochi.data.engine.sameAs.balanced ? relaxed : balanced);
+  });
+  it("one card, highlighted, marked best fit, and the reason in words", () => {
+    const html = render(h(ResultView, { kind: "example", example: allSame, signedIn: false }));
+    expect((html.match(/role="radio"/g) ?? []).length).toBe(1);
+    expect((html.match(/aria-checked="true"/g) ?? []).length).toBe(1);   // BEFORE the fix: 0 (the chosen plan's card was hidden)
+    expect(html).toContain("Best fit");
+    expect(html).toMatch(/All three paces give the same plan here: with \d+ places/);
+  });
+  it("two of three the same: says which", () => {
+    expect(sameNoteFor({ ...kochi.data.engine, sameAs: { most: "balanced" } }, 5)).toBe("Most places gives the same plan as Balanced.");
+    expect(sameNoteFor({ ...kochi.data.engine, sameAs: {} }, 5)).toBeNull();
   });
 });
 

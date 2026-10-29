@@ -9,6 +9,31 @@ const MAX_LINE_POINTS = 600;
 const baseUrl = () => (process.env.OSRM_BASE_URL || "https://router.project-osrm.org").replace(/\/+$/, "");
 const coordsOf = (points: GeoPoint[]) => points.map((p) => `${p.lng.toFixed(5)},${p.lat.toFixed(5)}`).join(";");
 
+/**
+ * One GET to the routing service, a little more patient than a single try but never unbounded:
+ *   • a passing failure (HTTP 429 / 5xx, timeout, network) gets ONE more try after a short wait;
+ *   • after REST_AFTER calls in a row failed, the service is left alone for REST_MS (callers fall back to the labelled estimate at once
+ *     instead of each waiting for a timeout). One good answer ends the rest.
+ * Returns the response (ok or not) or throws; callers already turn any failure into the estimate.
+ */
+export const OSRM_RETRY_WAIT_MS = 800;
+const REST_AFTER = 2, REST_MS = 60_000;
+let failedInRow = 0, restUntil = 0;
+const passing = (status: number) => status === 429 || status >= 500;
+export const resetOsrmHealth = () => { failedInRow = 0; restUntil = 0; };
+export async function osrmGet(url: string, timeoutMs: number, fetchImpl: typeof fetch = fetch, sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)), now: () => number = Date.now): Promise<Response> {
+  if (now() < restUntil) throw new Error("routing service resting after repeated failures");
+  for (let attempt = 0; ; attempt++) {
+    let res: Response | null = null, err: unknown = null;
+    try { res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) }); } catch (e) { err = e; }
+    if (res && !passing(res.status)) { if (res.ok) failedInRow = 0; return res; }
+    if (attempt === 0) { await sleep(OSRM_RETRY_WAIT_MS); continue; }
+    if (++failedInRow >= REST_AFTER) restUntil = now() + REST_MS;
+    if (res) return res;
+    throw err instanceof Error ? err : new Error("routing request failed");
+  }
+}
+
 const decimate = <T,>(xs: T[], max: number): T[] => {
   if (xs.length <= max) return xs;
   const step = (xs.length - 1) / (max - 1);
@@ -38,7 +63,7 @@ const routeCache = new AsyncCache<RouteResult>({ name: "route", max: 200, ttlMs:
 const matrixCache = new AsyncCache<Matrix>({ name: "matrix", max: 40, ttlMs: (m) => (m.source === "osrm" ? REAL_TTL : FALLBACK_TTL) });
 const cacheKey = (points: GeoPoint[]) => points.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join("|"); // ≈11 m
 const directionsCache = new AsyncCache<NavRoute[]>({ name: "directions", max: 60, ttlMs: (r) => (r[0]?.source === "osrm" ? 5 * 60_000 : FALLBACK_TTL) });
-export const clearRoutingCache = () => { routeCache.clear(); matrixCache.clear(); directionsCache.clear(); };
+export const clearRoutingCache = () => { routeCache.clear(); matrixCache.clear(); directionsCache.clear(); resetOsrmHealth(); };
 
 export const osrmRouting: RoutingProvider = {
   id: "osrm",
@@ -83,7 +108,7 @@ async function fetchMatrix(points: GeoPoint[], fetchImpl: typeof fetch): Promise
   const fallback = estimateMatrix(points);
   if (points.length < 2 || points.length > 80) return fallback;
   try {
-    const res = await fetchImpl(`${baseUrl()}/table/v1/driving/${coordsOf(points)}?annotations=duration,distance`, { signal: AbortSignal.timeout(10_000) });
+    const res = await osrmGet(`${baseUrl()}/table/v1/driving/${coordsOf(points)}?annotations=duration,distance`, 10_000, fetchImpl);
     if (!res.ok) return fallback;
     const json = (await res.json()) as { code?: string; durations?: (number | null)[][]; distances?: (number | null)[][] };
     const n = points.length;
@@ -102,7 +127,7 @@ async function fetchRoute(points: GeoPoint[], fetchImpl: typeof fetch): Promise<
   const fallback = estimateRoute(points);
   if (points.length < 2) return fallback;
   try {
-    const res = await fetchImpl(`${baseUrl()}/route/v1/driving/${coordsOf(points)}?overview=simplified&geometries=geojson&steps=false`, { signal: AbortSignal.timeout(8_000) });
+    const res = await osrmGet(`${baseUrl()}/route/v1/driving/${coordsOf(points)}?overview=simplified&geometries=geojson&steps=false`, 8_000, fetchImpl);
     if (!res.ok) return fallback;
     return parseOsrmRoute(await res.json(), points.length) ?? fallback;
   } catch {

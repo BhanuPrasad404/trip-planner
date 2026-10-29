@@ -5,8 +5,8 @@
 // needs a database change (new kind and group) and your approval; set OVERPASS_URL to your own Overpass server to avoid the public ones.
 import { clusterTolls, parseTollBooths, simplifyLine, type LngLat, type OsmToll } from "@/lib/trip/toll";
 import type { Vehicle } from "@/lib/vehicle";
+import { noteOverpassFailure, noteOverpassOk, usableOverpass } from "@/lib/overpass-health";
 
-const MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
 /** Points per query, and how close (m) to the road a booth must be to be returned. The client re-checks against the exact road. */
 export const CHUNK_POINTS = 250;
 export const CORRIDOR_M = 80;
@@ -28,16 +28,20 @@ export function chunkLine(line: LngLat[], size = CHUNK_POINTS): LngLat[][] {
 const isFailureRemark = (json: unknown) => { const r = (json as { remark?: unknown } | null)?.remark; return typeof r === "string" && /(timed out|out of memory|too many requests|rate_limited)/i.test(r); };
 
 async function askOverpass(query: string, fetchImpl: typeof fetch): Promise<unknown | null> {
-  const endpoints = [process.env.OVERPASS_URL, ...MIRRORS].filter((u): u is string => !!u);
   const headers = { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": process.env.GEOCODER_USER_AGENT || "Trailmate/0.1 (trip planner)" };
-  for (const url of endpoints) {
+  // Servers that failed recently are skipped (lib/overpass-health.ts): a known outage costs no waiting.
+  for (const url of usableOverpass().usable) {
+    let failure: string;
     try {
-      const res = await fetchImpl(url, { method: "POST", headers, body: `data=${encodeURIComponent(query)}`, signal: AbortSignal.timeout(30_000) });
-      if (!res.ok) continue;
-      const json = await res.json();
-      if (isFailureRemark(json)) continue;
-      return json;
-    } catch { /* try the next server */ }
+      const res = await fetchImpl(url, { method: "POST", headers, body: `data=${encodeURIComponent(query)}`, signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) failure = `HTTP ${res.status}`;
+      else {
+        const json = await res.json();
+        if (!isFailureRemark(json)) { noteOverpassOk(url); return json; }
+        failure = String((json as { remark: string }).remark).slice(0, 60);
+      }
+    } catch (e) { failure = e instanceof Error ? e.name : "error"; }
+    noteOverpassFailure(url, failure);
   }
   return null;
 }

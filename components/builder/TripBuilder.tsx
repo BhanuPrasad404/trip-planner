@@ -312,7 +312,7 @@ export function TripBuilder({ tripId, places, hasStart, hasDestination, startLab
                     const c = data.result.placeCosts.find((x) => x.placeId === pl.id);
                     const usual = Math.round(CATEGORIES[normalizeCategory(pl.category)].hours * 60);
                     const mine = pl.visit_minutes ?? null;
-                    const options = [...new Set([30, 45, 60, 90, 120, 180, 240, 360, ...(mine ? [mine] : [])])].sort((x, y) => x - y);
+                    const options = [...new Set([30, 45, 60, 90, 120, 180, 240, 360, 480, ...(mine ? [mine] : [])])].sort((x, y) => x - y);
                     return (
                       <li key={pl.id} className="py-3">
                         <p className="truncate text-sm font-semibold text-pine">{pl.name}</p>

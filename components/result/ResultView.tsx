@@ -16,7 +16,7 @@ import { saveDraft } from "@/lib/client/plan-draft-store";
 import type { EngineView } from "@/lib/engine/types";
 import { exampleDraft } from "@/lib/result/example-draft";
 import type { ExamplePlan } from "@/lib/result/examples";
-import { dayPoints, stopNumbers, variantOf, verdict, type ResultData, type ResultPlace } from "@/lib/result/model";
+import { dayPoints, sameNoteFor, shownStyle, stopNumbers, variantOf, verdict, type ResultData, type ResultPlace } from "@/lib/result/model";
 import { snapshotPlaces } from "@/lib/snapshot";
 import { duration, type PlannedStop, type PlanOption } from "@/lib/trip-builder";
 import type { EndMode } from "@/lib/trip-builder/types";
@@ -108,11 +108,13 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
     return () => clearTimeout(t);
   }, [load, props.kind]);
 
-  const { option, view } = data && style ? variantOf(data, style) : { option: null, view: null };
+  // The plan whose card is shown: a hidden identical twin (often the recommended one) is shown as the card that stands for it.
+  const shown = data && style ? shownStyle(data.engine, style) : style;
+  const { option, view } = data && shown ? variantOf(data, shown) : { option: null, view: null };
   const numbers = useMemo(() => (option ? stopNumbers(option) : new Map<string, number>()), [option]);
 
   // Road lines for the map: ready-made for an example; for a trip, one road request per day (falls back to straight lines, and says so).
-  const points = useMemo(() => (data && style ? dayPoints(data, style) : []), [data, style]);
+  const points = useMemo(() => (data && shown ? dayPoints(data, shown) : []), [data, shown]);
   useEffect(() => {
     if (props.kind === "example" || !points.length) return; // an example's road lines were fetched when it was built
     let gone = false;
@@ -128,9 +130,9 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
       if (!gone) { setLines(out); setStraight(anyStraight); }
     })();
     return () => { gone = true; };
-  }, [points, props, style]);
+  }, [points, props, shown]);
 
-  const shownLines = useMemo(() => (props.kind === "example" ? (style ? props.example.lines[style] ?? {} : {}) : lines), [props, style, lines]);
+  const shownLines = useMemo(() => (props.kind === "example" ? (shown ? props.example.lines[shown] ?? {} : {}) : lines), [props, shown, lines]);
   const mapDays: MapDay[] = useMemo(() => points.map((d) => ({ day: d.day, coords: shownLines[d.day] ?? d.points.map((p) => [p.lng, p.lat] as [number, number]) })), [points, shownLines]);
   const pins: MapPin[] = useMemo(() => {
     if (!option || !data) return [];
@@ -229,7 +231,8 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
   })();
   const chosenStart = props.kind === "trip" ? startMinOf(props.startTime ?? null) : null;
   const groups = data ? data.options.filter((o) => !data.engine.sameAs[data.engine.variants.find((x) => x.style === o.style)?.id ?? "relaxed"]) : [];
-  const sameNote = data ? Object.entries(data.engine.sameAs).map(([a, b]) => `${data.engine.variants.find((x) => x.id === a)?.label} gives the same plan as ${data.engine.variants.find((x) => x.id === b)?.label}.`) : [];
+  const sameNote = data ? sameNoteFor(data.engine, places.length - skip.length) : null;
+  const recShown = data ? shownStyle(data.engine, data.engine.recommendedStyle) : null;
   const leftOut = option ? [...option.removed.map((r) => ({ id: r.placeId, name: r.name, reason: r.reason })), ...skip.map((id) => ({ id, name: places.find((p) => p.id === id)?.name ?? "A place", reason: "You chose to skip it." }))] : [];
 
   return (
@@ -275,7 +278,7 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
             <div role="radiogroup" aria-label="Choose a plan" className={`grid gap-2 ${groups.length >= 3 ? "grid-cols-3" : groups.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
               {groups.map((o) => {
                 const on = o.style === option.style;
-                const rec = o.style === data.engine.recommendedStyle;
+                const rec = o.style === recShown;
                 return (
                   <button key={o.style} type="button" role="radio" aria-checked={on} onClick={() => setStyle(o.style)}
                     className={`flex min-h-16 min-w-0 flex-col items-start justify-center rounded-xl border-2 px-2.5 py-2 text-left ${on ? "border-teal bg-teal-light" : "border-line bg-white"}`}>
@@ -286,7 +289,7 @@ export function ResultView(props: TripResultProps | ExampleResultProps) {
                 );
               })}
             </div>
-            {sameNote.length > 0 && <p className="mt-1.5 text-xs text-ink-muted">{sameNote.join(" ")}</p>}
+            {sameNote && <p className="mt-1.5 text-xs text-ink-muted">{sameNote}</p>}
             <button type="button" onClick={() => setCompare((c) => !c)} aria-expanded={compare} className="tm-action mt-1 min-h-11 text-sm font-semibold">{compare ? "Hide the comparison" : "Compare the plans"}</button>
             {compare && <ComparePlans data={data} total={places.length - skip.length} />}
           </div>

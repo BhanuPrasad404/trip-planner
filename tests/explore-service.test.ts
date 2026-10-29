@@ -22,7 +22,7 @@ describe("fetchExplore: the map servers", () => {
     expect(f).toHaveBeenCalledTimes(1);
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain("overpass");
-    expect(decodeURIComponent(String(init.body))).toContain('"ISO3166-2"~"^IN-(TG)$"');
+    expect(decodeURIComponent(String(init.body))).toContain('"ISO3166-2"~"^IN-(TG|TS)$"' /* OpenStreetMap tags Telangana IN-TS */);
     expect((init.headers as Record<string, string>)["User-Agent"]).toBeTruthy();
   });
   it("moves on to the next server after an error status, a timeout, or a 'remark' (Overpass says 200 and an empty list when it ran out of time)", async () => {
@@ -43,6 +43,7 @@ describe("fetchExplore: the map servers", () => {
   it("gives up with a clear error naming each server when none answers, and respects an overall deadline", async () => {
     const f = vi.fn(async () => new Response("no", { status: 503 }));
     await expect(fetchExplore(TG, "fort", f as unknown as typeof fetch, Date.now, noSleep)).rejects.toThrow(/HTTP 503/);
+    clearExploreMemory();                                                   // a fresh server process: nothing remembered as down
     let t = 0;
     const slow = vi.fn(async () => { t += 50_000; return new Response("no", { status: 503 }); });
     await expect(fetchExplore(TG, "fort", slow as unknown as typeof fetch, () => t, noSleep)).rejects.toThrow(/deadline/);

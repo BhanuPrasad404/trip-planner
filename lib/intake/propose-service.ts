@@ -31,6 +31,8 @@ export type ProposeAnswer = {
 
 /** The first look round a place the map has not been asked about yet can take a while on the free servers; this is how long we wait. */
 export const PROPOSE_WAIT_MS = 40_000;
+/** Said whenever the places came from our offline list because the live map could not be reached. */
+export const OFFLINE_NOTE = "The live map couldn't be reached, so these places come from our offline list (data © GeoNames, CC BY 4.0): fewer places, and opening hours unknown.";
 /** Closer than this, getting there is not worth a warning. */
 const NEAR_KM = 60;
 
@@ -66,8 +68,9 @@ export async function proposeTrip(ask: Ask, deps: ProposeDeps, waitMs = PROPOSE_
     return { ...base, plans: [], status: "unavailable", reason, hint: f.hint, note: `${f.note} Or add places yourself below.`, roadTimes: null };
   }
 
+  const offline = items.some((i) => i.origin === "geonames") ? OFFLINE_NOTE : null;
   const cands = candidatesFor(items, ask);
-  if (cands.length === 0) return { ...base, plans: [], status: "none", reason: null, hint: null, note: `We found no well-known places within ${SEARCH_RADIUS_KM} km of ${ask.hub.name} on the map. Add the places you want from the search below.`, roadTimes: null };
+  if (cands.length === 0) return { ...base, plans: [], status: "none", reason: null, hint: null, note: `We found no well-known places within ${SEARCH_RADIUS_KM} km of ${ask.hub.name} on the map. Add the places you want from the search below.${offline ? ` ${offline}` : ""}`, roadTimes: null };
 
   let matrix: Matrix;
   let estimated = false;
@@ -78,8 +81,8 @@ export async function proposeTrip(ask: Ask, deps: ProposeDeps, waitMs = PROPOSE_
   const longWay = travel && travel.drivingDays >= 1 && travel.oneWayMin >= 120
     ? `${ask.hub.name} is about ${hm(travel.oneWayMin)} from ${ask.start!.name} each way${travel.estimated ? " (estimated)" : ""}. Getting there${ask.roundTrip === false ? "" : " and back"} takes about ${travel.drivingDays} ${travel.drivingDays === 1 ? "day" : "days"} of driving, so these plans are for ${sightDays} ${sightDays === 1 ? "day" : "days"} of sights.${ask.days - travel.drivingDays < 1 ? " Your trip is too short for this place: add days, or pick somewhere nearer." : ""}`
     : null;
-  const notes = [longWay, estimated ? "The road-time service didn't answer, so drive times are estimated (straight-line distance plus a road factor)." : null].filter((x): x is string => !!x);
+  const notes = [longWay, estimated ? "The road-time service didn't answer, so drive times are estimated (straight-line distance plus a road factor)." : null, offline].filter((x): x is string => !!x);
   const empty = plans.every((p) => p.count === 0);
   if (empty) return { ...base, plans: [], status: "none", reason: null, hint: null, note: [`Everything we found near ${ask.hub.name} is further than a day's driving allows. Add places yourself below.`, ...notes].join(" "), roadTimes: estimated ? "estimate" : "road" };
-  return { ...base, plans, status: estimated ? "partial" : "ok", reason: null, hint: null, note: notes.length ? notes.join(" ") : null, roadTimes: estimated ? "estimate" : "road" };
+  return { ...base, plans, status: estimated || offline ? "partial" : "ok", reason: null, hint: null, note: notes.length ? notes.join(" ") : null, roadTimes: estimated ? "estimate" : "road" };
 }

@@ -19,7 +19,8 @@ export type ExploreCategory = {
 export const EXPLORE_CATEGORIES: readonly ExploreCategory[] = [
   { id: "fort", label: "Forts & palaces", selectors: ['["historic"~"^(fort|castle)$"]["name"]'], heavy: false },
   { id: "temple", label: "Temples & religious sites", selectors: ['["amenity"="place_of_worship"]["name"]', '["building"="temple"]["name"]'], heavy: true },
-  { id: "waterfall", label: "Waterfalls", selectors: ['["natural"="waterfall"]["name"]'], heavy: false },
+  // OpenStreetMap's usual tag for a waterfall is waterway=waterfall (natural=waterfall is the rarer one): both are asked for.
+  { id: "waterfall", label: "Waterfalls", selectors: ['["natural"="waterfall"]["name"]', '["waterway"="waterfall"]["name"]'], heavy: false },
   { id: "beach", label: "Beaches", selectors: ['["natural"="beach"]["name"]'], heavy: false },
   { id: "wildlife", label: "Wildlife & parks", selectors: ['["boundary"="national_park"]["name"]', '["leisure"="nature_reserve"]["name"]', '["tourism"="zoo"]["name"]'], heavy: false },
   { id: "lake", label: "Lakes & dams", selectors: ['["natural"="water"]["water"~"^(lake|reservoir)$"]["name"]', '["waterway"="dam"]["name"]'], heavy: true },
@@ -35,7 +36,7 @@ export const exploreCategoryLabel = (id: ExploreCategoryId) => exploreCategory(i
 
 /** Which category a fetched place belongs to (first match wins: the most specific kinds are checked first), or null. */
 export function classifyExplore(tags: Record<string, string>): ExploreCategoryId | null {
-  if (tags.natural === "waterfall") return "waterfall";
+  if (tags.natural === "waterfall" || tags.waterway === "waterfall") return "waterfall";
   if (tags.natural === "beach") return "beach";
   if (/^(fort|castle)$/.test(tags.historic ?? "")) return "fort";
   if (tags.boundary === "national_park" || tags.leisure === "nature_reserve" || tags.tourism === "zoo") return "wildlife";

@@ -89,6 +89,20 @@ describe("towns and cities are not monuments", () => {
     expect(out[1]).toEqual(places[1]);
     expect(notes).toHaveLength(1); expect(notes[0]).toMatch(/Nalgonda is a town, not a sight/);
   });
+  // T14 / finding F3: "Araku Valley" is a mandal (subdistrict, population ~57k) in the place index, and was timed as a 30-minute TOWN.
+  it("an area (mandal / district) is never a 30-minute town: half a day, said to be a placeholder, with where to change it", () => {
+    const p = { name: "Araku Valley", lat: 18.3273, lng: 82.8775, category: "other" as const, visitMin: null };
+    expect(settlementOf(p, near("Araku Valley", 56_674, "subdistrict"))).toEqual({ role: "area", pop: 56_674 });   // BEFORE: role "town"
+    expect(settlementOf({ ...p, name: "Krishna" }, near("Krishna", 4_500_000, "district"))).toMatchObject({ role: "area" }); // never "city" by an area's population
+    const { places, notes } = markSettlements([{ ...p, id: "a", priority: "normal" as const }], () => near("Araku Valley", 56_674, "subdistrict"));
+    expect(places[0]).toMatchObject({ visitMin: SETTLEMENT_VISIT_MIN.area, settlement: "area" });
+    expect(SETTLEMENT_VISIT_MIN.area).toBeGreaterThanOrEqual(240);
+    expect(notes[0]).toMatch(/is an area .* placeholder: set "Time there"/);
+  });
+  it("a name that is a town AND a district is the town (people mean the town)", () => {
+    const p = { name: "Nalgonda", lat: 17.05, lng: 79.27, category: "other" as const, visitMin: null };
+    expect(settlementOf(p, [{ name: "Nalgonda", kind: "district", pop: 3_400_000, km: 2 }, { name: "Nalgonda", kind: "town", pop: 165_000, km: 1 }])).toEqual({ role: "town", pop: 165_000 });
+  });
   it("in a plan, the town takes a short stop, not an hour of sightseeing", () => {
     const base = makeInput([{ name: "Lonavala", category: "hill_station" }, { name: "Townsville", at: [18.6, 73.6] }], { numDays: 1, endMode: "free" });
     const { places } = markSettlements(base.places, (lat) => (lat < 18.7 ? near("Townsville", 50_000) : []));

@@ -4,7 +4,7 @@ import type { ExploreItem } from "@/lib/explore/items";
 import { classifyMapFailure } from "@/lib/explore/failure";
 import { distanceKm } from "@/lib/geo";
 import { DRIVE_MARGIN } from "./propose";
-import { PROPOSE_WAIT_MS } from "./propose-service";
+import { OFFLINE_NOTE, PROPOSE_WAIT_MS } from "./propose-service";
 import { MAX_OFF_KM, drivingDaysOneWay, kindsForInterests, stopsAlongRoad, type JourneyAsk, type JourneyRoad, type JourneyStop } from "./journey";
 
 export type JourneyDeps = {
@@ -53,7 +53,7 @@ export async function proposeJourney(ask: JourneyAsk, deps: JourneyDeps, waitMs 
   }
   const stops = stopsAlongRoad(items, r.line, road, ask);
   const drive = `${ask.start.name} to ${ask.dest.name} is about ${road.km} km, ${hm(Math.round(road.minutes * DRIVE_MARGIN))} of driving${road.source === "estimate" ? " (estimated: we couldn't get the real road)" : ""}`;
-  const note = `${drive}. At ${dayLimitHours} hours a day that is about ${days} ${days === 1 ? "day" : "days"} of driving each way.`;
+  const note = `${drive}. At ${dayLimitHours} hours a day that is about ${days} ${days === 1 ? "day" : "days"} of driving each way.${items.some((i) => i.origin === "geonames") ? ` ${OFFLINE_NOTE}` : ""}`;
   if (stops.length === 0) return { status: "none", road, drivingDays: days, dayLimitHours, stops, note: `${note} We found no well-known places of this kind within ${MAX_OFF_KM} km of the road.`, reason: null, hint: null };
   return { status: "ok", road, drivingDays: days, dayLimitHours, stops, note, reason: null, hint: null };
 }

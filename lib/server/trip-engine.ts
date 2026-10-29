@@ -6,12 +6,13 @@
 // Anything that fails is labelled ("estimated", "not checked") instead of guessed. The engine itself is pure (lib/engine).
 import { AsyncCache } from "@/lib/cache";
 import { parseAvoid } from "@/lib/engine/avoid";
-import { markSettlements, SETTLEMENT_KINDS, SETTLEMENT_MATCH_KM } from "@/lib/engine/settlement";
+import { AREA_MATCH_KM, markSettlements, SETTLEMENT_KINDS, SETTLEMENT_MATCH_KM } from "@/lib/engine/settlement";
 import { clockText, sunsetAt } from "@/lib/engine/daylight";
 
 import { DEFAULT_PREFS, type EngineInput, type EnginePlan, type EngineView, type Prefs, type RoadLine, type TownFinder } from "@/lib/engine/types";
 
 import { firstReached, planTrip } from "@/lib/engine/plan";
+import { logViolations, validatePlan } from "@/lib/engine/validate";
 import { defaultMileage } from "@/lib/engine/fuel";
 import { withMargin } from "@/lib/engine/margin";
 import { FORECAST_DAYS, HILL_BOTH_ABOVE_M, HILL_LINE_RISE_M } from "@/lib/engine/rules";
@@ -19,6 +20,8 @@ import { VARIANT_STYLE } from "@/lib/engine/core";
 import { nearestTo } from "@/lib/places/geo-index";
 import { loadGeoIndex } from "@/lib/places/geo-index-load";
 import { elevationProvider } from "@/lib/providers/registry";
+import { estimateRoadLine } from "@/lib/providers/estimate";
+import { osrmGet } from "@/lib/providers/routing-osrm";
 import { fetchTollsAlong } from "@/lib/providers/tolls-overpass";
 import { STYLES } from "@/lib/trip-builder/config";
 import type { BuilderInput } from "@/lib/trip-builder/types";
@@ -33,7 +36,7 @@ export async function fetchRoadLine(a: { lat: number; lng: number }, b: { lat: n
   return lineCache.get(key, async () => {
     try {
       const url = `${osrmBase()}/route/v1/driving/${a.lng.toFixed(5)},${a.lat.toFixed(5)};${b.lng.toFixed(5)},${b.lat.toFixed(5)}?overview=full&geometries=geojson&annotations=duration,distance&steps=false`;
-      const res = await fetchImpl(url, { signal: AbortSignal.timeout(12_000) });
+      const res = await osrmGet(url, 12_000, fetchImpl);
       if (!res.ok) return null;
       return parseRoadLine(await res.json());
     } catch {
@@ -148,7 +151,7 @@ export async function runEngine(input0: BuilderInput, opts: { intake: unknown; t
   const ix = await loadGeoIndex().catch(() => null);
   // Towns and cities are timed as what they are (a town is a stop, a city is many sights), not as a one-hour monument.
   const marked = ix
-    ? markSettlements(input0.places, (lat, lng) => nearestTo(ix, lat, lng, [...SETTLEMENT_KINDS], SETTLEMENT_MATCH_KM, 4).map((r) => ({ name: r.hit.name, kind: r.kind, pop: r.pop, km: r.km })))
+    ? markSettlements(input0.places, (lat, lng) => nearestTo(ix, lat, lng, [...SETTLEMENT_KINDS], Math.max(SETTLEMENT_MATCH_KM, AREA_MATCH_KM), 40).map((r) => ({ name: r.hit.name, kind: r.kind, pop: r.pop, km: r.km })))
     : { places: input0.places, notes: [] as string[] };
   let base: BuilderInput = { ...input0, places: marked.places };
   const startNote = lateStart(base, prefs, opts.todayISO);
@@ -157,16 +160,20 @@ export async function runEngine(input0: BuilderInput, opts: { intake: unknown; t
   const points = [base.start, ...base.places, ...(base.endMode === "point" && base.end ? [base.end] : [])];
   const heights = points.length <= 100 ? await elevationProvider().elevations(points).catch(() => null) : null;
 
-  // The long road, only when the nearest place is more than a day's sightseeing drive away (with the margin).
+  // The long road, only when the nearest place is more than a day's sightseeing drive away (with the margin). When the routing service
+  // didn't answer (for the table or for the line), an ESTIMATED line stands in, so the long drive still gets drive days and halt towns
+  // (labelled approximate) instead of the far places being dropped as impossible day trips and the days left empty.
   const { matrix } = withMargin(base.matrix, heights);
   const F = firstReached(matrix.durations, n);
   let outLine: RoadLine | null = null, backLine: RoadLine | null = null;
   let tolls: EngineInput["tolls"] = null;
-  if (F && matrix.durations[0][F] / 60 > STYLES.relaxed.maxDriveMin && base.matrix.source !== "estimate") {
+  if (F && matrix.durations[0][F] / 60 > STYLES.relaxed.maxDriveMin) {
     const p = base.places[F - 1];
-    const [o, b] = await Promise.all([fetchRoadLine(base.start, p), base.endMode === "start" ? fetchRoadLine(p, base.start) : Promise.resolve(null)]);
+    const routed = base.matrix.source !== "estimate";
+    const [o, b] = routed ? await Promise.all([fetchRoadLine(base.start, p), base.endMode === "start" ? fetchRoadLine(p, base.start) : Promise.resolve(null)]) : [null, null];
     [outLine, backLine] = await Promise.all([o ? markHills(o) : null, b ? markHills(b) : null]);
-    if (outLine && opts.checkTolls !== false) {
+    if (!outLine) outLine = estimateRoadLine(base.start, p);             // with no line home either, the plan uses this one reversed
+    if (outLine.source === "osrm" && opts.checkTolls !== false) {
       tolls = await Promise.race([
         fetchTollsAlong(outLine.coords).then((t) => ({ count: t.tolls.length, checked: t.complete })).catch(() => ({ count: 0, checked: false })),
         new Promise<{ count: number; checked: boolean }>((r) => setTimeout(() => r({ count: 0, checked: false }), 8_000)),
@@ -179,6 +186,8 @@ export async function runEngine(input0: BuilderInput, opts: { intake: unknown; t
     weather: weatherMode(base.startDateISO, base.numDays, opts.todayISO), states, mileage: defaultMileage(prefs.mode), tolls,
   };
   const plan = planTrip(input);
+  // The independent check (lib/engine/validate.ts): logged for us when a plan breaks a rule without saying so; never blocks the plan.
+  try { logViolations(`${n} places, ${base.numDays} days`, validatePlan(input, plan)); } catch (e) { console.error("[engine] validator failed:", e instanceof Error ? e.message : e); }
   plan.notes.unshift(...marked.notes, ...(startNote.note ? [startNote.note] : []));
   return { plan, input, view: toView(plan, input) };
 }

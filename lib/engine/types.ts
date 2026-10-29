@@ -76,7 +76,11 @@ export type TransitDay = {
   at?: { lat: number; lng: number };
 };
 
-export type NightHalt = { day: number; town: string; area: string; km: number; driveMin: number; pop: number; checkStays: boolean; atStop: boolean; /** The town, for the map. */ at?: { lat: number; lng: number } };
+export type NightHalt = {
+  day: number; town: string; area: string; km: number; driveMin: number; pop: number; checkStays: boolean; atStop: boolean; /** The town, for the map. */ at?: { lat: number; lng: number };
+  /** No town in our map data near the day's end: `town` is then the last stop's name and the traveller must plan this night themselves. */
+  noTown?: boolean;
+};
 
 export type Variant = {
   id: VariantId;

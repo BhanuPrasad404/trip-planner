@@ -15,7 +15,7 @@ export type ExploreQuery = {
   anchor: { lat: number; lng: number } | null;
 };
 
-export type ExplorePage = { items: ExploreItem[]; nextCursor: number | null; total: number; source: "cache" | "live"; stale: boolean; fetchedAt: string };
+export type ExplorePage = { items: ExploreItem[]; nextCursor: number | null; total: number; source: "catalog" | "cache" | "live" | "offline"; stale: boolean; fetchedAt: string };
 export class ExploreRequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
 const PAGE = 18;

@@ -4,6 +4,8 @@ import { rateLimiter } from "@/lib/rate-limit";
 import { routingProvider } from "@/lib/providers/registry";
 import { loadExplore } from "@/lib/explore/service";
 import { getExploreStore } from "@/lib/explore/store";
+import { loadOfflineExplore } from "@/lib/explore/offline-load";
+import { getCatalogReader } from "@/lib/catalog/read-server";
 import { decimateLine } from "@/lib/explore/route-scope";
 import { proposeJourney } from "@/lib/intake/journey-service";
 import { PER_MINUTE } from "@/lib/places/limits";
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
     { start: input.start, dest: input.dest, interests: input.interests, maxDriveHours: input.max_drive_hours, roundTrip: input.round_trip },
     {
       route: async (a, b) => { const r = await routingProvider().route([a, b]); return { line: r.line, km: r.legs.reduce((s, l) => s + l.km, 0), minutes: r.legs.reduce((s, l) => s + l.minutes, 0), source: r.source }; },
-      along: async (line, radiusKm, kinds) => (await loadExplore({ kind: "route", line: decimateLine(line), radius_km: radiusKm }, kinds, { store: getExploreStore(), allowUpstream: () => allowCall(visitor, "explore") })).items,
+      along: async (line, radiusKm, kinds) => (await loadExplore({ kind: "route", line: decimateLine(line), radius_km: radiusKm }, kinds, { store: getExploreStore(), allowUpstream: () => allowCall(visitor, "explore"), offline: loadOfflineExplore, catalog: getCatalogReader() })).items,
     },
   );
   return rememberVisitor(NextResponse.json(answer, { headers: { "Cache-Control": "private, no-store" } }), visitor);

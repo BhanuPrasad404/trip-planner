@@ -187,7 +187,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
     return fresh.length ? { ...d, places: [...d.places, ...fresh] } : d;
   });
   const usePlan = (plan: ProposedPlan) => addPicks(plan.days.flatMap((day) => day.picks));
-  const stopToPick = (s: JourneyStop): ProposedPick => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, category: s.category, hubKm: s.alongKm, hubMin: s.driveMin, basis: "road", effort: "easy", notable: s.notable, hours: s.hours, wikipedia: null, why: s.why });
+  const stopToPick = (s: JourneyStop): ProposedPick => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, category: s.category, hubKm: s.alongKm, hubMin: s.driveMin, basis: "road", effort: "easy", notable: s.notable, hours: s.hours, wikipedia: null, why: s.why, source: s.source });
   const addStops = (stops: JourneyStop[]) => addPicks(stops.map(stopToPick));
   const addedIds = useMemo(() => new Set(draft.places.map((p) => p.place?.id ?? "")), [draft.places]);
 

@@ -2,6 +2,7 @@
 // Data: OpenStreetMap via the Overpass API (free, real, no key). Set OVERPASS_URL to self-host or use a paid mirror.
 import { distanceKm, type GeoPoint } from "@/lib/geo";
 import { commonsFilePage, looksNotAPhoto, parseCommonsUrl, thumbSet } from "@/lib/place-photos/safety";
+import { noteOverpassFailure, noteOverpassOk, pausedText, resetOverpassHealth, usableOverpass } from "./overpass-health";
 
 export const NEARBY_KINDS = {
   fuel: { label: "Fuel", fallback: "Fuel station", filters: ['["amenity"="fuel"]'] },
@@ -165,15 +166,12 @@ const inflight = new Map<string, Promise<unknown>>();
 export function clearNearbyCache() {
   cache.clear();
   inflight.clear();
+  resetOverpassHealth();
 }
 
 export class NearbyUnavailableError extends Error {}
 
-export const OVERPASS_MIRRORS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter",
-];
+export { OVERPASS_MIRRORS } from "./overpass-health";
 
 /** Overpass answers HTTP 200 with an empty list and a "remark" when it runs out of time/memory. That is a failure, not "no results". */
 export const isOverpassFailure = (json: unknown): boolean => {
@@ -182,29 +180,29 @@ export const isOverpassFailure = (json: unknown): boolean => {
 };
 
 async function fetchFromMirrors(kind: NearbyKind, origin: GeoPoint, radiusKm: number, fetchImpl: typeof fetch): Promise<unknown> {
-  const endpoints = [process.env.OVERPASS_URL, ...OVERPASS_MIRRORS].filter((u): u is string => !!u);
   const body = `data=${encodeURIComponent(buildOverpassQuery(kind, origin, radiusKm * 1000))}`;
   const headers = {
     "Content-Type": "application/x-www-form-urlencoded",
     "User-Agent": process.env.GEOCODER_USER_AGENT || "Trailmate/0.1 (trip planner)",
   };
-  const failures: string[] = [];
-  for (const url of endpoints) {
+  // Servers that failed recently are skipped (lib/overpass-health.ts): a known outage costs no waiting.
+  const { usable, paused } = usableOverpass();
+  const failures: string[] = paused.map(pausedText);
+  for (const url of usable) {
+    let failure: string;
     try {
       const res = await fetchImpl(url, { method: "POST", headers, body, signal: AbortSignal.timeout(6_000) });
-      if (!res.ok) {
-        failures.push(`${new URL(url).host} -> HTTP ${res.status}`);
-        continue;
+      if (!res.ok) failure = `HTTP ${res.status}`;
+      else {
+        const json = await res.json();
+        if (!isOverpassFailure(json)) { noteOverpassOk(url); return json; }
+        failure = (json as { remark: string }).remark.slice(0, 60);
       }
-      const json = await res.json();
-      if (isOverpassFailure(json)) {
-        failures.push(`${new URL(url).host} -> ${(json as { remark: string }).remark.slice(0, 60)}`);
-        continue;
-      }
-      return json;
     } catch (e) {
-      failures.push(`${new URL(url).host} -> ${e instanceof Error ? e.name : "error"}`);
+      failure = e instanceof Error ? e.name : "error";
     }
+    failures.push(`${new URL(url).host} -> ${failure}`);
+    noteOverpassFailure(url, failure);
   }
   throw new NearbyUnavailableError(`all Overpass servers failed: ${failures.join("; ")}`);
 }

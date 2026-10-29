@@ -1,23 +1,43 @@
-// "Give me the ranked places for this region/category": cache first, then OpenStreetMap, and an older saved list rather than an error.
+// "Give me the ranked places for this region/category": our own place catalogue first (see loadExplore), else cache, then
+// OpenStreetMap, and an older saved list rather than an error.
 //
 //   fresh list in the shared cache  → served, no map request
 //   otherwise (if the user's daily allowance agrees) → ONE live Overpass request, shared by everyone asking at the same moment
 //   live request fails → an older saved list (marked stale), or an honest error
 // An empty answer is believed (a region may really have no waterfalls) but only remembered for a few minutes, so a region that failed to
 // resolve is never stuck as "nothing here" for days.
-import { isOverpassFailure, OVERPASS_MIRRORS } from "@/lib/nearby";
+import { isOverpassFailure } from "@/lib/nearby";
+import { BUSY_MS, noteOverpassFailure, noteOverpassOk, pausedText, pauseFor, resetOverpassHealth, usableOverpass } from "@/lib/overpass-health";
 import { buildExploreQuery, kindsKey, type ExploreKinds, type ExploreScope } from "./query";
 import { parseExplore, type ExploreItem } from "./items";
 import { FRESH_MS, type ExploreStore } from "./store";
+import type { CatalogReader } from "@/lib/catalog/read";
 
 export class ExploreUnavailableError extends Error {}
 export class ExploreQuotaError extends Error {}
 
-export type Loaded = { items: ExploreItem[]; stale: boolean; source: "cache" | "live"; fetchedAt: number };
-export type LoadDeps = { store: ExploreStore; fetchImpl?: typeof fetch; now?: () => number; allowUpstream?: () => boolean | Promise<boolean> };
+/**
+ * source "catalog": our own place catalogue (fetchedAt = the date of its newest data). "offline": the map servers could not be reached
+ * and nothing was saved, so these come from our own offline place list.
+ */
+export type Loaded = { items: ExploreItem[]; stale: boolean; source: "catalog" | "cache" | "live" | "offline"; fetchedAt: number };
+export type LoadDeps = {
+  store: ExploreStore; fetchImpl?: typeof fetch; now?: () => number; allowUpstream?: () => boolean | Promise<boolean>;
+  /** Our own place catalogue (lib/catalog/read.ts). Null answer = not loaded: the old path runs. */
+  catalog?: CatalogReader | null;
+  /** Ask the live map where the catalogue has nothing (default: OVERPASS_EXTRA isn't "off"). */
+  liveExtra?: boolean;
+  /** Last resort when the live servers fail and nothing is saved: places from our own offline list (lib/explore/offline.ts). */
+  offline?: (scope: ExploreScope, kinds: ExploreKinds) => Promise<{ items: ExploreItem[]; builtAt: number } | null>;
+};
 
-const PER_MIRROR_MS = 25_000;
-const DEADLINE_MS = 45_000;
+/**
+ * How long one server gets. A server that is down never answers, so this is mostly what a dead server costs, once: after that it is
+ * paused (lib/overpass-health.ts). A whole state is a heavier question, so it gets longer; callers that cannot wait cap their own wait
+ * and the answer still fills the shared cache when it arrives.
+ */
+const PER_MIRROR_MS = { state: 25_000, other: 12_000 };
+const DEADLINE_MS = 30_000;
 const SHORT_TTL_MS = 10 * 60_000;
 const SHORT_MAX = 200;
 
@@ -43,7 +63,7 @@ const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 const inflight = new Map<string, Promise<ExploreItem[]>>();
 const shortCache = new Map<string, { at: number; items: ExploreItem[] }>();
-export const clearExploreMemory = () => { inflight.clear(); shortCache.clear(); };
+export const clearExploreMemory = () => { inflight.clear(); shortCache.clear(); resetOverpassHealth(); };
 
 /** A short, stable fingerprint of a road line (points rounded to about 100 m), so two travellers on the same road share one saved answer. */
 export function lineHash(line: [number, number][]): string {
@@ -65,35 +85,72 @@ export async function fetchExplore(scope: ExploreScope, category: ExploreKinds, 
 }
 
 async function askMirrors(scope: ExploreScope, category: ExploreKinds, fetchImpl: typeof fetch, now: () => number, sleep: (ms: number) => Promise<void>): Promise<ExploreItem[]> {
-  const endpoints = [process.env.OVERPASS_URL, ...OVERPASS_MIRRORS].filter((u): u is string => !!u);
   const body = `data=${encodeURIComponent(buildExploreQuery(scope, category))}`;
   const headers = { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": process.env.GEOCODER_USER_AGENT || "Trailmate/0.1 (trip planner)" };
+  const perMirror = scope.kind === "state" ? PER_MIRROR_MS.state : PER_MIRROR_MS.other;
   const started = now();
   const failures: string[] = [];
-  // Two passes: when every server was busy or slow, wait a moment and go round once more (a server that said "too many requests"
-  // a second ago usually has a free slot now).
-  for (let pass = 0; pass < 2; pass++) {
-    const before = failures.length;
-    for (const url of endpoints) {
+  // Servers that failed recently are skipped (lib/overpass-health.ts) and their remembered failure is reported, so a known outage costs
+  // no waiting at all. Then two passes: when every server that answered was only BUSY ("too many requests"), wait a moment and ask those
+  // once more (a free slot usually opens within seconds). A server that did not answer at all is not asked twice in one tap.
+  const { usable, paused } = usableOverpass(now());
+  failures.push(...paused.map(pausedText));
+  const last = new Map<string, string>();                                 // each server's latest failure, remembered at the end
+  let ask = usable;
+  for (let pass = 0; pass < 2 && ask.length > 0; pass++) {
+    const round: string[] = [];
+    for (const url of ask) {
       if (now() - started > DEADLINE_MS) { failures.push("deadline"); break; }
-      const name = new URL(url).host;
+      let failure: string;
       try {
-        const res = await fetchImpl(url, { method: "POST", headers, body, signal: AbortSignal.timeout(PER_MIRROR_MS) });
-        if (!res.ok) { failures.push(`${name} -> HTTP ${res.status}`); continue; }
-        const json = await res.json();
-        if (isOverpassFailure(json)) { failures.push(`${name} -> ${(json as { remark: string }).remark.slice(0, 60)}`); continue; }
-        return parseExplore(json);
-      } catch (e) { failures.push(`${name} -> ${e instanceof Error ? e.name : "error"}`); }
+        const res = await fetchImpl(url, { method: "POST", headers, body, signal: AbortSignal.timeout(perMirror) });
+        if (!res.ok) failure = `HTTP ${res.status}`;
+        else {
+          const json = await res.json();
+          if (!isOverpassFailure(json)) { noteOverpassOk(url); return parseExplore(json); }
+          failure = (json as { remark: string }).remark.slice(0, 60);
+        }
+      } catch (e) { failure = e instanceof Error ? e.name : "error"; }
+      failures.push(`${new URL(url).host} -> ${failure}`);
+      round.push(failure);
+      last.set(url, failure);
     }
-    const round = failures.slice(before);
     if (pass === 1 || round.length === 0 || !round.every((f) => PASSING.test(f)) || now() - started > DEADLINE_MS - 12_000) break;
+    ask = ask.filter((u) => pauseFor(last.get(u) ?? "") === BUSY_MS);
+    if (ask.length === 0) break;
     failures.push("(waited, then tried again)");
     await sleep(2_500 + Math.round(Math.random() * 1_000));
   }
+  for (const [url, failure] of last) noteOverpassFailure(url, failure, now());
   throw new ExploreUnavailableError(`all map servers failed: ${failures.join("; ")}`);
 }
 
+/** Overpass as an EXTRA, only where our catalogue has nothing: on unless OVERPASS_EXTRA=off. */
+export const liveExtraOn = () => process.env.OVERPASS_EXTRA !== "off";
+
+/**
+ * Our own place catalogue first (lib/catalog): when it is loaded, its answer is THE answer and no public server is asked during the tap.
+ * Only where it has nothing for this question, and only when OVERPASS_EXTRA isn't "off", the old path runs as an extra (shared cache,
+ * one live Overpass question, saved lists, the offline list); if that fails too, the catalogue's "nothing here" is believed.
+ * When the catalogue isn't loaded (or can't be read), the old path runs as before.
+ */
 export async function loadExplore(scope: ExploreScope, category: ExploreKinds, deps: LoadDeps & { sleep?: (ms: number) => Promise<void> }): Promise<Loaded> {
+  const fromCatalog = deps.catalog ? await deps.catalog(scope, category).catch(() => null) : null;
+  if (fromCatalog) {
+    const answer: Loaded = { items: fromCatalog.items, stale: false, source: "catalog", fetchedAt: fromCatalog.dataAt };
+    if (fromCatalog.items.length > 0 || !(deps.liveExtra ?? liveExtraOn())) return answer;
+    try {
+      const extra = await loadLiveOrSaved(scope, category, deps);
+      return extra.items.length > 0 ? extra : answer;
+    } catch (e) {
+      console.error("[explore] nothing in the catalogue here and the live extra failed:", e instanceof Error ? e.message : e);
+      return answer;
+    }
+  }
+  return loadLiveOrSaved(scope, category, deps);
+}
+
+async function loadLiveOrSaved(scope: ExploreScope, category: ExploreKinds, deps: LoadDeps & { sleep?: (ms: number) => Promise<void> }): Promise<Loaded> {
   const now = deps.now ?? Date.now;
   const key = cacheKey(scope, category);
   // A region and a road are the same for everyone, so they are shared. So is the circle round a destination (a town or a state's middle):
@@ -112,6 +169,8 @@ export async function loadExplore(scope: ExploreScope, category: ExploreKinds, d
   const allowed = deps.allowUpstream ? await deps.allowUpstream() : true;
   if (!allowed) {
     if (saved) return { items: saved.items, stale: true, source: "cache", fetchedAt: saved.fetchedAt };
+    const off = await offlineList(scope, category, deps);
+    if (off) return off;
     throw new ExploreQuotaError("daily allowance used");
   }
 
@@ -135,6 +194,23 @@ export async function loadExplore(scope: ExploreScope, category: ExploreKinds, d
       console.error("[explore] live data unavailable, serving the saved list:", e instanceof Error ? e.message : e);
       return { items: saved.items, stale: true, source: "cache", fetchedAt: saved.fetchedAt };
     }
+    const off = await offlineList(scope, category, deps);
+    if (off) {
+      console.error("[explore] live data unavailable and nothing saved, serving the offline list:", e instanceof Error ? e.message : e);
+      return off;
+    }
     throw e instanceof ExploreUnavailableError ? e : new ExploreUnavailableError(e instanceof Error ? e.message : "unavailable");
+  }
+}
+
+/** The offline list, or null when there is none or it has nothing here (then the caller's honest "unavailable" stands). Never throws. */
+async function offlineList(scope: ExploreScope, category: ExploreKinds, deps: LoadDeps): Promise<Loaded | null> {
+  if (!deps.offline) return null;
+  try {
+    const off = await deps.offline(scope, category);
+    return off && off.items.length > 0 ? { items: off.items, stale: true, source: "offline", fetchedAt: off.builtAt } : null;
+  } catch (e) {
+    console.error("[explore] offline list:", e instanceof Error ? e.message : e);
+    return null;
   }
 }

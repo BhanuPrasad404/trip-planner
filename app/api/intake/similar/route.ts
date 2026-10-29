@@ -4,6 +4,8 @@ import { rateLimiter } from "@/lib/rate-limit";
 import { getMatrix } from "@/lib/routing";
 import { loadExplore } from "@/lib/explore/service";
 import { getExploreStore } from "@/lib/explore/store";
+import { loadOfflineExplore } from "@/lib/explore/offline-load";
+import { getCatalogReader } from "@/lib/catalog/read-server";
 import { findSimilar } from "@/lib/intake/similar-service";
 import type { PlaceHit } from "@/lib/places/types";
 import { PER_MINUTE } from "@/lib/places/limits";
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
   const answer = await findSimilar(
     { start: input.start, places: input.places.map((p) => ({ ...p, kind: p.kind as PlaceHit["kind"] })), interests: input.interests, month: input.month, roundTrip: input.round_trip },
     {
-      explore: async (code, kind) => (await loadExplore({ kind: "state", code }, kind, { store: getExploreStore(), allowUpstream: () => allowCall(visitor, "explore") })).items,
+      explore: async (code, kinds) => (await loadExplore({ kind: "state", code }, kinds, { store: getExploreStore(), allowUpstream: () => allowCall(visitor, "explore"), offline: loadOfflineExplore, catalog: getCatalogReader() })).items,
       researched: async () => {
         const { data, error: e } = await db.from("season_tags").select("id, place_name, lat, lng, good_months");
         return e ? [] : (data ?? []).map((t) => ({ id: t.id as string, name: t.place_name as string, lat: t.lat as number, lng: t.lng as number, months: (t.good_months as number[] | null) ?? [] }));

@@ -1,5 +1,6 @@
 // Offline fallbacks shared by every routing provider: straight-line distance with a road factor.
 import { distanceKm, type GeoPoint } from "@/lib/geo";
+import type { RoadLine } from "@/lib/engine/types";
 import type { Matrix, RouteResult } from "./types";
 
 const ROAD_FACTOR = 1.35; // roads are longer than straight lines
@@ -17,6 +18,28 @@ export function estimateMatrix(points: GeoPoint[]): Matrix {
       durations[i][j] = (km / AVG_KMH) * 3600;
     }
   return { durations, distances, source: "estimate" };
+}
+
+/** Pieces of an estimated road line are at most this long, so a long drive can still be split into days near real towns. */
+export const ESTIMATE_PIECE_KM = 2;
+
+/**
+ * A stand-in road line when the routing service didn't answer: the straight line from a to b cut into short pieces, with the same road
+ * factor and speed as estimateMatrix (so its total matches the estimated table). source "estimate": the engine labels it, and halt towns
+ * found along it are approximate (the real road may pass elsewhere).
+ */
+export function estimateRoadLine(a: GeoPoint, b: GeoPoint): RoadLine {
+  const km = distanceKm(a, b);
+  const pieces = Math.max(1, Math.ceil(km / ESTIMATE_PIECE_KM));
+  const coords: [number, number][] = [];
+  for (let i = 0; i <= pieces; i++) { const t = i / pieces; coords.push([a.lng + (b.lng - a.lng) * t, a.lat + (b.lat - a.lat) * t]); }
+  const pieceRoadKm = (km * ROAD_FACTOR) / pieces;
+  return {
+    coords,
+    durations: Array.from({ length: pieces }, () => (pieceRoadKm / AVG_KMH) * 3600),
+    distances: Array.from({ length: pieces }, () => pieceRoadKm * 1000),
+    source: "estimate",
+  };
 }
 
 export function estimateRoute(points: GeoPoint[]): RouteResult {

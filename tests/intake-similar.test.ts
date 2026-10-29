@@ -62,7 +62,10 @@ describe("places like these — choosing", () => {
 
 describe("places like these — gathering (fakes for OpenStreetMap, routing and the database)", () => {
   const deps = (over: Partial<SimilarDeps> = {}): SimilarDeps => ({
-    explore: vi.fn(async (_s: string, kind: ExploreItem["category"]) => (kind === "waterfall" ? [item("node/1", "Muthyala Dhara Waterfall", 18.5, 80.55, "waterfall"), item("node/2", "Unknown Falls", 18.7, 80.5, "waterfall", false)] : kind === "temple" ? [item("way/3", "Thousand Pillar Temple", 18.0, 79.57, "temple")] : [])),
+    explore: vi.fn(async (_s: string, kinds: ExploreItem["category"][]) => [
+      ...(kinds.includes("waterfall") ? [item("node/1", "Muthyala Dhara Waterfall", 18.5, 80.55, "waterfall"), item("node/2", "Unknown Falls", 18.7, 80.5, "waterfall", false)] : []),
+      ...(kinds.includes("temple") ? [item("way/3", "Thousand Pillar Temple", 18.0, 79.57, "temple")] : []),
+    ]),
     researched: async () => [], saved: async () => [], matrix: async (pts) => estimateMatrix(pts), ...over,
   });
   it("only NOTABLE OpenStreetMap places (linked to Wikipedia/Wikidata or heritage) are suggested, with extra drive", async () => {
@@ -70,6 +73,13 @@ describe("places like these — gathering (fakes for OpenStreetMap, routing and 
     expect(a.status).toBe("ok");
     expect(a.suggestions.map((s) => s.name)).toEqual(["Thousand Pillar Temple", "Muthyala Dhara Waterfall"]); // least extra driving first; "Unknown Falls" isn't notable
     expect(a.suggestions.every((s) => s.extraDriveMin !== null && s.estimated)).toBe(true);
+  });
+  it("asks the map ONCE per state with every kind in that one question (the free servers allow about two at a time)", async () => {
+    const d = deps();
+    await findSimilar({ start: HYD, places: TRIP, interests: [], month: 8, roundTrip: true }, d);
+    const calls = (d.explore as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
+    expect(new Set(calls.map((c) => c[0])).size).toBe(calls.length);              // never two questions for one state
+    expect(calls.every((c) => Array.isArray(c[1]) && c[1].length >= 1)).toBe(true);
   });
   it("map data unreachable: says there may be more, and still offers what it has", async () => {
     const a = await findSimilar({ start: HYD, places: TRIP, interests: [], month: 8, roundTrip: true }, deps({ explore: async () => { throw new Error("overpass down"); }, researched: async () => [{ id: "1", name: "Laknavaram Lake", lat: 18.155, lng: 80.03, months: [8] }] }));

@@ -365,7 +365,19 @@ const sameDays = (a: Variant, b: Variant) =>
   transitKey(a.transitOut) === transitKey(b.transitOut) && transitKey(a.transitBack) === transitKey(b.transitBack) &&
   JSON.stringify(a.option.days.map((d) => d.stops.map((s) => s.placeId))) === JSON.stringify(b.option.days.map((d) => d.stops.map((s) => s.placeId)));
 
-export function planTrip(input: EngineInput): EnginePlan {
+/**
+ * Estimated road times can be far off (in either direction), so they are not a reason to leave a place out: with an estimated table every
+ * place is kept (treated like a must-see), and a day that may be too long is flagged instead. Places are left out only on real road data,
+ * or by the traveller's own choice.
+ */
+export function protectOnEstimate(input: EngineInput): EngineInput {
+  if (input.base.matrix.source !== "estimate") return input;
+  return { ...input, base: { ...input.base, places: input.base.places.map((p) => (p.priority === "must" ? p : { ...p, priority: "must" as const })) } };
+}
+export const ESTIMATE_KEEP_NOTE = "Road times are estimated (the routing service didn't answer), so none of your places was left out: days that may be too long are flagged instead. Try again later for real road times.";
+
+export function planTrip(input0: EngineInput): EnginePlan {
+  const input = protectOnEstimate(input0);
   const base = input.base;
   const n = base.places.length;
   const sh = sharedOf(input);
@@ -388,9 +400,11 @@ export function planTrip(input: EngineInput): EnginePlan {
     if (alt) { recommended = alt.id; notes.push(base.places.some((p) => p.priority === "must") ? `At your chosen pace (${pv.label}) your must-sees don't all fit; ${alt.label} fits them.` : `At your chosen pace (${pv.label}) your places don't fit these days; ${alt.label} fits.`); }
   }
 
+  if (n && base.matrix.source === "estimate") notes.push(ESTIMATE_KEEP_NOTE);
   const warnings: Warning[] = [];
   const needOut = F !== null && matrix.durations[0][F] / 60 > STYLES.balanced.maxDriveMin;
   if (needOut && !input.outLine) warnings.push({ code: "estimated_times", severity: "warn", message: "We couldn't get the road line for the long drive, so it isn't split into drive days with halt towns. Plan those nights yourself." });
+  else if (needOut && input.outLine?.source === "estimate") warnings.push({ code: "estimated_times", severity: "warn", message: "We couldn't get the real road for the long drive, so its drive days and halt towns are worked out on an estimated road (a straight line plus a road factor). Real roads may be slower or faster, and may pass other towns: check before you go." });
 
   const recRun = runs.find((r) => r.variant.id === recommended)!;
   return { variants, recommended, sameAs, labels: labelsFor(input, matrix), permits: permitNotes(base.places.map((p, i) => ({ name: p.name, lat: p.lat, lng: p.lng, state: input.states[i] ?? null }))), direction: recRun.direction, notes, warnings };

@@ -37,7 +37,7 @@ export type Meter = {
  */
 export function settlementMinutes(p: { name: string; kind: PlaceHit["kind"] }): number | null {
   if (categoryFor(p) !== "other") return null;
-  return p.kind === "city" ? SETTLEMENT_VISIT_MIN.city : p.kind === "town" || p.kind === "village" ? SETTLEMENT_VISIT_MIN.town : null;
+  return p.kind === "city" ? SETTLEMENT_VISIT_MIN.city : p.kind === "town" || p.kind === "village" ? SETTLEMENT_VISIT_MIN.town : p.kind === "subdistrict" || p.kind === "district" ? SETTLEMENT_VISIT_MIN.area : null;
 }
 
 /** Which kind of place, for its typical visit time. From the name first ("…Falls"), then the map's kind. */

@@ -23,7 +23,7 @@ export type BuilderPlace = {
   /** Short plain-English weather note per day, shown in explanations (e.g. "31°C, ~2 mm rain"). */
   fitNote?: (string | null)[];
   /** The place is a town or a city, not one sight (lib/engine/settlement.ts): it is timed as that. */
-  settlement?: "city" | "town" | null;
+  settlement?: "city" | "town" | "area" | null;
 };
 
 export type EndMode = "free" | "start" | "point";

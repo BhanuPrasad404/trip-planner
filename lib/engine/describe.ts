@@ -17,7 +17,8 @@ export function describeVariant(v: Variant, opts: { fuelPrice?: number | null } 
       for (const s of d.stops) lines.push(`  ${hhmm(s.arriveMin)} ${s.name} (${duration(s.driveMin)} / ${km(s.driveKm)} from ${s.fromPrev.fromName}; ${duration(s.visitMin)} there)${s.flags.includes("hours_unknown") ? " · hours unknown" : ""}`);
       if (d.returnLeg) lines.push(`  Drive to ${d.returnLeg.to}: ${duration(d.returnLeg.driveMin)} / ${km(d.returnLeg.km)}, there by ${hhmm(d.endMin)}.`);
       const h = v.halts.find((x) => x.day === d.day);
-      if (h) lines.push(`  Night halt: ${h.town}${h.area ? `, ${h.area}` : ""}${h.atStop ? "" : ` (about ${km(h.km)}, ${duration(h.driveMin)} — estimated)`}${h.checkStays ? " · small town: check stays here" : ""}.`);
+      if (h?.noTown) lines.push(`  Night halt: near ${h.town}: no town in our map data nearby, plan this night yourself.`);
+      else if (h) lines.push(`  Night halt: ${h.town}${h.area ? `, ${h.area}` : ""}${h.atStop ? "" : ` (about ${km(h.km)}, ${duration(h.driveMin)} — estimated)`}${h.checkStays ? " · small town: check stays here" : ""}.`);
       return { day: d.day, lines };
     }),
     ...v.transitBack.map((t) => ({ day: t.day, lines: transitLines(t, "Drive home") })),

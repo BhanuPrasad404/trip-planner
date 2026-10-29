@@ -6,7 +6,10 @@ import { consumeQuota } from "@/lib/quota";
 import { exploreSchema } from "@/lib/validation/schemas";
 import { loadExplore, ExploreQuotaError, ExploreUnavailableError } from "@/lib/explore/service";
 import { getExploreStore } from "@/lib/explore/store";
+import { loadOfflineExplore } from "@/lib/explore/offline-load";
+import { getCatalogReader } from "@/lib/catalog/read-server";
 import { pageItems } from "@/lib/explore/items";
+import { classifyMapFailure } from "@/lib/explore/failure";
 
 // A long map query may run (a whole state), so this is allowed more time than a nearby search.
 export const maxDuration = 60;
@@ -24,7 +27,7 @@ export async function POST(req: Request) {
   if (bodyError) return bodyError;
 
   try {
-    const loaded = await loadExplore(input.scope, input.category, { store: getExploreStore(), allowUpstream: () => consumeQuota(supabase, "explore", 150) });
+    const loaded = await loadExplore(input.scope, input.category, { store: getExploreStore(), allowUpstream: () => consumeQuota(supabase, "explore", 150), offline: loadOfflineExplore, catalog: getCatalogReader() });
     const anchor = input.anchor ?? (input.scope.kind === "point" ? { lat: input.scope.lat, lng: input.scope.lng } : null);
     const page = pageItems(loaded.items, { sort: input.sort, anchor, q: input.q, cursor: input.cursor, limit: input.limit });
     return NextResponse.json(
@@ -34,7 +37,7 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof ExploreQuotaError) return jsonError("You've used today's place searches. Please try again tomorrow.", 429);
     console.error("[api] explore:", e instanceof Error ? e.message : e);
-    if (e instanceof ExploreUnavailableError) return jsonError("The map servers are busy right now. Please try again in a minute.", 502);
+    if (e instanceof ExploreUnavailableError) return jsonError(classifyMapFailure(e.message).note, 502);
     return jsonError("Something went wrong. Please try again.", 500);
   }
 }

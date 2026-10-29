@@ -77,7 +77,7 @@ describe("routing provider efficiency", () => {
     const r1 = await osrmRouting.route(pts, down as never);
     const r2 = await osrmRouting.route(pts, down as never);
     expect(r1.source).toBe("estimate"); expect(r2.source).toBe("estimate");
-    expect(down).toHaveBeenCalledTimes(1);
+    expect(down).toHaveBeenCalledTimes(2);                                // one try + ONE retry for the first ask; the second ask is the saved fallback
   });
 });
 

@@ -29,7 +29,9 @@ export function HaltLine({ h }: { h: NightHalt }) {
   return (
     <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-sky px-3 py-1.5 text-xs text-ink-muted">
       <Glyph name="stay" size={13} className="mt-0.5 shrink-0 text-pine" />
-      <span>Night halt: <strong className="text-pine">{h.town}</strong>{h.area ? `, ${h.area}` : ""}{h.atStop ? "" : ` · about ${h.km} km, ${duration(h.driveMin)} (estimated)`}{h.checkStays ? " · a small town: check stays here" : ""}</span>
+      {h.noTown
+        ? <span>Night halt: near <strong className="text-pine">{h.town}</strong> · no town in our map data nearby, so plan this night yourself</span>
+        : <span>Night halt: <strong className="text-pine">{h.town}</strong>{h.area ? `, ${h.area}` : ""}{h.atStop ? "" : ` · about ${h.km} km, ${duration(h.driveMin)} (estimated)`}{h.checkStays ? " · a small town: check stays here" : ""}</span>}
     </p>
   );
 }

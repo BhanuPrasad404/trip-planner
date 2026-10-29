@@ -11,7 +11,7 @@
 import type { PlaceCategory } from "@/lib/categories";
 import type { ExploreCategoryId } from "@/lib/explore/categories";
 import { exploreCategory } from "@/lib/explore/categories";
-import type { ExploreItem } from "@/lib/explore/items";
+import { exploreRef, sourceLabel, type ExploreItem } from "@/lib/explore/items";
 import { distanceKm } from "@/lib/geo";
 import { normalizeName } from "@/lib/places/types";
 import { optimizeOpenPath } from "@/lib/trip-builder/tour";
@@ -26,6 +26,8 @@ export type Pick = {
   hubKm: number; hubMin: number; basis: "road" | "estimate";
   effort: Effort; notable: boolean; hours: string | null; wikipedia: string | null;
   why: string[];
+  /** Where the place came from and the date of that data ("OpenStreetMap, 28 Oct 2026"), or null for a live map answer. */
+  source: string | null;
 };
 export type PlanDay = { day: number; title: string; picks: Pick[]; driveMin: number };
 export type PlanId = Pace;
@@ -162,7 +164,7 @@ export function buildPlans(cands: Cand[], matrix: Matrix, ask: Ask): ProposedPla
   const days = Math.max(1, Math.min(ask.days, 10));
   const toPick = (c: Cand, i: number): Pick => {
     const min = Math.round((matrix.durations[0][i + 1] / 60) * DRIVE_MARGIN);
-    return { id: `osm:${c.item.id}`, name: c.item.name, lat: c.item.lat, lng: c.item.lng, category: c.item.category, hubKm: round1(matrix.distances[0][i + 1] / 1000 || c.km), hubMin: min, basis, effort: c.effort, notable: c.item.notable, hours: c.item.hours, wikipedia: c.item.wikipedia, why: whyFor(c, ask, min, basis) };
+    return { id: exploreRef(c.item), name: c.item.name, lat: c.item.lat, lng: c.item.lng, category: c.item.category, hubKm: round1(matrix.distances[0][i + 1] / 1000 || c.km), hubMin: min, basis, effort: c.effort, notable: c.item.notable, hours: c.item.hours, wikipedia: c.item.wikipedia, why: whyFor(c, ask, min, basis), source: sourceLabel(c.item) };
   };
   const all = cands.map(toPick);
   const order: PlanId[] = ["relaxed", "balanced", "packed"];

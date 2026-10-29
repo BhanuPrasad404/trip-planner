@@ -7,7 +7,7 @@
 // Food and shopping have no reliable free data, so they never produce suggestions.
 import { distanceKm } from "@/lib/geo";
 import type { ExploreCategoryId } from "@/lib/explore/categories";
-import type { ExploreItem } from "@/lib/explore/items";
+import { exploreRef, type ExploreItem } from "@/lib/explore/items";
 import { REGIONS } from "@/lib/explore/regions";
 import { normalizeName } from "@/lib/places/types";
 import { categoryFor, type Matrix, type MeterPlace } from "./fit-meter";
@@ -111,4 +111,4 @@ export function pickSimilar(args: {
 }
 
 /** Explore items → candidates: only places somebody found notable. */
-export const fromExplore = (items: ExploreItem[]): Candidate[] => items.filter((i) => i.notable).map((i) => ({ id: `osm:${i.id}`, name: i.name, lat: i.lat, lng: i.lng, kind: i.category, source: "osm", wikipedia: i.wikipedia }));
+export const fromExplore = (items: ExploreItem[]): Candidate[] => items.filter((i) => i.notable).map((i) => ({ id: exploreRef(i), name: i.name, lat: i.lat, lng: i.lng, kind: i.category, source: "osm", wikipedia: i.wikipedia }));

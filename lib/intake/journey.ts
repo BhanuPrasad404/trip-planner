@@ -10,7 +10,7 @@
 // Pure and deterministic: the caller fetched the road and the places.
 import type { ExploreCategoryId } from "@/lib/explore/categories";
 import { exploreCategory } from "@/lib/explore/categories";
-import type { ExploreItem } from "@/lib/explore/items";
+import { exploreRef, sourceLabel, type ExploreItem } from "@/lib/explore/items";
 import { estimateDetour } from "@/lib/explore/route-rank";
 import { buildRoute, project } from "@/lib/intel/route-geometry";
 import { normalizeName } from "@/lib/places/types";
@@ -28,6 +28,8 @@ export type JourneyStop = {
   /** Which day of driving it falls on, at the daily limit. */
   drivingDay: number;
   notable: boolean; hours: string | null; why: string[];
+  /** Where the place came from and the date of that data ("OpenStreetMap, 28 Oct 2026"), or null for a live map answer. */
+  source: string | null;
 };
 export type JourneyRoad = { km: number; minutes: number; source: "road" | "estimate" };
 
@@ -91,7 +93,7 @@ export function stopsAlongRoad(items: ExploreItem[], line: [number, number][], r
     else if (c.it.notable) why.push("Well known: it has a Wikipedia or Wikidata entry");
     else why.push("Named on the map; no Wikipedia entry, so check reviews first");
     if (c.interest) why.push(`Matches your interest: ${INTEREST_LABEL[c.interest]}`);
-    return { id: `osm:${c.it.id}`, name: c.it.name, lat: c.it.lat, lng: c.it.lng, category: c.it.category, alongKm: Math.round(c.alongKm), offKm: round1(c.offKm), extraMin: c.extraMin, driveMin, drivingDay: Math.floor(driveMin / dayMin) + 1, notable: c.it.notable, hours: c.it.hours, why: why.slice(0, 4) };
+    return { id: exploreRef(c.it), name: c.it.name, lat: c.it.lat, lng: c.it.lng, category: c.it.category, alongKm: Math.round(c.alongKm), offKm: round1(c.offKm), extraMin: c.extraMin, driveMin, drivingDay: Math.floor(driveMin / dayMin) + 1, notable: c.it.notable, hours: c.it.hours, why: why.slice(0, 4), source: sourceLabel(c.it) };
   });
 }
 

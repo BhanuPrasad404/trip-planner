@@ -194,6 +194,9 @@ export function subInput(input: BuilderInput, places: BuilderInput["places"]): B
   return { ...input, places, matrix: { ...input.matrix, durations: cut(input.matrix.durations), distances: cut(input.matrix.distances) } };
 }
 
+/** No real town near the day's end: said plainly (never a made-up town), so every night is accounted for. */
+const noTownHalt = (day: number, near: string): NightHalt => ({ day, town: near, area: "", km: 0, driveMin: 0, pop: 0, checkStays: true, atStop: true, noTown: true });
+
 function haltsFor(option: PlanOption, a: CoreArgs): NightHalt[] {
   const used = option.days.filter((d) => d.stops.length > 0);
   const last = used[used.length - 1]?.day;
@@ -203,15 +206,13 @@ function haltsFor(option: PlanOption, a: CoreArgs): NightHalt[] {
     if (d.day === last && d.returnLeg) {
       // The places end here but the trip goes on (the drive home starts tomorrow): sleep near where this day's drive ends.
       const e = a.input.end;
-      const h = e ? haltFor(d.day, { name: e.label, lat: e.lat, lng: e.lng }, a.towns) : null;
-      if (h) out.push(h);
+      if (e) out.push(haltFor(d.day, { name: e.label, lat: e.lat, lng: e.lng }, a.towns) ?? noTownHalt(d.day, e.label));
       continue;
     }
     const s = d.stops[d.stops.length - 1];
     const p = a.input.places.find((x) => x.id === s.placeId);
     if (!p) continue;
-    const h = haltFor(d.day, { name: s.name, lat: p.lat, lng: p.lng }, a.towns, a.prefs.stay);
-    if (h) out.push(h);
+    out.push(haltFor(d.day, { name: s.name, lat: p.lat, lng: p.lng }, a.towns, a.prefs.stay) ?? noTownHalt(d.day, s.name));
   }
   return out;
 }

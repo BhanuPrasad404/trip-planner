@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
+import { PlaceHours } from "@/components/place/PlaceHours";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { useLocalJson } from "@/lib/client/use-local-json";
 import { useNowMinute } from "@/lib/client/use-now";
@@ -421,6 +422,9 @@ export function TripCheck({ tripId, trip, places, activeDay, today, roadLine = n
                           </div>
                         )}
                         {legacy && <p className="mt-1 text-xs text-ink-muted">You typed these hours earlier and they were kept only on this device, so the check no longer uses them. Save them to use them and share them with the group.</p>}
+                        <details className="mt-1.5 text-sm"><summary className="min-h-11 cursor-pointer py-2 font-semibold text-teal-ink">What we know about {p.name}&apos;s hours</summary>
+                          <PlaceHours place={{ name: p.name, lat: p.lat, lng: p.lng }} stopId={p.id} date={date || null} onAddHours={() => document.getElementById(`hours-${p.id}`)?.focus()} />
+                        </details>
                       </li>
                     );
                   })}

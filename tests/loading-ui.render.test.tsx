@@ -105,10 +105,10 @@ describe("the opening screen (AppLoader)", () => {
     expect((h.match(/role="status"/g) ?? []).length).toBe(1);
     expect(h).toContain("Loading Trailmate"); expect(h).toContain('aria-hidden="true"');
   });
-  it("uses only theme colours (no fixed colour values), so each theme can repaint it", () => {
+  it("uses only theme colours (no fixed colour values), so the theme can repaint it", () => {
     expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
     for (const t of ["sky-top", "sky-bottom", "sun", "hill-far", "hill-near", "road", "line", "ring", "shadow"]) {
-      expect((css.match(new RegExp(`--tm-load-${t}:`, "g")) ?? []).length, t).toBe(2); // the light theme and the phone theme
+      expect((css.match(new RegExp(`--tm-load-${t}:`, "g")) ?? []).length, t).toBe(1); // one white theme for every screen size
     }
   });
   it("moves only when motion is welcome: every animated part is still for reduced motion", () => {

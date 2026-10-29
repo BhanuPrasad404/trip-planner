@@ -6,13 +6,17 @@ import { makeInput } from "./builder-fixtures";
 
 const UID = "11111111-1111-1111-1111-111111111111";
 const TRIP = "22222222-2222-2222-2222-222222222222";
-const state = { user: { id: UID } as { id: string } | null, upserts: [] as unknown[][], load: null as unknown, heightsFail: false };
+const state = { user: { id: UID } as { id: string } | null, upserts: [] as unknown[][], load: null as unknown, heightsFail: false, deletes: [] as string[] };
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },
     rpc: async () => ({ data: true, error: null }),
-    from: () => ({ upsert: async (rows: unknown[]) => (state.upserts.push(rows), { error: null }) }),
+    from: () => ({
+      upsert: async (rows: unknown[]) => (state.upserts.push(rows), { error: null }),
+      // .delete().eq(..).eq(..)[.not(..)]: records what it was asked to remove (the old plan halts)
+      delete: () => { const c: Record<string, unknown> = { eq: (k: string, v: string) => (state.deletes.push(`${k}=${v}`), c), not: (k: string, op: string, v: string) => (state.deletes.push(`${k} ${op} ${v}`), c), then: (res: (v: unknown) => void) => res({ error: null }) }; return c; },
+    }),
   }),
 }));
 vi.mock("@/lib/server/trip-data", () => ({ todayISO: async () => "2026-10-22" }));
@@ -34,7 +38,7 @@ function loaded(intake: unknown = { pace: "relaxed", night_driving: false }) {
   return { ok: true, input, result: buildTrip(input, []), signature: inputSignature(input), unscheduledIds: [], trip: { id: TRIP, intake }, skipped: [] as { id: string; name: string; lat: number; lng: number }[] };
 }
 
-beforeEach(() => { state.user = { id: UID }; state.upserts = []; state.load = loaded(); state.heightsFail = false; });
+beforeEach(() => { state.user = { id: UID }; state.upserts = []; state.deletes = []; state.load = loaded(); state.heightsFail = false; });
 
 describe("Plan my trip with the engine", () => {
   it("preview sends Relaxed / Balanced / Most places and the engine's extras; saves nothing", async () => {
@@ -75,6 +79,37 @@ describe("Plan my trip with the engine", () => {
     const rows = state.upserts[0] as { id: string; day_number: number | null }[];
     expect(rows).toHaveLength(4);
     for (const r of rows) if (r.day_number !== null) expect(r.day_number).toBeGreaterThanOrEqual(1);
+  });
+  it("a far trip: each drive day is saved as a stop (the night halt), so the day is not empty on Plan, Map and Live", async () => {
+    vi.stubGlobal("fetch", async () => { throw new Error("offline"); });   // no road service: the engine's own estimated road is used
+    try {
+      const input = makeInput([{ name: "Goa", category: "beach" }, { name: "Kolhapur" }], { numDays: 5, start: "Mumbai", startDateISO: "2026-12-12", endMode: "start" });
+      state.load = { ok: true, input, result: buildTrip(input, []), signature: inputSignature(input), unscheduledIds: [], trip: { id: TRIP, intake: { pace: "balanced", night_driving: false } }, skipped: [] };
+      const res = await applyPlan(json({ style: "balanced", end_mode: "start", signature: (state.load as { signature: string }).signature, engine: true }), params);
+      expect(res.status).toBe(200);
+      const rows = state.upserts[0] as { name: string; day_number: number | null; source_type?: string; category?: string; lat: number; lng: number; added_by?: string; drive_minutes: number | null }[];
+      const halts = rows.filter((r) => r.source_type === "plan_halt");
+      expect(halts.length).toBeGreaterThan(0);
+      for (const h of halts) {
+        expect(h).toMatchObject({ category: "stay", added_by: UID });
+        expect(h.day_number).toBeGreaterThanOrEqual(1); expect(Number.isFinite(h.lat) && Number.isFinite(h.lng)).toBe(true); expect(h.name.length).toBeGreaterThan(1);
+      }
+      // the drive days are the ones with a halt and no sightseeing stop of the plan's own
+      const sightDays = new Set(rows.filter((r) => r.source_type !== "plan_halt" && r.day_number !== null).map((r) => r.day_number));
+      expect(halts.some((h) => !sightDays.has(h.day_number))).toBe(true);
+      expect(new Set(halts.map((h) => h.day_number)).size).toBe(halts.length);       // one halt per day
+      expect((await res.json()).halts).toBe(halts.length);
+      // the halts of an earlier plan are replaced, never piled up
+      expect(state.deletes).toEqual(expect.arrayContaining([`trip_id=${TRIP}`, "source_type=plan_halt"]));
+      expect(state.deletes.some((d) => d.startsWith("id in ("))).toBe(true);
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it("a trip near home has no drive days, so no halts are saved (and old ones are cleared)", async () => {
+    const sig = (state.load as { signature: string }).signature;
+    await applyPlan(json({ style: "balanced", end_mode: "start", signature: sig, engine: true }), params);
+    expect((state.upserts[0] as { source_type?: string }[]).filter((r) => r.source_type === "plan_halt")).toHaveLength(0);
+    expect(state.deletes).toEqual(expect.arrayContaining(["source_type=plan_halt"]));
+    expect(state.deletes.some((d) => d.startsWith("id in"))).toBe(false);
   });
   it("Skip this place: the list reaches the planner, and on Use this plan the skipped place goes back to Ideas", async () => {
     const { loadBuilder } = await import("@/lib/server/builder");

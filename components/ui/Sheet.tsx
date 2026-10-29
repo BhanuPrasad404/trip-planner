@@ -40,9 +40,10 @@ export function PickerSheet({ title, onClose, children, footer }: { title: strin
 
   if (!mounted) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 sm:items-center" onClick={() => close.current()} data-picker-sheet="">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[var(--tm-scrim)] sm:items-center" onClick={() => close.current()} data-picker-sheet="">
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
         className="tm-sheet-in flex max-h-[85dvh] w-full flex-col rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] text-ink shadow-2xl outline-none sm:max-w-sm sm:rounded-3xl sm:pb-0">
+        <span aria-hidden="true" className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line sm:hidden" />
         <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
           <h2 className="font-display text-lg font-semibold text-pine">{title}</h2>
           <button type="button" onClick={() => close.current()} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted hover:bg-sky"><Glyph name="close" size={20} /></button>
@@ -57,5 +58,5 @@ export function PickerSheet({ title, onClose, children, footer }: { title: strin
 
 /** The look of the button that opens a picker: the same size and border as every other field, with a small arrow. */
 export const PICKER_BUTTON =
-  "flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-line bg-white px-3.5 py-2.5 text-left text-base text-ink " +
-  "outline-none focus-visible:border-teal focus-visible:ring-2 focus-visible:ring-teal/40 disabled:bg-sky disabled:text-ink-soft aria-[invalid=true]:border-clay";
+  "flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border-2 border-line bg-white px-3.5 py-2.5 text-left text-base text-ink shadow-[inset_0_1px_2px_rgba(28,36,48,0.04)] transition-[border-color,box-shadow] hover:border-ink-soft/40 " +
+  "outline-none focus-visible:border-teal focus-visible:ring-4 focus-visible:ring-teal/20 disabled:bg-sky disabled:text-ink-soft aria-[invalid=true]:border-clay";

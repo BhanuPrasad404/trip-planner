@@ -3,14 +3,14 @@ export function Logo({ className = "", tagline = false }: { className?: string; 
   if (tagline) {
     return (
       <span className={`inline-flex items-center gap-3 ${className}`}>
-        <svg width="44" height="44" viewBox="0 0 26 26" fill="none" aria-hidden="true" className="shrink-0 drop-shadow-[0_2px_8px_rgba(232,163,61,0.45)]">
+        <svg width="44" height="44" viewBox="0 0 26 26" fill="none" aria-hidden="true" className="shrink-0 drop-shadow-[0_3px_8px_rgba(201,128,21,0.35)]">
           <circle cx="13" cy="13" r="13" fill="#E8A33D" />
           <path d="M5 18.5l4.6-6.2 2.6 3.2 3-5.4 5.8 8.4z" fill="#0B3D3A" />
           <path d="M6 20.5c3-1.2 6-.3 9-1.4 2-.7 3.6-.6 5-1.1" stroke="#0B3D3A" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="0.1 2.4" />
         </svg>
         <span className="flex flex-col leading-none">
-          <span className="font-display text-[28px] font-semibold tracking-tight text-white">TrailMate</span>
-          <span className="mt-1.5 text-[13px] font-medium text-white/75">Plan <span aria-hidden="true">·</span><span className="sr-only">, </span> Ride <span aria-hidden="true">·</span><span className="sr-only">, </span> Explore</span>
+          <span className="font-display text-[28px] font-semibold tracking-tight text-pine">TrailMate</span>
+          <span className="mt-1.5 text-[13px] font-medium text-ink-muted">Plan <span aria-hidden="true">·</span><span className="sr-only">, </span> Ride <span aria-hidden="true">·</span><span className="sr-only">, </span> Explore</span>
         </span>
       </span>
     );

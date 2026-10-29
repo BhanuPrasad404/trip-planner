@@ -9,7 +9,7 @@ export type AlertAction = { id: string; label: string };
 export type AppAlert = {
   /** Same finding = same id, so it is shown once (for a toll: one id per toll plaza on this route). */
   id: string;
-  kind: "arrival" | "toll" | "advice" | "system" | "test" | "weather";
+  kind: "arrival" | "toll" | "advice" | "system" | "test" | "weather" | "hours";
   level: AlertLevel;
   title: string;
   /** One short sentence. */

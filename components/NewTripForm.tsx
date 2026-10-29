@@ -10,6 +10,8 @@ import { Button } from "./ui/Button";
 import { FormError, TextField } from "./ui/Field";
 import { Glyph } from "./ui/Glyph";
 import { DatePicker } from "./ui/DatePicker";
+import { PlaceHours } from "./place/PlaceHours";
+import { addDaysISO } from "@/lib/result/trip-clock";
 
 /** Today's date in India, whatever the phone's own time zone. */
 function todayISO() {
@@ -142,6 +144,13 @@ export function NewTripForm() {
           placeholder="The town or place you finish at"
           hint="Places you want to visit on the way are added next, in the plan."
         />
+      )}
+      {endMode === "place" && end && end.origin === "search" && (
+        <details className="rounded-xl border border-line p-3">
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-pine">Opening hours and places to visit in {end.name}</summary>
+          <PlaceHours place={{ name: end.name, lat: end.lat, lng: end.lng, kind: end.kind ?? null, state: end.state ?? null }}
+            date={startDate && Number.isInteger(Number(days)) && Number(days) >= 1 ? addDaysISO(startDate, Number(days) - 1) : null} />
+        </details>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

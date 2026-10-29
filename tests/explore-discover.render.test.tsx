@@ -209,13 +209,13 @@ describe("cards: photos, details, season, map, save, add to trip", () => {
     expect(r.root.findAllByType("img").map((i) => i.props.alt)).toEqual(["Photo of Fort 01"]);
     expect(text(r.root)).toContain("Photo: Wikimedia Commons");
   });
-  it("details open and close, show coordinates, hours as written, links, and are honest about missing season data", async () => {
+  it("details open and close, show coordinates, the shared opening-hours answer (never the raw map text), links, and are honest about missing season data", async () => {
     all = mk(2, (i) => (i === 0 ? { hours: "Mo-Su 09:00-17:30", website: "https://tourism.example.org", wikipedia: "https://en.wikipedia.org/wiki/Fort_01", wikidata: "Q1", heritage: true } : {}));
     const r = await mount(); await chooseRegion(r);
     expect(text(r.root)).not.toContain("Mo-Su 09:00-17:30");
     await press(r, "Details");
     const t = text(r.root);
-    expect(t).toContain("17.0000, 78.0000"); expect(t).toContain("Mo-Su 09:00-17:30"); expect(t).toContain("Heritage listed");
+    expect(t).toContain("17.0000, 78.0000"); expect(t).toContain("Opening hours"); expect(t).not.toContain("Mo-Su 09:00-17:30"); expect(t).toContain("Heritage listed");
     expect(t).toContain("haven't researched the best months");
     const hrefs = r.root.findAllByType("a").map((a) => a.props.href);
     for (const h of ["https://tourism.example.org", "https://en.wikipedia.org/wiki/Fort_01", "https://www.wikidata.org/wiki/Q1"]) expect(hrefs).toContain(h);

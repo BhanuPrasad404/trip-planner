@@ -97,7 +97,8 @@ describe("place picker — typing", () => {
     const opts = options(r);
     expect(opts.map(textOf).join("|")).toMatch(/Kondapalli.*NTR, Andhra Pradesh.*\|.*Kondapalli.*Nalgonda, Telangana/);
     await act(async () => { opts[1].props.onClick(); });
-    expect(picked[0]).toEqual({ name: "Kondapalli", address: "Nalgonda, Telangana", lat: 17.05, lng: 79.2, origin: "search" });
+    expect(picked[0]).toMatchObject({ name: "Kondapalli", address: "Nalgonda, Telangana", lat: 17.05, lng: 79.2, origin: "search" });
+    expect(picked[0]?.kind).toBeTruthy();                                          // what it is (town, sight…) travels with it, for the hours view
     expect(JSON.parse(store["tm:recent-places:start:v1"])[0].name).toBe("Kondapalli"); // remembered as recent
   });
   it("pressing Enter in the box never submits the form", async () => {

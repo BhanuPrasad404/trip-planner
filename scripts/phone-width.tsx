@@ -1,4 +1,4 @@
-// Phone-width check: renders real screens (Weather, Add a stop, the plan flow's start and save steps, Your plan) with the app's built CSS (.next, so run `next build` first), opens them in
+// Phone-width check: renders real screens (Weather, Add a stop, the plan flow's start and save steps, Your plan, the opening-hours view) with the app's built CSS (.next, so run `next build` first), opens them in
 // headless Chrome at 360, 390 and 412 px, and lists every element that sticks out past the screen. Used by tests/phone-width.test.ts.
 // Run by hand: npx tsx scripts/phone-width.tsx <folder for the temporary html files>
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
@@ -26,6 +26,11 @@ import { TripPlanner } from "@/components/TripPlanner";
 import { ComparePlans, DonePanel, ResultView, StopSheet } from "@/components/result/ResultView";
 import { EXAMPLES } from "@/lib/result/examples";
 import { exampleDraft } from "@/lib/result/example-draft";
+import { PlaceHoursView } from "@/components/place/PlaceHours";
+import { AppNav } from "@/components/shell/AppNav";
+import { rankAttractions } from "@/lib/place-intel/attractions";
+import { placeRole } from "@/lib/place-intel/role";
+import { resolveHours } from "@/lib/server/hours-resolver";
 
 const ROOT = process.cwd().split(path.sep).join("/");
 const WIDTHS = [360, 390, 412];
@@ -57,7 +62,37 @@ const FEED_POST = { id: "22222222-2222-4222-8222-222222222222", kind: "photo", c
 const feedNoop = () => undefined;
 const feedCardProps = { item: FEED_POST, index: 0, active: true, near: true, frugal: false, muted: true, onTrip: true, register: feedNoop, onToggleMute: feedNoop, onLike: feedNoop, onSave: feedNoop, onComments: feedNoop, onMenu: feedNoop, onAddToTrip: feedNoop, onHelpful: feedNoop, onShare: feedNoop, onDestination: feedNoop, onVideoPlay: feedNoop, onVideoProgress: feedNoop };
 
+// The shared opening-hours view (components/place/PlaceHours.tsx): a town with its places (long names, long reasons, every badge), and a
+// sight whose sources disagree (long schedules). Answers made by the real resolver and ranking from made-up rows.
+const HOURS_DATE = "2026-11-02";
+const hrow = (i: number, over: Record<string, unknown>) => ({ key: `osm:way/${i}`, name: `Place ${i}`, category: "temple", lat: 15.05, lng: 78, notable: true, heritage: true, wikidata: `Q${i}`, wikipedia: "x", sitelinks: 40,
+  hours: null, website: null, osm_id: `way/${i}`, osm_date: "2026-10-28", wd_date: "2026-10-29", region_code: "AP", wd_type: null, osm_type: "amenity=place_of_worship", located_in: "Q1", located_in_name: "Ravipuram Town Municipal Corporation Area",
+  part_of: null, service_times: null, hours_url: null, check_date: null, ...over });
+const hoursTown = rankAttractions({ name: "Ravipuram", lat: 15, lng: 78, kind: "city", population: 400_000, state: "Andhra Pradesh" }, [
+  hrow(1, { name: "Sri Lakshmi Venkateswara Swamy Vari Devasthanam on the Hilltop above the Old Town", hours: "Mo-Su 03:00-12:30,13:30-22:00", check_date: "2026-06-01", service_times: "Mo-Su 03:00-04:00,06:00-07:00" }),
+  hrow(2, { name: "Old River Fort", category: "fort", osm_type: "historic=fort", hours: "Tu-Su 09:00-17:00; PH off" }),
+  hrow(3, { name: "Very Long Golden Sands Beach Along the Coast Road", category: "beach", osm_type: "natural=beach" }),
+].map((r) => r as never));
+const hoursAround = { parent: hoursTown.parent, radiusKm: hoursTown.radiusKm, dropped: hoursTown.dropped, date: HOURS_DATE, areas: [],
+  items: hoursTown.items.map(({ hoursRows, ...a }) => ({ ...a, hours: resolveHours({ name: a.name, lat: a.lat, lng: a.lng, role: a.role }, { osm: hoursRows }, HOURS_DATE) })) };
+const townAnswer = resolveHours({ name: "Ravipuram", lat: 15, lng: 78, role: hoursTown.parent.role }, {}, HOURS_DATE);
+const shrineRole = placeRole({ name: "x", category: "temple", wdType: "Q842402" });
+const o = (ref: string, oh: string) => ({ ref, dataDate: "2026-10-28", openingHours: oh, serviceTimes: null, hoursUrl: "https://example.org/a/very/long/path/to/the/timings/page/of/the/temple", checkDate: null, website: null });
+const conflictAnswer = resolveHours({ name: "Sri Lakshmi Narasimha Swamy Temple on the Hill", lat: 15, lng: 78, role: shrineRole },
+  { osm: [o("osm/way/1", "Mo-Fr 05:30-12:00,16:00-21:00; Sa,Su 05:00-22:00"), o("osm/relation/123456789", "Mo-Su 06:00-20:00 \"darshan closes 30 minutes before\"")] }, HOURS_DATE);
+
+// The phone shell as every signed-in page wears it: the brand header, the search pill, the floating bottom bar (and a long trip name).
+const shellTrips = [{ id: "t1", name: "Hyderabad weekend with friends and a very long trip name", state: "active" }] as never;
+const shell = (body: ReturnType<typeof h>) => h("div", { className: "flex min-h-dvh flex-col md:flex-row" }, h(AppNav, { trips: shellTrips, userInitial: "B", signOutAction: async () => {} }), h("div", { className: "min-w-0 flex-1 pb-28 md:pb-0" }, body));
+
 export const pages: Record<string, string> = {
+  "app-shell": renderToStaticMarkup(withRouter(shell(h("main", { className: "mx-auto w-full max-w-3xl space-y-4 px-4 py-5" },
+    h("h1", { className: "font-display text-2xl font-semibold text-pine" }, "Good morning, Banu"),
+    h("div", { className: "rounded-2xl border border-line bg-white p-5" }, h("p", { className: "text-ink" }, "A white card on the warm page, with the soft resting shadow.")))))),
+  "place-hours-town": renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },
+    h(PlaceHoursView, { place: { name: "Ravipuram" }, answer: townAnswer, around: hoursAround as never, aroundLoading: false, aroundError: null, date: HOURS_DATE, onDate: noop, onAdd: noop, added: () => false }))),
+  "place-hours-conflict": renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },
+    h(PlaceHoursView, { place: { name: "Sri Lakshmi Narasimha Swamy Temple on the Hill" }, answer: conflictAnswer, around: null, aroundLoading: false, aroundError: null, date: HOURS_DATE, onDate: noop, onAddHours: noop }))),
   weather: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl space-y-4 px-4 py-5 sm:px-6" },
     h("div", { className: "mt-3" }, h(TripTabs, { tripId: "t", activeNow: false })),
     h(WeatherPanel, { title: "Weather for every stop", board, mode: { kind: "arrival" }, setMode: noop, nowMs: NOW, hereSource: "planned", requestDevice: noop, headings: { g: "Day 1 · Thu 22 Oct", c: "Day 2 · Fri 23 Oct" } } as never),
@@ -75,6 +110,14 @@ export const pages: Record<string, string> = {
   addplace: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },
     h(AddPlaceForm, { tripId: "t", dayNumber: 1, near: HYD, onAdded: noop, onCancel: noop } as never))),
   "planner-ideas": renderToStaticMarkup(withRouter(h(TripPlanner, { trip: TRIP, places: [place("p1", "Charminar", 1), place("p3", "https://maps.app.goo.gl/u7XkQ2vZpL9mN3bR8cTy", null, { address: "8C9F+XQ2,Golconda,Hyderabad,Telangana,500008,India" }), place("p2", "Sri Venkateswara Swamy Vari Devasthanam Chilkur Balaji Temple", null, { source_url: "https://www.instagram.com/reel/C1234567890abcdefghijklmnop/?utm_source=ig_web_copy_link&igshid=MzRlODBiNWFlZA==" })], members: [], today: "2026-10-23", siteUrl: "http://localhost", conditions: {}, userId: "u1", votes: {} } as never))),
+  // A real multi-day trip as the Plan page shows it (days, drive legs, long place names), like the Hyderabad → Goa one reported on a phone.
+  "planner-days": renderToStaticMarkup(withRouter(h(TripPlanner, { trip: { ...TRIP, name: "Hyd- Goa trip", start_date: "2026-10-31", num_days: 6, end_mode: "start" }, places: [
+    place("d1", "Rachol Fort and the very long name of a heritage site", 2, { lat: 15.34, lng: 73.95, arrival_time: "11:23", drive_minutes: 173, drive_km: 161 }),
+    place("d2", "Rachol Church", 3, { lat: 15.34, lng: 73.95, arrival_time: "08:31", drive_minutes: 1, drive_km: 0 }),
+    place("d3", "Safa Masjid", 4, { lat: 15.43, lng: 73.99, arrival_time: "10:55", drive_minutes: 41, drive_km: 35 }),
+    place("d4", "Mormugao", 4, { lat: 15.41, lng: 73.8, arrival_time: "13:16", drive_minutes: 45, drive_km: 36 }),
+    place("d5", "Sankeshwar (night halt)", 1, { lat: 16.27, lng: 74.48, arrival_time: null, drive_minutes: 493, drive_km: 550, category: "stay", source_type: "plan_halt" }),
+  ], members: [], today: "2026-10-29", siteUrl: "http://localhost", conditions: {}, userId: "u1", votes: {} } as never))),
   "plan-start": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false }))),
   "save-step": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "ready" } }))),
   ...Object.fromEntries(EXAMPLES.map((e) => [`result-${e.slug}`, renderToStaticMarkup(withRouter(h(ResultView, { kind: "example", example: e, signedIn: false })))])),

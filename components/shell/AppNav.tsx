@@ -45,7 +45,7 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
   }, [drawer]);
   const closeDrawer = useCallback(() => setDrawer(false), []);
 
-  const link = (it: (typeof items)[number], compact: boolean, onClick?: () => void) => {
+  const link = (it: (typeof items)[number], compact: boolean, onClick?: () => void, light = false) => {
     const active = it.match(pathname);
     return (
       <li key={it.id}>
@@ -55,7 +55,7 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
           aria-current={active ? "page" : undefined}
           title={compact ? it.label : undefined}
           className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${
-            active ? "bg-white text-pine shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white"
+            light ? (active ? "bg-teal-light text-teal-ink" : "text-ink hover:bg-sky") : active ? "bg-white text-pine shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white"
           } ${compact ? "justify-center" : ""}`}
         >
           <it.Icon className={active ? "text-teal" : ""} />
@@ -108,31 +108,31 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
       <header className="relative z-20 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
         <div className="flex items-center justify-between gap-3">
           <Link href="/dashboard" aria-label="Trailmate dashboard" className="rounded-xl"><Logo tagline /></Link>
-          <Link href="/profile" aria-label="Your profile" className="grid h-11 w-11 place-items-center rounded-full bg-teal text-base font-bold text-white shadow-lg ring-2 ring-white/25">{userInitial}</Link>
+          <Link href="/profile" aria-label="Your profile" className="grid h-11 w-11 place-items-center rounded-full bg-teal text-base font-bold text-white shadow-md ring-2 ring-white">{userInitial}</Link>
         </div>
         {showSearch && (
-          <Link href="/explore" aria-label="Search destinations and plan your next ride" className="tm-glass mt-3 flex min-h-12 items-center gap-3 rounded-full px-4 text-[15px] text-white/85 shadow-[0_6px_20px_rgba(0,0,0,0.3)]">
-            <Glyph name="pin" size={20} className="shrink-0 text-white" />
+          <Link href="/explore" aria-label="Search destinations and plan your next ride" className="tm-glass mt-3 flex min-h-12 items-center gap-3 rounded-full px-4 text-[15px] text-ink-muted">
+            <Glyph name="pin" size={20} className="shrink-0 text-teal" />
             <span className="min-w-0 flex-1 truncate">Search destinations, plan your next ride…</span>
-            <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white"><Glyph name="navigate" size={16} /></span>
+            <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal-light text-teal-ink"><Glyph name="navigate" size={16} /></span>
           </Link>
         )}
       </header>
-      <nav aria-label="Main navigation" data-mobile-nav data-hidden={barHidden} onFocus={() => setFocusInside(true)} onBlur={() => setFocusInside(false)} className={`tm-glass fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 rounded-[1.75rem] text-white shadow-[0_-8px_32px_rgba(0,0,0,0.45)] transition-transform duration-200 motion-reduce:transition-none md:hidden ${barHidden ? "translate-y-[calc(100%+1.5rem)]" : "translate-y-0"}`}>
+      <nav aria-label="Main navigation" data-mobile-nav data-hidden={barHidden} onFocus={() => setFocusInside(true)} onBlur={() => setFocusInside(false)} className={`tm-glass fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 rounded-[1.75rem] text-ink transition-transform duration-200 motion-reduce:transition-none md:hidden ${barHidden ? "translate-y-[calc(100%+1.5rem)]" : "translate-y-0"}`}>
         <ul className="grid grid-cols-5">
           {primaryMobile.map((it) => {
             const active = it.match(pathname);
             return (
               <li key={it.id}>
-                <Link href={it.href} aria-current={active ? "page" : undefined} className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active ? "text-marigold" : "text-white/70"}`}>
-                  <it.Icon className={active ? "drop-shadow-[0_0_8px_rgba(232,163,61,0.8)]" : ""} />{it.label.replace("My trips", "Trips").replace("Live trip", "Live")}
-                  <span aria-hidden="true" data-glow={active || undefined} className={`mt-0.5 h-0.5 w-9 rounded-full ${active ? "bg-marigold shadow-[0_0_10px_rgba(232,163,61,0.95)]" : "bg-transparent"}`} />
+                <Link href={it.href} aria-current={active ? "page" : undefined} className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active ? "text-teal-ink" : "text-ink-muted"}`}>
+                  <it.Icon className={active ? "text-teal" : ""} />{it.label.replace("My trips", "Trips").replace("Live trip", "Live")}
+                  <span aria-hidden="true" data-glow={active || undefined} className={`mt-0.5 h-[3px] w-9 rounded-full ${active ? "bg-teal" : "bg-transparent"}`} />
                 </Link>
               </li>
             );
           })}
           <li>
-            <button type="button" onClick={() => setDrawer(true)} aria-haspopup="dialog" aria-expanded={drawer} className="flex min-h-16 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-white/70">
+            <button type="button" onClick={() => setDrawer(true)} aria-haspopup="dialog" aria-expanded={drawer} className="flex min-h-16 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-ink-muted">
               <IconMenu />More
               <span aria-hidden="true" className="mt-0.5 h-0.5 w-9 rounded-full bg-transparent" />
             </button>
@@ -142,11 +142,12 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
 
       {drawer && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="More">
-          <button type="button" aria-label="Close menu" onClick={closeDrawer} className="absolute inset-0 bg-black/50" />
-          <div className="tm-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-white">
-            <ul className="space-y-1">{items.filter((i) => !["dashboard", "trips", "live", "map"].includes(i.id)).map((i) => link(i, false, closeDrawer))}</ul>
-            <SignOutForm action={signOutAction} userId={userId} className="mt-3 border-t border-white/10 pt-3">
-              <button type="submit" className="min-h-11 w-full rounded-xl bg-white/10 text-sm font-semibold">Sign out</button>
+          <button type="button" aria-label="Close menu" onClick={closeDrawer} className="absolute inset-0 bg-[var(--tm-scrim)]" />
+          <div className="tm-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-ink">
+            <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-line" />
+            <ul className="space-y-1">{items.filter((i) => !["dashboard", "trips", "live", "map"].includes(i.id)).map((i) => link(i, false, closeDrawer, true))}</ul>
+            <SignOutForm action={signOutAction} userId={userId} className="mt-3 border-t border-line pt-3">
+              <button type="submit" className="min-h-11 w-full rounded-xl bg-sky text-sm font-semibold text-ink hover:bg-line">Sign out</button>
             </SignOutForm>
           </div>
         </div>

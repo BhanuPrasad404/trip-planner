@@ -97,6 +97,7 @@ export function featureToRow(f: OsmFeature): CatalogRow | null {
   const commons = /^File:[^/\\]{1,200}$/.test(clip(tags.wikimedia_commons, 210)) ? clip(tags.wikimedia_commons, 205) : null;
   const imageRaw = clip(tags.image, 300);
   const website = safeHttpUrl(tags.website ?? tags["contact:website"]);
+  const hoursUrl = safeHttpUrl(tags["opening_hours:url"]);
   const osmId = `${type}/${id}`;
   const row: CatalogRow = {
     key: wikidata ? `wd:${wikidata}` : `osm:${osmId}`,
@@ -108,10 +109,20 @@ export function featureToRow(f: OsmFeature): CatalogRow | null {
     website: website && website.length <= 300 ? website : null,
     osm_id: osmId,
     osm_type: osmTypeOf(tags, category),
+    service_times: tags.service_times ? clip(tags.service_times, 120) : null,
+    hours_url: hoursUrl && hoursUrl.length <= 300 ? hoursUrl : null,
+    check_date: checkDate(tags["check_date:opening_hours"]) ?? checkDate(tags.check_date),
   };
   return rowOk(row) ? row : null;
 }
 const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
+/** "2024-03-15" (a real calendar day) or null; "2024-03" and free text are not dates we can trust. */
+export function checkDate(v: string | undefined): string | null {
+  const s = (v ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const t = Date.parse(`${s}T00:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s && s >= "2005-01-01" ? s : null;
+}
 
 const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9ऀ-෿]+/g, " ").trim();
 /** Same name within this distance = the same place (a fort drawn as an outline AND as a point), as in lib/explore/items.ts. */

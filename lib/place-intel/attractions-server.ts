@@ -22,6 +22,7 @@ export function toSite(r: Record<string, unknown>): CatalogSite | null {
     osm_id: typeof r.osm_id === "string" && /^(node|way|relation)\/\d{1,15}$/.test(r.osm_id) ? r.osm_id : null, osm_date: date(r.osm_date), wd_date: date(r.wd_date),
     region_code: typeof r.region_code === "string" && /^[A-Z]{2}$/.test(r.region_code) ? r.region_code : null,
     wd_type: qid(r.wd_type), osm_type: str(r.osm_type, 81), located_in: qid(r.located_in), located_in_name: str(r.located_in_name, 120), part_of: qid(r.part_of),
+    service_times: str(r.service_times, 120), hours_url: typeof r.hours_url === "string" && /^https?:\/\//.test(r.hours_url) ? str(r.hours_url, 300) : null, check_date: date(r.check_date),
   };
   return site.osm_date || site.wd_date ? site : null;
 }

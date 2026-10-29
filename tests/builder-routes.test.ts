@@ -11,7 +11,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },
     rpc: async () => ({ data: state.quotaOk, error: null }),
-    from: () => ({ upsert: async (rows: unknown[]) => (state.upserts.push(rows), { error: state.upsertError }) }),
+    from: () => ({
+      upsert: async (rows: unknown[]) => (state.upserts.push(rows), { error: state.upsertError }),
+      // .delete().eq().eq()[.not()]: clearing the halts an earlier plan saved
+      delete: () => { const c: Record<string, unknown> = { eq: () => c, not: () => c, then: (res: (v: unknown) => void) => res({ error: null }) }; return c; },
+    }),
   }),
 }));
 vi.mock("@/lib/server/trip-data", () => ({ todayISO: async () => "2026-10-07" }));

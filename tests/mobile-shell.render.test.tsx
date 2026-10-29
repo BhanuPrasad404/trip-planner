@@ -59,13 +59,13 @@ describe("floating glass bottom navigation", () => {
     expect(links).toEqual([["Discover", "/discover"], ["Trips", "/trips"], ["Live", `/trips/${TRIP}/live`], ["Map", `/trips/${TRIP}/map`]]);
     expect(text(bar(r))).toContain("More");
   });
-  it("the current tab is marigold with a glowing underline and aria-current; the others are quiet with none", async () => {
+  it("the current tab is teal with an underline bar and aria-current; the others are quiet with none", async () => {
     pathname = `/trips/${TRIP}/live`;
     const r = await mount(); const items = bar(r).findAll((n) => n.type === "a");
     const active = items.filter((a) => a.props["aria-current"] === "page"); expect(active).toHaveLength(1); expect(text(active[0])).toContain("Live");
-    expect(String(active[0].props.className)).toContain("text-marigold");
+    expect(String(active[0].props.className)).toContain("text-teal-ink");
     expect(bar(r).findAll((n) => n.props["data-glow"] === true)).toHaveLength(1);
-    for (const a of items.filter((x) => x !== active[0])) { expect(String(a.props.className)).toContain("text-white/70"); expect(a.props["aria-current"]).toBeUndefined(); }
+    for (const a of items.filter((x) => x !== active[0])) { expect(String(a.props.className)).toContain("text-ink-muted"); expect(a.props["aria-current"]).toBeUndefined(); }
   });
   it("gives no tab a glow when you are on a page that is none of them", async () => {
     pathname = "/profile"; expect(bar(await mount()).findAll((n) => n.props["data-glow"] === true)).toHaveLength(0);
@@ -74,7 +74,7 @@ describe("floating glass bottom navigation", () => {
     const r = await mount();
     for (const el of [...bar(r).findAll((n) => n.type === "a"), ...bar(r).findAll((n) => n.type === "button")]) expect(String(el.props.className)).toContain("min-h-16");
   });
-  it("the More menu opens as glass too", async () => {
+  it("the More menu opens as the same floating white surface", async () => {
     vi.stubGlobal("document", { addEventListener: () => undefined, removeEventListener: () => undefined });
     const r = await mount(); await act(async () => { r.root.findAll((n) => n.type === "button" && n.props["aria-haspopup"] === "dialog")[0].props.onClick(); });
     const sheet = r.root.findAll((n) => n.props.role === "dialog")[0];
@@ -104,22 +104,22 @@ describe("the scene behind the app", () => {
     for (const k of ['aria-hidden="true"', "pointer-events-none", "fixed", "-z-10"]) expect(html).toContain(k);
     expect(html).not.toMatch(/data-mobile-backdrop[^>]*md:hidden/);
   });
-  it("desktop (light theme) fades into the light mist; phones (dark theme) into the dark green", () => {
-    expect(html).toContain("#eaf4f1 60%"); expect(html).toContain("hidden md:block");
+  it("every screen size: a warm-white page, with the photo melting into it", () => {
+    expect(html).toContain("bg-sky"); expect(html).toContain("#f5f2ea 42%"); expect(html).not.toContain("md:hidden");
   });
   it("is a real photograph, self-hosted and optimised by next/image, with no outside address", () => {
     expect(HERO_PHOTO).toBe("/brand/trailmate-hills.webp");
     expect(html).toContain("<img"); expect(html).toContain("/_next/image?url="); expect(html).toContain("trailmate-hills"); expect(html).toContain('alt=""');
     expect(html).not.toMatch(/src="https?:\/\//); expect(html).not.toContain("url(http");
   });
-  it("fades into the dark green the cards sit on, so text stays readable over any part of the photo", () => { expect(html).toContain("linear-gradient(180deg"); expect(html).toContain("#06201c 52%"); });
+  it("lies under a heavy warm-white wash, so dark text stays readable over any part of the photo", () => { expect(html).toContain("linear-gradient(180deg"); expect(html).toContain("rgba(250, 248, 243,0.88)"); });
   it("has nothing that moves or filters (cheap to scroll over on a low-end phone)", () => { expect(html).not.toMatch(/<animate|<filter|feGaussianBlur|animation/); });
   it("is mounted once, for the whole app, before the page content", () => {
     const layout = readFileSync("app/layout.tsx", "utf8");
     expect(layout).toContain("<MobileBackdrop />"); expect(layout.indexOf("<MobileBackdrop />")).toBeLessThan(layout.indexOf("{children}"));
   });
-  it("the phone's address bar takes the forest green; the light theme keeps its own", () => {
-    const layout = readFileSync("app/layout.tsx", "utf8"); expect(layout).toContain('media: "(max-width: 767px)", color: "#06201c"'); expect(layout).toContain('color: "#0b3d3a"');
+  it("the phone's address bar takes the page's warm white; larger screens keep the brand green", () => {
+    const layout = readFileSync("app/layout.tsx", "utf8"); expect(layout).toContain('media: "(max-width: 767px)", color: "#faf8f3"'); expect(layout).toContain('color: "#0b3d3a"');
   });
 });
 

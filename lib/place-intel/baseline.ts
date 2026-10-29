@@ -5,8 +5,7 @@
 import type { ResolveDeps } from "@/lib/intake/places";
 import { readInstant } from "@/lib/intake/service";
 import { toRecord } from "@/lib/poi/taxonomy";
-import { MATCH_RULES } from "@/lib/travel/hours-match";
-import { nameSimilarity } from "@/lib/season-match";
+import { MATCH_RULES, hoursNameScore } from "@/lib/travel/hours-match";
 import { admission, byGroup, byState, latency, matching, scoreQuery, summarizeAdmission, summarize, truthStatus, type PairFixture, type QueryFixture, type QueryResult, type Report, type SystemAnswer, type TagsetFixture, type TruthEntry } from "./metrics";
 
 /** One query through the app's own reader, reduced to what scoring needs. */
@@ -46,7 +45,7 @@ export function buildReport(input: { queries: QueryFixture[]; results: QueryResu
     layers: input.layers,
     fixtures: { queries: input.queries.length, states: new Set(input.queries.map((q) => q.expect.entity?.state).filter(Boolean)).size, tagsets: input.tagsets.length, namePairs: input.pairs.length, hoursTruthEntries: input.truth.length },
     place: { summary: summarize(input.results), byGroup: byGroup(input.results), byState: byState(input.results, input.queries), failures: input.results.filter(isFailure) },
-    hours: { admission: summarizeAdmission(adm, input.tagsets), admissionRows: adm, matching: matching(input.pairs, nameSimilarity, MATCH_RULES), truth: truthStatus(input.truth) },
+    hours: { admission: summarizeAdmission(adm, input.tagsets), admissionRows: adm, matching: matching(input.pairs, (a, b) => hoursNameScore(a, b), MATCH_RULES), truth: truthStatus(input.truth) },
     latency: latency(input.results),
   };
 }

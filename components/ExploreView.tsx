@@ -14,6 +14,7 @@ import { DiscoverSection } from "@/components/explore/DiscoverSection";
 import { TripExplore } from "@/components/explore/TripExplore";
 import { useSavedPlaces } from "@/lib/client/use-saved-places";
 import { creditText } from "@/lib/place-photos/safety";
+import { PlaceHours } from "@/components/place/PlaceHours";
 
 export type ExploreSeasonTag = {
   id: string; place_name: string; lat: number; lng: number; category: string | null; good_months: number[]; reason: string | null; region: string | null;
@@ -172,7 +173,12 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
                       ) : <KindBadge kind={p.kind} size={64} />}
                       <div className="min-w-0 flex-1">
                         <p className="break-words font-semibold text-pine">{p.name}{p.notable && <span className="ml-2 align-middle rounded-full bg-teal-light px-2 py-0.5 text-[11px] font-semibold text-teal-ink">Well known</span>}</p>
-                        <p className="text-xs text-ink-muted">{p.km} km away{p.hours && ` · ${p.hours}`}</p>
+                        <p className="text-xs text-ink-muted">{p.km} km away{kind !== "sights" && p.hours && ` · Hours on the map (unconfirmed): ${p.hours}`}</p>
+                        {kind === "sights" && (
+                          <details className="mt-1"><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-teal-ink">Opening hours</summary>
+                            <PlaceHours place={{ name: p.name, lat: p.lat, lng: p.lng, kind: "sight", osm: /^(node|way|relation)\/\d+$/.test(p.id.replace(/^osm:/, "")) ? p.id.replace(/^osm:/, "") : null }} />
+                          </details>
+                        )}
                         {p.photo?.creditUrl && <a href={p.photo.creditUrl} target="_blank" rel="noopener noreferrer" className="block truncate text-[11px] text-ink-muted underline underline-offset-2">{p.photo.licence ? creditText(p.photo) : "Photo: Wikimedia"}<span className="sr-only"> (opens in a new tab)</span></a>}
                         <div className="mt-1 flex flex-wrap gap-x-4">
                           <a href={googleMapsPlace(p)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Google Maps<span className="sr-only"> for {p.name} (opens in a new tab)</span></a>

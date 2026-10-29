@@ -1,26 +1,15 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+﻿import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BACKDROP_COLORS } from "@/components/shell/MobileBackdrop";
 
-// The mobile theme is a presentation layer: it must stay on phones, and everything on it must be readable. Nothing here renders a
-// screen (that needs a real phone), but these checks stop the mistakes that make a dark theme unusable.
+// TrailMate's look is one white theme for every screen size, defined by tokens in app/globals.css. This checks what a person can feel
+// without a screenshot: every text colour is readable on every surface it sits on (WCAG AA 4.5:1; focus rings 3:1), the phone layer only
+// tunes touch behaviour, and nothing that moves or blurs is added to ordinary cards. (Seeing it on a real phone is still a manual check.)
 const css = readFileSync("app/globals.css", "utf8");
-const MARK = "MOBILE THEME";
-const start = css.indexOf("@media (max-width: 767px) {", css.indexOf(MARK));
-if (start < 0) throw new Error("The mobile theme must be inside a `@media (max-width: 767px) {` block after the MOBILE THEME banner in app/globals.css");
-function block(from: number): string {
-  let depth = 0;
-  for (let i = css.indexOf("{", from); i < css.length; i++) {
-    if (css[i] === "{") depth++;
-    if (css[i] === "}" && --depth === 0) return css.slice(css.indexOf("{", from) + 1, i);
-  }
-  throw new Error("unbalanced CSS");
-}
-const mobile = block(start);
-const desktop = css.slice(0, css.indexOf("/* ══", 0)) + css.slice(start + mobile.length + 40);
+const root = css.slice(css.indexOf(":root {"), css.indexOf("}", css.indexOf(":root {")));
+const vars: Record<string, string> = {};
+for (const m of root.matchAll(/(--[\w-]+):\s*([^;]+);/g)) vars[m[1]] = m[2].trim();
 
-// ---- colour maths (WCAG 2.x) ------------------------------------------------------------------------------------------------
 type RGBA = [number, number, number, number];
 const parse = (v: string): RGBA => {
   const h = /^#([0-9a-f]{6})$/i.exec(v.trim());
@@ -33,113 +22,88 @@ const parse = (v: string): RGBA => {
 const over = (top: RGBA, under: RGBA): RGBA => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3])).concat(1) as RGBA;
 const lum = ([r, g, b]: RGBA) => { const f = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
 const contrast = (a: RGBA, b: RGBA) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-
-const vars: Record<string, string> = {};
-for (const m of mobile.matchAll(/(--[\w-]+):\s*([^;]+);/g)) vars[m[1]] = m[2].trim();
 const v = (name: string) => parse(vars[name]);
+const WHITE = parse("#ffffff");
+const black: RGBA = [0, 0, 0, 1];
 
-// What is behind a card: the deep ground, the lightest ridge (hazed), and the two brightest parts of the sky (behind the header only).
-const ground = parse(BACKDROP_COLORS.ground);
-const ridgeHazed = over([...parse(BACKDROP_COLORS.farRidge).slice(0, 3), 0.6] as RGBA, ground);
-const brightest: RGBA[] = [parse("#ffe9b0"), parse(BACKDROP_COLORS.horizon)];
-const glass = v("--tm-glass");
-const cards = [ground, ridgeHazed, ...brightest].map((b) => over(glass, b)); // a glass card over each of them
-const tinted = (tint: string) => cards.map((c) => over(v(tint), c));
-
-describe("the mobile theme stays on phones", () => {
-  it("lives entirely inside one max-width: 767px media query", () => {
-    expect(start).toBeGreaterThan(0);
-    expect(css.match(/@media \(max-width: 767px\)/g)).toHaveLength(2); // the theme, plus the small map-controls rule; both phone-only
+describe("the white theme's tokens", () => {
+  it("is a warm white page with white cards", () => {
+    expect(vars["--background"]).toBe("#faf8f3"); expect(vars["--sky"]).toBe("#f5f2ea"); expect(vars["--line"]).toBe("#e5e0d4");
+    expect(css).toContain("color-scheme: light;");
+    expect(lum(v("--background"))).toBeGreaterThan(0.9);
   });
-  it("leaves the light theme exactly as it was (desktop tokens and colour scheme unchanged)", () => {
-    expect(desktop).toContain("--sky: #eaf4f1;"); expect(desktop).toContain("--ink: #1c2430;"); expect(desktop).toContain("--line: #d8e3e0;");
-    expect(desktop).toContain("--pine: #0b3d3a;"); expect(desktop).toContain("--background: #eaf4f1;"); expect(desktop).toContain("color-scheme: light;");
+  it("keeps the brand colours (deep pine, trail teal, marigold, clay)", () => {
+    expect(vars["--pine"]).toBe("#0b3d3a"); expect(vars["--teal"]).toBe("#1c7c6d"); expect(vars["--marigold"]).toBe("#e8a33d"); expect(vars["--clay"]).toBe("#c1542c");
   });
-  it("none of the mobile rules leak outside the media query", () => {
-    for (const marker of [".tm-glass", "--tm-glass", "tm-cream", "color-scheme: dark", ".text-pine", ".bg-pine", "::placeholder"]) expect(desktop).not.toContain(marker);
+  it("has no dark phone theme any more: no dark colour scheme, glass tokens or cream text", () => {
+    for (const gone of ["color-scheme: dark", "--tm-glass:", "tm-cream", "MOBILE THEME", ".text-pine { color"]) expect(css).not.toContain(gone);
   });
-  it("uses no blur on ordinary cards (blur breaks position:fixed children and is slow on low-end phones), only on the opt-in .tm-glass", () => {
-    const cardRules = mobile.slice(mobile.indexOf(':is([class~="bg-white"]'), mobile.indexOf(".tm-glass {"));
-    expect(cardRules).not.toContain("backdrop-filter");
-    expect(mobile).toContain("prefers-reduced-transparency"); // and glass becomes solid for people who ask for that
-  });
-  it("keeps title text DARK on the bright marigold buttons (cream there would be unreadable), and cream everywhere else", () => {
-    expect(mobile).toContain(".text-pine { color: var(--tm-cream); }");
-    const exception = mobile.slice(mobile.indexOf(".text-pine:where("));
-    expect(exception.slice(0, exception.indexOf("}"))).toMatch(/bg-marigold[\s\S]*bg-marigold-light[\s\S]*#f0b254[\s\S]*#d9942d[\s\S]*color: #0b3d3a/);
-    expect(mobile.indexOf(".text-pine:where(")).toBeGreaterThan(mobile.indexOf(".text-pine { color")); // later, so it wins (equal specificity)
-  });
-  it("keeps white overlays on dark bars as highlights: only real surfaces become glass", () => {
-    const surfaces = /:is\(([^)]*)\)\s*\{\s*background-color: var\(--tm-glass\)/.exec(mobile)?.[1] ?? "";
-    for (const ok of ["bg-white\"", "bg-white/95", "bg-white/70", "bg-white/50"]) expect(surfaces).toContain(ok);
-    for (const keep of ["bg-white/5\"", "bg-white/10", "bg-white/15", "bg-white/20", "bg-white/25"]) expect(surfaces).not.toContain(keep);
-  });
-  it("makes the phone's native controls dark too (date and time pickers, selects)", () => expect(mobile).toContain("color-scheme: dark"));
 });
 
 describe("every text colour is readable on every surface it can sit on (WCAG AA, 4.5:1)", () => {
-  const textColors: Record<string, string> = { "text-pine (cream)": "--tm-cream", "text-ink / foreground": "--ink", "text-ink-muted": "--ink-muted", "text-ink-soft": "--ink-soft" };
-  for (const [label, token] of Object.entries(textColors)) {
-    it(`${label} on a glass card, over the darkest and the brightest backdrop`, () => { for (const c of cards) expect(contrast(v(token), c)).toBeGreaterThanOrEqual(4.5); });
-    it(`${label} straight on the backdrop (page titles), over the ground and the lightest ridge`, () => { for (const b of [ground, ridgeHazed]) expect(contrast(v(token), b)).toBeGreaterThanOrEqual(4.5); });
+  const surfaces: [string, RGBA][] = [["white card", WHITE], ["the page", v("--background")], ["a tinted block", v("--sky")]];
+  for (const [token, label] of [["--ink", "body text"], ["--ink-soft", "soft text"], ["--ink-muted", "muted text"], ["--pine", "headings"]] as const) {
+    for (const [name, bg] of surfaces) it(`${label} on ${name}`, () => expect(contrast(v(token), bg)).toBeGreaterThanOrEqual(4.5));
   }
-  it("muted text also reads on every tinted surface (tags, chips, notes)", () => {
-    for (const tint of ["--sky", "--teal-light", "--marigold-light", "--clay-light"]) for (const s of tinted(tint)) expect(contrast(v("--ink-muted"), s)).toBeGreaterThanOrEqual(4.5);
+  it("the text-safe colours on their own tints, and on white", () => {
+    for (const [ink, tint] of [["--teal-ink", "--teal-light"], ["--clay-ink", "--clay-light"], ["--marigold-ink", "--marigold-light"]] as const) {
+      expect(contrast(v(ink), v(tint)), `${ink} on ${tint}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(v(ink), WHITE), `${ink} on white`).toBeGreaterThanOrEqual(4.5);
+    }
   });
-  it("teal-ink on its teal tint, clay-ink on its clay tint, and both on plain glass", () => {
-    for (const s of [...tinted("--teal-light"), ...cards]) expect(contrast(v("--teal-ink"), s)).toBeGreaterThanOrEqual(4.5);
-    for (const s of [...tinted("--clay-light"), ...cards]) expect(contrast(v("--clay-ink"), s)).toBeGreaterThanOrEqual(4.5);
+  it("buttons: deep green on marigold (and its hover and pressed colours); white on pine, on teal", () => {
+    for (const bg of ["#e8a33d", "#f0b254", "#d9942d"]) expect(contrast(v("--pine"), parse(bg)), bg).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(WHITE, v("--pine"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(WHITE, v("--teal"))).toBeGreaterThanOrEqual(4.5);
   });
-  it("the re-mapped hard-coded colours read on their own tinted surfaces", () => {
-    const amber = tinted("--marigold-light"); for (const s of amber) expect(contrast(parse("#ffd9a0"), s)).toBeGreaterThanOrEqual(4.5);       // was #7a4a00 on pale amber
-    const clay = cards.map((c) => over(parse("rgba(224,110,70,0.22)"), c)); for (const s of clay) expect(contrast(parse("#ffc4ac"), s)).toBeGreaterThanOrEqual(4.5);
-    const blue = cards.map((c) => over(parse("rgba(120,170,210,0.17)"), c)); for (const s of blue) expect(contrast(parse("#cfe4f2"), s)).toBeGreaterThanOrEqual(4.5);
-    const route = cards.map((c) => over(parse("rgba(26,115,232,0.26)"), c)); for (const s of route) expect(contrast(v("--tm-cream"), s)).toBeGreaterThanOrEqual(4.5); // the selected route
-    for (const s of cards) { expect(contrast(parse("#8ab4f8"), s)).toBeGreaterThanOrEqual(4.5); expect(contrast(parse("#5fd8bd"), s)).toBeGreaterThanOrEqual(4.5); }
+  it("the page title on the photo at the top of the page, even if the photo's darkest possible pixel were under it", () => {
+    const [r, g, b] = BACKDROP_COLORS.wash.split(",").map(Number);
+    const worst = over([r, g, b, BACKDROP_COLORS.topWash], black);
+    for (const token of ["--ink", "--ink-muted", "--pine", "--teal-ink"]) expect(contrast(v(token), worst), token).toBeGreaterThanOrEqual(4.5);
   });
-  it("white on the deep-green buttons and chips, on the teal avatar, and dark green on the marigold buttons", () => {
-    expect(contrast(parse("#ffffff"), parse("#0f5a50"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(parse("#ffffff"), parse("#1c7c6d"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(parse("#0b3d3a"), parse("#e8a33d"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(parse("#0b3d3a"), parse("#f0b254"))).toBeGreaterThanOrEqual(4.5);
+  it("small marigold kickers: the text-safe marigold on the white app, bright marigold kept on the deep-green surfaces", () => {
+    expect(css).toContain(".text-marigold.uppercase { color: var(--marigold-ink); }");
+    expect(css).toMatch(/\[class\*="bg-pine"\][^{]*\.text-marigold\.uppercase \{ color: var\(--marigold\); \}/);
+    expect(contrast(v("--marigold"), v("--pine"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(v("--marigold"), WHITE)).toBeLessThan(3);   // why the kicker needed it
   });
-  it("the header: white on the sky behind it, and the tagline at 75% white, where they sit", () => {
-    expect(contrast(parse("#ffffff"), parse("#8a5a38"))).toBeGreaterThanOrEqual(4.5);
-    const skyAtTagline = parse("#394a3a"); // the sky stops (#173f3b → #8a5a38) around y=75
-    expect(contrast(over([255, 255, 255, 0.75], skyAtTagline), skyAtTagline)).toBeGreaterThanOrEqual(4.5);
-  });
-  it("the glass is dark enough that the brightest sky behind a card can never wash it out", () => {
-    for (const c of cards) expect(lum(c)).toBeLessThan(0.1);
+  it("keyboard focus rings are visible (3:1): teal on the white app, marigold on the deep-green surfaces", () => {
+    expect(contrast(v("--teal"), WHITE)).toBeGreaterThanOrEqual(3); expect(contrast(v("--teal"), v("--sky"))).toBeGreaterThanOrEqual(3);
+    expect(contrast(v("--marigold"), v("--pine"))).toBeGreaterThanOrEqual(3);
+    expect(css).toMatch(/:focus-visible \{\s*outline: 3px solid var\(--teal\)/);
+    expect(css).toMatch(/\.bg-pine[^{]*:focus-visible \{ outline-color: var\(--marigold\)/);
   });
 });
 
-describe("no hard-coded light colour slips through without a phone override", () => {
-  function files(dir: string, out: string[] = []): string[] {
-    for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) files(p, out); else if (/\.tsx$/.test(n)) out.push(p); }
-    return out;
-  }
-  const source = [...files("components"), ...files("app")].map((p) => readFileSync(p, "utf8")).join("\n");
-  const found = (kind: string) => [...new Set([...source.matchAll(new RegExp(`${kind}-\\[(#[0-9a-fA-F]{6})\\]`, "g"))].map((m) => m[1]))];
-  const hexLum = (h: string) => lum(parse(h));
-  // Reviewed on purpose: exceptions that are readable as they are. (Empty: the red flag icon WAS on this list and the contrast check below
-  // showed it was only 1.9:1 on dark glass, so it now has a lighter replacement like every other colour.)
-  const REVIEWED = new Set<string>();
+describe("phones", () => {
+  const phone = css.slice(css.indexOf("PHONES (below 768 px)"));
+  const block = phone.slice(phone.indexOf("@media (max-width: 767px) {"), phone.indexOf(".tm-glass {"));
+  it("the phone layer only tunes touch behaviour: 16 px fields (no zoom on tap) and room above the floating bar", () => {
+    expect(block).toContain("font-size: max(16px, 1em)"); expect(block).toContain("scroll-padding-bottom");
+    expect(block).not.toMatch(/background|color:/);
+  });
+  it("the floating surface is white with a hairline and a shadow, and NOT blurred (blur breaks fixed children and is slow on cheap phones)", () => {
+    const glass = css.slice(css.indexOf(".tm-glass {"), css.indexOf("}", css.indexOf(".tm-glass {")));
+    expect(glass).toContain("rgba(255, 255, 255, 0.97)"); expect(glass).toContain("var(--line)"); expect(glass).toContain("--tm-shadow-float");
+    expect(css).not.toMatch(/backdrop-filter/);
+  });
+  it("the page can never be wider than the phone: html clips sideways too, so the body's own clip applies (a stray wide element used to zoom the whole app out)", () => {
+    const html = css.slice(css.indexOf("html {"), css.indexOf("}", css.indexOf("html {")));
+    expect(html).toContain("overflow-x: clip");
+    expect(css.slice(css.indexOf("body {"), css.indexOf("}", css.indexOf("body {")))).toContain("overflow-x: clip");
+  });
+  it("taps are immediate and carry no grey flash", () => { expect(css).toContain("-webkit-tap-highlight-color: transparent"); expect(css).toContain("touch-action: manipulation"); });
+  it("cards get one soft shadow in a CSS layer, so a component's own shadow still wins", () => { expect(css).toMatch(/@layer components \{[^}]*--tm-shadow-card/); });
+  it("everything that moves still stops for people who prefer less motion", () => { expect(css).toContain("@media (prefers-reduced-motion: reduce)"); expect(css).toMatch(/animation-duration: 0\.01ms !important/); });
+});
 
-  it("every light hard-coded BACKGROUND has a dark-theme replacement", () => {
-    const missing = found("bg").filter((h) => hexLum(h) > 0.55 && !mobile.includes(`bg-[${h}]`));
-    expect(missing).toEqual([]);
+describe("the phone's own bars match the page", () => {
+  const layout = readFileSync("app/layout.tsx", "utf8");
+  it("the address bar is the page's warm white on phones, and the installed app's status bar text is dark", () => {
+    expect(layout).toContain('media: "(max-width: 767px)", color: "#faf8f3"'); expect(layout).toContain('statusBarStyle: "default"');
   });
-  it("every dark hard-coded TEXT colour has a light replacement (unless reviewed)", () => {
-    const missing = found("text").filter((h) => hexLum(h) < 0.3 && !REVIEWED.has(h) && !mobile.includes(`text-[${h}]`));
-    expect(missing).toEqual([]);
-  });
-  it("every pale hard-coded BORDER has a replacement", () => {
-    const missing = found("border").filter((h) => hexLum(h) > 0.4 && !mobile.includes(`border-[${h}]`));
-    expect(missing).toEqual([]);
-  });
-  it("the red flag icon's replacement is readable on glass (AA), where the original red is not", () => {
-    expect(mobile).toContain('[class*="text-[#d93025]"] { color: #ff8a80; }');
-    for (const c of cards) expect(contrast(parse("#ff8a80"), c)).toBeGreaterThanOrEqual(4.5);
-    for (const c of cards) expect(contrast(parse("#d93025"), c)).toBeLessThan(4.5); // the original red does not reach AA, so the override is needed
+  it("the installed app's splash and theme colour are the same warm white as the opening screen; the icon tile stays deep green", () => {
+    const pwa = readFileSync("lib/pwa.tsx", "utf8");
+    expect(pwa).toContain('PWA_THEME = "#faf8f3"'); expect(pwa).toContain('PWA_BACKGROUND = "#faf8f3"'); expect(pwa).toContain('PWA_TILE = "#0b3d3a"');
   });
 });

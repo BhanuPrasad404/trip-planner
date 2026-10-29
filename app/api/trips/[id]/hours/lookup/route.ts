@@ -7,6 +7,7 @@ import { groupsOfKinds, type PoiKind } from "@/lib/poi/types";
 import { validateHours } from "@/lib/server/opening-hours";
 import { matchHours, type HoursCandidate, type LookupOutcome } from "@/lib/travel/hours-match";
 import { uuid } from "@/lib/validation/schemas";
+import { aliasesFromTags } from "@/lib/place-intel/names";
 
 // Stops can be sights, restaurants or stays; these are the kinds of mapped places that carry opening hours we would match to a stop.
 const KINDS: PoiKind[] = ["sight", "viewpoint", "food", "cafe", "stay"];
@@ -50,7 +51,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       pending = cov.ready < cov.total;
     } catch { pending = true; }
     const near = await svc.store.near(stop.lat, stop.lng, 600, KINDS, 60).catch(() => []);
-    const candidates: HoursCandidate[] = near.map((p) => ({ ref: `${p.source}/${p.source_id}`.slice(0, 64), name: p.name, lat: p.lat, lng: p.lng, hours: p.tags.opening_hours ?? null, fetchedAt: p.fetched_at }));
+    const candidates: HoursCandidate[] = near.map((p) => ({ ref: `${p.source}/${p.source_id}`.slice(0, 64), name: p.name, lat: p.lat, lng: p.lng, hours: p.tags.opening_hours ?? null, fetchedAt: p.fetched_at,
+      aliases: aliasesFromTags(p.tags), ids: { osm: p.source === "osm" ? p.source_id : null, wikidata: p.tags.wikidata ?? null } }));
     const m = matchHours(stop, candidates);
     if (m.kind === "ambiguous") { outcomes.push({ placeId, result: "ambiguous", names: m.names }); continue; }
     if (m.kind === "none") { outcomes.push({ placeId, result: pending ? "map_loading" : "none" }); continue; }

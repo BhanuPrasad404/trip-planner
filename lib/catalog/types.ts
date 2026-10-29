@@ -37,6 +37,12 @@ export type CatalogRow = {
   located_in_name?: string | null;
   /** Wikidata "part of" (P361): the bigger place this one belongs to (a shrine inside a temple complex). */
   part_of?: string | null;
+  // Hours as the map holds them, besides `hours` (opening_hours): service (darshan / prayer) times, the page they come from, and the
+  // day a mapper last checked them. OpenStreetMap only.
+  service_times?: string | null;
+  hours_url?: string | null;
+  /** YYYY-MM-DD (check_date:opening_hours, else check_date). */
+  check_date?: string | null;
 };
 
 /** India's bounding box, the same as the table's check: anything outside is not loaded. */
@@ -61,7 +67,10 @@ export function rowOk(r: CatalogRow): boolean {
     && (r.state_code == null || /^[A-Z]{2}$/.test(r.state_code))
     && (r.wd_type == null || QID_RE.test(r.wd_type)) && (r.osm_type == null || OSM_TYPE_RE.test(r.osm_type))
     && (r.located_in == null || QID_RE.test(r.located_in)) && (r.part_of == null || QID_RE.test(r.part_of))
-    && (r.located_in_name == null || (r.located_in_name.length >= 1 && r.located_in_name.length <= 120));
+    && (r.located_in_name == null || (r.located_in_name.length >= 1 && r.located_in_name.length <= 120))
+    && (r.service_times == null || (r.service_times.length >= 1 && r.service_times.length <= 120))
+    && (r.hours_url == null || (/^https?:\/\//.test(r.hours_url) && r.hours_url.length <= 300))
+    && (r.check_date == null || /^\d{4}-\d{2}-\d{2}$/.test(r.check_date));
 }
 export const OSM_TYPE_RE = /^[a-z_:]{1,40}=[a-z0-9_;:-]{1,40}$/;
 

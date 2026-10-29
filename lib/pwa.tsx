@@ -4,8 +4,9 @@ import type { ReactElement } from "react";
 
 export const PWA_NAME = "Trailmate";
 export const PWA_DESCRIPTION = "Group trip planner for India that knows when to go: season-aware stops, real driving times and live drive mode.";
-export const PWA_THEME = "#0b3d3a";      // the app's forest green (address bar / title bar)
-export const PWA_BACKGROUND = "#06201c";  // the mobile theme's deep green (splash screen while the app opens)
+export const PWA_THEME = "#faf8f3";       // the app's warm white (address bar / title bar): the same colour as the page
+export const PWA_BACKGROUND = "#faf8f3";  // the phone's own splash while the app opens: the same warm white as the in-app opening screen
+export const PWA_TILE = "#0b3d3a";        // the app icon's tile: the brand's deep green
 export const PWA_ICON_SIZES = { "192": 192, "512": 512, maskable: 512 } as const;
 export type PwaIconKey = keyof typeof PWA_ICON_SIZES;
 export const pwaIconPath = (key: PwaIconKey) => `/pwa-icon/${key}`;
@@ -17,7 +18,7 @@ export const pwaIconPath = (key: PwaIconKey) => `/pwa-icon/${key}`;
 export function pwaIconArt(size: number, maskable = false): ReactElement {
   const mark = Math.round(size * (maskable ? 0.6 : 0.78));
   return (
-    <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", background: PWA_THEME }}>
+    <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", background: PWA_TILE }}>
       <svg width={mark} height={mark} viewBox="0 0 26 26">
         <circle cx="13" cy="13" r="13" fill="#E8A33D" />
         <path d="M5 18.5l4.6-6.2 2.6 3.2 3-5.4 5.8 8.4z" fill="#0B3D3A" />

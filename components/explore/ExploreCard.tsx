@@ -9,6 +9,7 @@ import { plannerCategory } from "@/lib/explore/glyph";
 import { sourceLabel, type ExploreItem } from "@/lib/explore/items";
 import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
 import type { PlacePhoto as Photo } from "@/lib/place-photos";
+import { PlaceHours, exploreItemRef } from "@/components/place/PlaceHours";
 
 /** What researched season data says about this place, only when a researched entry matches it by name and location. */
 export type SeasonNote = { good: boolean; yearRound: boolean; reason: string | null; source: string | null; months: string };
@@ -82,7 +83,7 @@ export function ExploreCard({ item, photo, season, saved, onToggleSave, added, o
       {open && (
         <div id={panel} className="mt-2 space-y-1.5 border-t border-line pt-3 text-sm">
           <p><span className="font-semibold text-pine">Location</span> <span className="font-mono text-xs text-ink-muted">{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</span></p>
-          <p><span className="font-semibold text-pine">Opening hours</span> {item.hours ? <span className="font-mono text-xs">{item.hours}</span> : <span className="text-ink-muted">Not listed on the map. Check before you go.</span>}</p>
+          <div><p className="font-semibold text-pine">Opening hours</p><PlaceHours place={exploreItemRef(item)} /></div>
           <p><span className="font-semibold text-pine">Source</span> <span className="text-xs text-ink-muted">{sourceLabel(item) ?? "OpenStreetMap, looked up just now"}</span></p>
           {season && (
             <p><span className="font-semibold text-pine">Best months</span> <span className="font-mono text-xs">{season.months}</span>{season.reason && <span className="block text-ink-muted">{season.reason}</span>}{season.source && <span className="block text-xs text-ink-muted">Researched · {season.source}</span>}</p>

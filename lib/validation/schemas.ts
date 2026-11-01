@@ -1,3 +1,4 @@
+import { JOURNEY_KINDS } from "@/lib/trip/journey";
 import { z } from "zod";
 import { EXPLORE_CATEGORY_IDS } from "@/lib/explore/categories";
 import { REGION_CODES } from "@/lib/explore/regions";
@@ -172,7 +173,33 @@ export const builderApplySchema = z.object({
   signature: z.string().min(16).max(128),
 });
 
-export const stopStatusSchema = z.object({ status: z.enum(["planned", "done", "skipped"]) });
+/**
+ * A stop's progress. `expected` is the status the sender last saw: if the stop has moved on since (another device, an older queued
+ * change), the server answers 409 instead of overwriting it. `at` is when the traveller acted (offline changes arrive hours later);
+ * `event_id` makes a retry of the same change harmless. All three are optional so older app versions keep working.
+ */
+const eventFields = {
+  at: z.string().datetime({ offset: true }).optional(),
+  event_id: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
+};
+export const stopStatusSchema = z.object({ status: z.enum(["planned", "done", "skipped"]), expected: z.enum(["planned", "done", "skipped"]).optional(), ...eventFields });
+/**
+ * One real event on the journey. `at` is when it happened (this phone's clock; the server checks it), `client_event_id` makes a retry
+ * harmless. No coordinates: only how accurate the reading was, and a place NAME if the traveller allowed one. Small and bounded.
+ */
+export const journeyEventSchema = z.object({
+  kind: z.enum(JOURNEY_KINDS),
+  client_event_id: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  at: z.string().datetime({ offset: true }).optional(),
+  source: z.enum(["gps", "manual"]),
+  accuracy_m: z.number().min(0).max(100_000).optional(),
+  place_id: z.string().uuid().optional(),
+  place_name: z.string().trim().max(120).optional(),
+  meta: z.record(z.string().min(1).max(30), z.union([z.string().max(200), z.number().finite(), z.boolean()])).refine((m) => Object.keys(m).length <= 8, "Too many details").default({}),
+}).strict();
+/** "I've arrived" (true) or "not here yet" (false). Arriving never marks the stop visited. */
+/** `source`/`accuracy_m`: how the arrival was noticed (the phone's location, with how accurate it was) or said by hand. No coordinates. */
+export const stopArrivalSchema = z.object({ arrived: z.boolean(), source: z.enum(["gps", "manual"]).optional(), accuracy_m: z.number().min(0).max(100_000).optional(), ...eventFields });
 
 export const replanSchema = z
   .object({
@@ -184,6 +211,70 @@ export const replanSchema = z
     day_number: z.number().int().min(1).max(60).optional(),
   })
   .refine((v) => (v.lat === undefined) === (v.lng === undefined), "Send both lat and lng, or neither");
+
+/**
+ * Ask for ways to deal with a delay. Nothing changes: the answer is proposals. `keep` / `drop` / `pins` are how the traveller adjusts a
+ * proposal (keep these where they are, leave these out, put this stop on that day) and ask again.
+ */
+export const replanProposeSchema = z
+  .object({
+    local_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
+    local_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Invalid time"),
+    strategies: z.array(z.enum(["leave-now", "tomorrow", "shift", "keep-end", "extend", "compress", "keep-important", "custom"])).min(1).max(8).optional(),
+    night_driving: z.boolean().optional(),
+    /** How fast the traveller likes a day to move. Theirs; never guessed. */
+    pace: z.enum(["relaxed", "balanced", "brisk"]).optional(),
+    /** What the traveller says is in the tank (percent). Never guessed: absent means "not said". */
+    fuel_percent: z.number().min(0).max(100).optional(),
+    lat: latitude.optional(),
+    lng: longitude.optional(),
+    keep: z.array(uuid).max(60).optional(),
+    drop: z.array(uuid).max(60).optional(),
+    pins: z.record(uuid, z.number().int().min(1).max(60)).optional(),
+  })
+  .strict()
+  .refine((v) => (v.lat === undefined) === (v.lng === undefined), "Send both lat and lng, or neither");
+
+/** Answer ONE stored proposal. Approving applies exactly that proposal (nothing the client sends is applied); declining keeps it as history. */
+export const replanDecideSchema = z.object({ proposal_rev: z.number().int().min(1), decision: z.enum(["approve", "reject"]), note: z.string().trim().max(200).optional() }).strict();
+
+/** Undo an approved change: `rev` is the approved revision to take back. Only the newest approved change, and only if nothing has changed since. */
+export const replanUndoSchema = z.object({ rev: z.number().int().min(1) }).strict();
+
+/** How the plan as it stands meets the real world (weather, hours, daylight, hill roads, range). Changes nothing. */
+export const conditionsSchema = z
+  .object({
+    local_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
+    local_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Invalid time"),
+    night_driving: z.boolean().optional(),
+    pace: z.enum(["relaxed", "balanced", "brisk"]).optional(),
+    fuel_percent: z.number().min(0).max(100).optional(),
+    lat: latitude.optional(),
+    lng: longitude.optional(),
+  })
+  .strict()
+  .refine((v) => (v.lat === undefined) === (v.lng === undefined), "Send both lat and lng, or neither");
+
+/**
+ * A booking or time-bound activity the traveller says they have. `confirmed` = "confirmed with the provider" (protected like a promise);
+ * without it the entry is the traveller's word and only warns. `place_id` ties it to a stop. Times are minutes after midnight.
+ */
+const minute = z.number().int().min(0).max(1439);
+const commitmentFields = {
+  label: z.string().trim().min(1, "Say what it is").max(80),
+  kind: z.enum(["hotel", "ticket", "event", "reservation", "transport", "activity"]),
+  constraint_class: z.enum(["fixed", "time_sensitive"]),
+  day: z.number().int().min(1).max(60),
+  earliest_min: minute.nullable().optional(),
+  latest_min: minute.nullable().optional(),
+  place_id: uuid.nullable().optional(),
+  confirmed: z.boolean(),
+  reference: z.string().trim().max(60).nullable().optional(),
+  notes: z.string().trim().max(200).nullable().optional(),
+};
+const windowOrder = (v: { earliest_min?: number | null; latest_min?: number | null }) => v.earliest_min == null || v.latest_min == null || v.earliest_min <= v.latest_min;
+export const commitmentCreateSchema = z.object(commitmentFields).strict().refine(windowOrder, "The earliest time must be before the latest");
+export const commitmentPatchSchema = z.object(commitmentFields).partial().strict().refine((v) => Object.keys(v).length > 0, "Nothing to change").refine(windowOrder, "The earliest time must be before the latest");
 
 export const reverseSchema = z.object({ lat: latitude, lng: longitude });
 

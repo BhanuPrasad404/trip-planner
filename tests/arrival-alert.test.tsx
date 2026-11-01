@@ -190,18 +190,19 @@ describe("useArrival with a fake GPS and a fake clock", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   let api: ReturnType<typeof useArrival>; let r: TestRenderer.ReactTestRenderer;
-  let marks: string[]; let approaches: [string, number][]; let prompts: [string, boolean][]; let finished: number;
+  let marks: string[]; let arrivals: string[]; let approaches: [string, number][]; let prompts: [string, boolean][]; let finished: number;
   const holder: { ref: MutableRefObject<((m: Me) => void) | null> } = { ref: { current: null } };
   type Cfg = { stops?: ArrivalStop[]; targetId?: string | null; enabled?: boolean; session?: number };
   const Inner = (c: Cfg) => {
     api = useArrival({
       tripId: "t1", userId: "u1", stops: c.stops ?? [stop()], targetId: c.targetId === undefined ? "s1" : c.targetId, enabled: c.enabled ?? true, session: c.session ?? 1, arrivalRef: holder.ref,
       mark: async (id) => { marks.push(id); return "saved"; },
+      arrive: async (id) => { arrivals.push(id); return "saved"; },
       onApproach: (s, i) => { approaches.push([s.id, i.distanceM]); }, onPrompt: (s, i) => { prompts.push([s.id, i.area]); }, onFinish: () => { finished++; },
     });
     return null;
   };
-  const mount = async (c: Cfg = {}) => { marks = []; approaches = []; prompts = []; finished = 0; holder.ref.current = null; await act(async () => { r = TestRenderer.create(createElement(Inner, c)); }); };
+  const mount = async (c: Cfg = {}) => { marks = []; arrivals = []; approaches = []; prompts = []; finished = 0; holder.ref.current = null; await act(async () => { r = TestRenderer.create(createElement(Inner, c)); }); };
   const rerender = async (c: Cfg) => { await act(async () => { r.update(createElement(Inner, c)); }); };
   afterEach(() => { act(() => r?.unmount()); });
   /** A reading `northM` metres north of the first stop, `after` seconds after the previous one. */
@@ -231,7 +232,7 @@ describe("useArrival with a fake GPS and a fake clock", () => {
   });
   it("weak GPS (±60 m) never announces or arrives; it only says 'you may be near'", async () => {
     await mount();
-    for (const [n, t] of [[95, 0], [80, 3], [30, 3], [30, 10]] as const) await at(n, t, { accuracyM: 60 });
+    for (const [n, t] of [[95, 0], [80, 3], [30, 3], [30, 10]] as const) await at(n, t, { accuracyM: 60, speedKmh: 2 }); // slowly: a question is only shown to someone who has slowed down
     expect(approaches).toEqual([]); expect(api.prompt).toBeNull(); expect(api.unsure).toMatchObject({ name: "Thousand Pillar Temple" });
   });
   it("GPS wobble on the edge does not flicker the strip on and off", async () => {
@@ -242,10 +243,10 @@ describe("useArrival with a fake GPS and a fake clock", () => {
     expect(shown).toEqual([true, true, true, true, true]);
     await at(160, 2); expect(api.approach).toBeNull();
   });
-  it("Mark as done marks the stop (once) and clears everything", async () => {
+  it("\"I've arrived\" records the arrival (once), marks nothing visited, and clears the prompt", async () => {
     await mount(); await at(30, 0, { speedKmh: 2 }); await at(30, 9, { speedKmh: 2 });
     await act(async () => { api.confirm(); await Promise.resolve(); });
-    expect(marks).toEqual(["s1"]); expect(api.prompt).toBeNull(); expect(api.approach).toBeNull(); expect(api.done?.name).toBe("Thousand Pillar Temple");
+    expect(arrivals).toEqual(["s1"]); expect(marks).toEqual([]); expect(api.prompt).toBeNull(); expect(api.approach).toBeNull(); expect(api.done?.name).toBe("Thousand Pillar Temple");
   });
   it("the trip's destination: 'Finish drive' ends the drive and marks nothing", async () => {
     const dest = stop({ id: "__destination__", name: "Hanamkonda", kind: "destination", category: null });
@@ -354,11 +355,11 @@ describe("on the map and in the Drive panel", () => {
 });
 
 describe("the arrival card", () => {
-  const base = { prompt: null, unsure: null, done: null, progress: null, next: null, busy: false, onConfirm: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null };
+  const base = { prompt: null, unsure: null, done: null, progress: null, next: null, busy: false, onConfirm: noop, onComplete: noop, onPassing: noop, onExplore: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null };
   const html = (o: Partial<Parameters<typeof ArrivalCard>[0]>) => renderToStaticMarkup(createElement(ArrivalCard, { ...base, ...o }));
-  it("says 'You have arrived at X' with a clear, large 'Mark as done'", () => {
+  it("says 'You have arrived at X' with a clear, large \"I've arrived\"", () => {
     const h = html({ prompt: { name: "Thousand Pillar Temple", distanceM: 22, accuracyM: 6 } });
-    expect(h).toContain("You have arrived at Thousand Pillar Temple"); expect(h).toContain("Mark as done"); expect(h).toContain("min-h-12"); expect(h).toContain("Not yet");
+    expect(h).toContain("You have arrived at Thousand Pillar Temple"); expect(h).toContain("I&#x27;ve arrived"); expect(h).toContain("min-h-12"); expect(h).toContain("Not yet");
   });
   it("a large place: 'You've reached the … area'; the destination: 'Finish drive'", () => {
     expect(html({ prompt: { name: "Pakhal Lake", distanceM: 300, accuracyM: 8, area: true } })).toContain("You&#x27;ve reached the Pakhal Lake area");

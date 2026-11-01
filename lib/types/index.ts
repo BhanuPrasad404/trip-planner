@@ -67,7 +67,9 @@ export type Place = {
   notes: string | null;
   category: string | null;
   status: "planned" | "done" | "skipped"; // trip mode progress
-  status_at: string | null;
+  status_at: string | null; // when the traveller marked it (the time they acted, even if they were offline)
+  /** When the traveller said they reached it. Arriving is not visiting: status stays "planned" until they mark it done. */
+  arrived_at?: string | null;
   address: string | null; // where the geocoder says this is, so wrong pins are visible
   drive_minutes: number | null; // driving time from the previous stop (or trip start)
   drive_km: number | null;

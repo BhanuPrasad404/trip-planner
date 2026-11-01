@@ -6,6 +6,8 @@ const state = {
   user: { id: "me" } as { id: string } | null,
   trip: null as unknown,
   places: [] as unknown[],
+  /** What the database holds for the one stop the PATCH tests change. */
+  row: { id: "p", trip_id: "00000000-0000-0000-0000-000000000001" } as Record<string, unknown>,
   log: [] as Q[],
 };
 
@@ -18,7 +20,7 @@ function builder(table: string) {
     update: (p: unknown) => ((q.op = "update"), (q.payload = p), b),
     upsert: (p: unknown) => ((q.op = "upsert"), (q.payload = p), b),
     eq: (k: string, v: unknown) => (q.filters.push([k, v]), b),
-    maybeSingle: async () => ({ data: table === "trips" ? state.trip : table === "places" ? { id: "p", trip_id: TRIP } : null, error: null }),
+    maybeSingle: async () => ({ data: table === "trips" ? state.trip : table === "places" ? state.row : null, error: null }),
     then: (res: (v: unknown) => unknown) => {
       state.log.push(q);
       // An UPDATE ... select("id") returns the rows it changed, like the real database does.
@@ -54,6 +56,7 @@ beforeEach(() => {
   state.trip = { id: TRIP, num_days: 2, start_date: "2026-10-10", start_lat: 17, start_lng: 80 };
   state.places = [place("a", 80.2), place("b", 80.4, { sequence_order: 2 })];
   state.log = [];
+  state.row = { id: "p", trip_id: TRIP };
 });
 
 describe("POST /api/trips/[id]/replan", () => {
@@ -100,6 +103,37 @@ describe("POST /api/trips/[id]/replan", () => {
     expect(upserts().find((r) => r.id === "b")!.day_number).toBeNull();
   });
 
+  describe("a trip whose planned dates have passed", () => {
+    const LATE = { local_date: "2026-11-20", local_time: "10:00" }; // the trip was 2026-10-10 for 2 days
+    it("is refused when nobody resumed it (the dates are history)", async () => {
+      expect((await post(LATE)).status).toBe(422);
+    });
+    it("can be re-planned once the owner resumed it, on the first day that still has something to do", async () => {
+      state.trip = { ...(state.trip as object), resumed_at: "2026-11-20T04:00:00Z", closed_at: null };
+      state.places = [place("a", 80.2, { status: "done" }), place("b", 80.4, { day_number: 2, sequence_order: 1 })];
+      const res = await post(LATE);
+      expect(res.status).toBe(200);
+      expect((await res.json()).day).toBe(2);
+      expect(upserts().find((r) => r.id === "b")!.day_number).toBe(2);
+      expect(upserts().some((r) => r.id === "a")).toBe(false); // a finished stop is never touched
+    });
+    it("honours the day the traveller asks for, when it is a real day of the trip", async () => {
+      state.trip = { ...(state.trip as object), resumed_at: "2026-11-20T04:00:00Z", closed_at: null };
+      state.places = [place("a", 80.2), place("b", 80.4, { day_number: 2 })];
+      expect((await (await post({ ...LATE, day_number: 1 })).json()).day).toBe(1);
+      expect((await post({ ...LATE, day_number: 3 })).status).toBe(200); // not a trip day: falls back to the first day with work
+    });
+    it("is refused when the trip was finished or called off", async () => {
+      state.trip = { ...(state.trip as object), resumed_at: "2026-11-20T04:00:00Z", closed_at: "2026-11-21T04:00:00Z" };
+      expect((await post(LATE)).status).toBe(422);
+    });
+    it("a resumed trip still never invents stops: nothing left means nothing to re-plan", async () => {
+      state.trip = { ...(state.trip as object), resumed_at: "2026-11-20T04:00:00Z", closed_at: null };
+      state.places = [place("a", 80.2, { status: "done" })];
+      expect((await post(LATE)).status).toBe(422);
+    });
+  });
+
   it("says so when nothing is left to re-plan", async () => {
     state.places = [place("a", 80.2, { status: "done" })];
     expect((await post({ local_date: "2026-10-10", local_time: "10:00" })).status).toBe(422);
@@ -114,8 +148,9 @@ describe("PATCH /api/places/[id] with a status", () => {
     expect((await patch({ status: "done" })).status).toBe(200);
     expect(lastUpdate()).toMatchObject({ status: "done" });
     expect(typeof lastUpdate().status_at).toBe("string");
+    state.row = { id: "p", trip_id: TRIP, status: "done" }; // the stop is done now, so "not visited" is a real change
     expect((await patch({ status: "planned" })).status).toBe(200);
-    expect(lastUpdate()).toEqual({ status: "planned", status_at: null });
+    expect(lastUpdate()).toMatchObject({ status: "planned", status_at: null });
     expect((await patch({ status: "finished" })).status).toBe(400);
     expect((await patch({ status: "done", day_number: 2 })).status).toBe(400);
   });

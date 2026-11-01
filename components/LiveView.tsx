@@ -8,6 +8,23 @@ import { TripProgress } from "./TripProgress";
 import { VehicleSelector } from "./VehicleSelector";
 import { AlertBanners, AlertSettings } from "./AlertCenter";
 import { OutboxStatus } from "./OutboxStatus";
+import { JourneyCard } from "./JourneyCard";
+import { PlanChangeCard } from "./PlanChangeCard";
+import { PendingSuggestions } from "./PendingSuggestions";
+import { ConditionsCard } from "./ConditionsCard";
+import { CommitmentsCard } from "./CommitmentsCard";
+import { GroupProgressCard } from "./GroupProgressCard";
+import { TravelPrefsCard } from "./TravelPrefsCard";
+import { useTravelPrefs } from "@/lib/client/use-travel-prefs";
+import { memberProgress } from "@/lib/trip/group";
+import { useCommitments } from "@/lib/client/use-commitments";
+import { useConditions } from "@/lib/client/use-conditions";
+import { Button } from "@/components/ui/Button";
+import { usePlanChange } from "@/lib/client/use-plan-change";
+import { planStaleness, type PStop } from "@/lib/trip/replan-proposal";
+import { clockToMinutes } from "@/lib/travel/clock";
+import { useJourney } from "@/lib/client/use-journey";
+import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTripActions } from "@/lib/client/use-trip-actions";
@@ -67,12 +84,31 @@ function LiveScreen({ e }: { e: Engine }) {
   const follow = e.ui.follow;
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [mapTheme] = useMapTheme();
-  const [replanNote, setReplanNote] = useState<{ text: string; warnings: string[] } | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
   const { setUi } = e;
   useEffect(() => { if (e.ui.page !== "live") setUi({ page: "live" }); }, [e.ui.page, setUi]);
 
   const actions = useTripActions({ tripId: trip.id, places, onChanged: e.refresh, localDate: live.localDate, localTime: live.localTime, earlyDay: live.drive.active && live.timing?.state === "before" ? live.driveDay : null, outbox: visits.outbox });
   const { drive, intel, nextStop, driveDay, todayDay } = live;
+  // The journey: what really happened (left, paused, rested, arrived), kept apart from the plan. Saved with the time the traveller said it.
+  const journey = useJourney({ tripId: trip.id, userId, outbox: visits.outbox, closed: live.closed, offsetMin: INDIA_UTC_OFFSET_MIN, nowMs: live.nowMs });
+  // Is the plan out of date? Judged from what has really happened (not left, a day gone by, running behind): asked once, never starts anything.
+  const nowMin = live.localTime ? clockToMinutes(live.localTime) : null;
+  const staleness = useMemo(() => {
+    if (nowMin === null) return null;
+    const stops: PStop[] = places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, day: p.day_number, order: p.sequence_order, arrivalTime: p.arrival_time, status: (p.status ?? "planned") as PStop["status"], visitMin: 60, priority: p.priority ?? "normal" }));
+    return planStaleness({ stops, journey: journey.journey.state, nowDay: live.todayDay ?? (live.overrun ? driveDay : null), nowMin, numDays: trip.num_days });
+  }, [places, journey.journey.state, live.todayDay, live.overrun, driveDay, nowMin, trip.num_days]);
+  const hasOpenStops = places.some((p) => (p.status ?? "planned") === "planned" && p.day_number !== null);
+  const staleKey = staleness ? `${staleness.kind}:${live.localDate}:${driveDay}` : null;
+  // A real position reading is attached only when there is a precise, live one; otherwise the event is simply "you said". Never coordinates.
+  const journeyFix = drive.active && drive.me && !drive.me.manual && drive.quality?.usable
+    ? { source: "gps" as const, accuracyM: drive.me.accuracyM ?? undefined, from: live.startedFrom?.label ?? live.gate.hereLabel ?? undefined }
+    : { source: "manual" as const };
+  const travel = useTravelPrefs(userId);
+  const conditions = useConditions({ nightDriving: travel.prefs.nightDriving, pace: travel.prefs.pace, tripId: trip.id, enabled: hasOpenStops && !live.closed, localDate: live.localDate, localTime: live.localTime, position: journeyFix.source === "gps" && drive.me ? { lat: drive.me.lat, lng: drive.me.lng } : null });
+  const commitments = useCommitments(trip.id, !live.closed);
+  const planChange = usePlanChange({ prefs: travel.prefs, tripId: trip.id, localDate: live.localDate, localTime: live.localTime, position: journeyFix.source === "gps" && drive.me ? { lat: drive.me.lat, lng: drive.me.lng } : null, onChanged: e.refresh });
   // "Mark as done" in the navigation panel goes through this page's actions, so it gets the same Undo and notice as everywhere else.
   const navTarget = live.navigation.target;
   // After a stop is done: ask "How was it?" once per stop (never again after "Don't ask me after stops"). Nothing posts without a tap.
@@ -97,8 +133,8 @@ function LiveScreen({ e }: { e: Engine }) {
     const act = a.action;
     if (!act) return;
     if (act.type === "replan") {
-      const note = await actions.replanFromNow();
-      if (note) setReplanNote(note);
+      // Re-planning is a suggestion the traveller approves, never a change made for them (see the plan-change card).
+      setPlanOpen(true);
     } else if (act.type === "skip") {
       await actions.setStatus(act.stopId, "skipped", `Skipped ${byId.get(act.stopId)?.name ?? "a stop"}`);
     } else if (act.type === "move_next_day") {
@@ -163,6 +199,27 @@ function LiveScreen({ e }: { e: Engine }) {
       )}
 
       <DriveGateCard drive={drive} gate={live.gate} />
+      <PlanChangeCard
+        staleness={staleness} forceOpen={planOpen} closed={live.closed} hasOpenStops={places.some((p) => (p.status ?? "planned") === "planned" && p.day_number !== null)}
+        status={planChange.status} answer={planChange.answer} error={planChange.error} busy={planChange.busy} nightDriving={travel.prefs.nightDriving} applied={planChange.applied}
+        quiet={planChange.quiet(staleKey)} onAsk={(o) => { if (o?.nightDriving !== undefined) travel.set({ nightDriving: o.nightDriving }); void planChange.ask(o); }} onApprove={(rev) => void planChange.approve(rev)} onDecline={(rev) => void planChange.decline(rev)}
+        onUndo={() => void planChange.undo()} onClose={() => { setPlanOpen(false); planChange.reset(); }} onCloseApplied={planChange.closeApplied}
+        onKeepPlan={() => { if (staleKey) planChange.dismissNudge(staleKey); }}
+        isOwner={userId === trip.owner_id} suggested={planChange.suggested} onSuggest={(rev) => void planChange.suggest(rev)}
+      />
+      <PendingSuggestions pending={planChange.pending} isOwner={userId === trip.owner_id} busy={planChange.busy} error={planChange.status === "idle" ? planChange.error : null} onApprove={(rev) => void planChange.approve(rev)} onDecline={(rev) => void planChange.decline(rev)} />
+      <ConditionsCard report={conditions.report} status={conditions.status} error={conditions.error} nowMs={live.nowMs} fuelPct={conditions.fuelPct} onFuel={conditions.setFuelPct} onRefresh={() => void conditions.refresh()} onAdjust={() => setPlanOpen(true)} closed={live.closed} drivingMin={drive.active ? drive.drivingMin : null} nowMinOfDay={nowMin} />
+      {!live.closed && (
+        <CommitmentsCard list={commitments.list} stored={commitments.stored} error={commitments.error} busy={commitments.busy} numDays={trip.num_days} userId={userId} isOwner={userId === trip.owner_id}
+          stops={places.filter((p) => p.day_number !== null).map((p) => ({ id: p.id, name: p.name, day: p.day_number }))}
+          onAdd={commitments.add} onConfirmed={commitments.setConfirmed} onRemove={commitments.remove} />
+      )}
+      {!planOpen && !live.closed && planChange.status === "idle" && !planChange.applied && !staleness && places.some((p) => (p.status ?? "planned") === "planned" && p.day_number !== null) && (
+        <div><Button size="sm" variant="ghost" className="min-h-11" onClick={() => setPlanOpen(true)}><Glyph name="uturn" size={15} />Rearrange the rest of my trip</Button></div>
+      )}
+      <TravelPrefsCard prefs={travel.prefs} onChange={travel.set} />
+      <GroupProgressCard members={memberProgress(journey.events, members, userId)} offsetMin={INDIA_UTC_OFFSET_MIN} />
+      <JourneyCard journey={journey.journey} actions={journey.actions} rows={journey.rows} record={journey.record} correct={journey.correct} problem={journey.problem} fix={journeyFix} waiting={journey.pendingCount} stored={journey.stored} closed={live.closed} offsetMin={INDIA_UTC_OFFSET_MIN} unplanned={{ add: (name) => journey.record("unplanned_stop_added", { source: "manual", placeName: name }), addToPlan: journeyFix.source === "gps" && drive.me ? (name) => actions.insertStop({ name, lat: drive.me!.lat, lng: drive.me!.lng, category: null, notes: "A stop made on the way, added during the journey." }, driveDay) : null, dayLabel: `Day ${driveDay}` }} />
       <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
       <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={left?.next.km ?? null} nextKmText={left ? kmText(left.next.km, left) : null} />
@@ -183,12 +240,6 @@ function LiveScreen({ e }: { e: Engine }) {
       <div aria-live="polite" className="space-y-2 empty:hidden">
         <FormError message={actions.error ?? intel.error} />
         {actions.notice && <p role="status" className="rounded-xl border border-teal/30 bg-teal-light px-4 py-3 text-sm font-medium text-teal-ink">{actions.notice}</p>}
-        {replanNote && (
-          <div role="status" className="rounded-xl border border-line bg-white px-4 py-3 text-sm">
-            <p className="font-semibold text-pine">{replanNote.text}</p>
-            {replanNote.warnings.length > 0 && <ul className="mt-1 space-y-1 text-clay-ink">{replanNote.warnings.map((w) => <li key={w} className="flex items-start gap-1.5"><Glyph name="warn" size={14} className="mt-0.5" />{w}</li>)}</ul>}
-          </div>
-        )}
         {intel.notes.map((n) => <p key={n} className="text-xs text-ink-muted">ℹ {n}</p>)}
       </div>
 

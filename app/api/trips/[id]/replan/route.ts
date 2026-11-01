@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { replanDay, toMinutes, tripDayForDate } from "@/lib/replan";
+import { isClosed, isResumed, resumedDay } from "@/lib/trip/lifecycle";
 import { getMatrix } from "@/lib/routing";
 import { replanSchema, uuid } from "@/lib/validation/schemas";
 
@@ -47,11 +48,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (tripError) return dbError(tripError, "replan: load trip");
   if (!trip) return jsonError("Trip not found", 404);
 
-  // Normally "today" must be one of the trip's days. EARLY START: if today is before the first planned day, the traveller
-  // may drive a planned day now — but only a real day of this trip, and only when the trip really hasn't started yet.
-  let day = tripDayForDate(trip.start_date, input.local_date, trip.num_days);
-  if (day === null && input.day_number !== undefined && trip.start_date && input.local_date < trip.start_date && input.day_number <= trip.num_days) day = input.day_number;
-  if (day === null) return jsonError("Today isn't one of this trip's days, so there is nothing to re-plan.", 422);
+  // The traveller's own decisions about what really happened (lifecycle columns, migration 20261021000000). Read apart from the trip so
+  // this route keeps working where that migration has not been applied: then nothing is "resumed" and the dates decide, as before.
+  const lc = await supabase.from("trips").select("resumed_at, closed_at, resume_day_end_min").eq("id", id).maybeSingle();
+  const life = lc.error ? null : (lc.data as { resumed_at?: string | null; closed_at?: string | null; resume_day_end_min?: number | null } | null);
+  if (isClosed({ closed_at: life?.closed_at })) return jsonError("This trip was finished or called off, so there is nothing to re-plan. Reopen it first.", 422);
+  const resumed = !!life && isResumed({ resumed_at: life.resumed_at, closed_at: life.closed_at });
 
   const { data: all, error: placesError } = await supabase
     .from("places")
@@ -59,6 +61,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .eq("trip_id", id);
   if (placesError) return dbError(placesError, "replan: load places");
   const places = (all ?? []) as unknown as Row[];
+
+  // Normally "today" must be one of the trip's days. EARLY START: if today is before the first planned day, the traveller
+  // may drive a planned day now — but only a real day of this trip, and only when the trip really hasn't started yet.
+  // RESUMED: the owner chose to carry on whatever the planned dates say, so the planned window must not block them: the day is the
+  // one they ask for, else the first day that still has something to do (the same rule as the Live page, lib/trip/lifecycle.ts).
+  let day = tripDayForDate(trip.start_date, input.local_date, trip.num_days);
+  if (day === null && input.day_number !== undefined && trip.start_date && input.local_date < trip.start_date && input.day_number <= trip.num_days) day = input.day_number;
+  if (day === null && resumed) day = input.day_number !== undefined && input.day_number <= trip.num_days ? input.day_number : resumedDay(places, trip.num_days);
+  if (day === null) return jsonError("Today isn't one of this trip's days, so there is nothing to re-plan.", 422);
 
   const today = places.filter((p) => p.day_number === day);
   const remaining = today.filter((p) => (p.status ?? "planned") === "planned");
@@ -101,7 +112,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const now = toMinutes(input.local_time) ?? 0;
 
   const matrix = await getMatrix([origin, ...remaining.map((p) => ({ lat: p.lat, lng: p.lng }))]);
-  const plan = replanDay(stops, matrix, { nowMinutes: now, names: Object.fromEntries(remaining.map((p) => [p.id, p.name])) });
+  const plan = replanDay(stops, matrix, { nowMinutes: now, ...(resumed && life?.resume_day_end_min != null ? { dayEndMinutes: life.resume_day_end_min } : {}), names: Object.fromEntries(remaining.map((p) => [p.id, p.name])) });
   const byId = new Map(remaining.map((p) => [p.id, p]));
 
   // Finished/skipped stops keep their slots; the rest continue after them.

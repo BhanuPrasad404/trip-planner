@@ -10,7 +10,7 @@ const OTHER = "bbbbbbbb-0000-4000-8000-000000000002";
 const user = { id: UID, email: "Ann@Example.com", created_at: "2026-10-01T00:00:00Z", last_sign_in_at: "2026-10-10T00:00:00Z", user_metadata: { accepted_terms_version: "2026-10-12", accepted_terms_at: "2026-10-01T00:00:00Z" } } as unknown as User;
 
 type Rows = Record<string, Record<string, unknown>[]>;
-function fake(opts: { tables?: Rows; failTable?: string; files?: Record<string, string[]>; failRemove?: boolean; rpcError?: { code?: string; message: string } | null } = {}) {
+function fake(opts: { tables?: Rows; failTable?: string; missingTable?: string; files?: Record<string, string[]>; failRemove?: boolean; rpcError?: { code?: string; message: string } | null } = {}) {
   const calls: string[] = [];
   const removed: string[] = [];
   const tables = opts.tables ?? {};
@@ -24,7 +24,7 @@ function fake(opts: { tables?: Rows; failTable?: string; files?: Record<string, 
       eq: (col: string, v: unknown) => { rows = rows.filter((r) => !(col in r) || r[col] === v); return q; }, // unknown (embedded) columns are not filtered
       in: (col: string, vs: unknown[]) => { rows = rows.filter((r) => vs.includes(r[col])); return q; },
       maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
-      then: (res: (v: unknown) => unknown) => res(opts.failTable === table ? { data: null, error: { message: "denied" } } : { data: rows, error: null }),
+      then: (res: (v: unknown) => unknown) => res(opts.missingTable === table ? { data: null, error: { code: "42P01", message: `relation "public.${table}" does not exist` } } : opts.failTable === table ? { data: null, error: { message: "denied" } } : { data: rows, error: null }),
     });
     return q;
   };
@@ -64,6 +64,22 @@ describe("buildAccountExport", () => {
     expect(out.sections.trip_stops.map((p) => p.id).sort()).toEqual(["p1", "p2"]);        // stops of MY trips only
     expect(out.sections.feedback).toHaveLength(1);
     expect(out.warnings).toEqual([]);
+  });
+  it("includes the person's own journey history and the bookings they entered (and no one else's)", async () => {
+    const t: Rows = { ...tables, trip_events: [{ user_id: UID, kind: "departed", occurred_at: "2026-11-02T16:30:00Z" }, { user_id: OTHER, kind: "arrived", occurred_at: "2026-11-02T17:00:00Z" }], trip_commitments: [{ created_by: UID, label: "Hotel" }, { created_by: OTHER, label: "Their hotel" }] };
+    const out = await buildAccountExport(fake({ tables: t }).client, user);
+    expect(out.sections.journey_events).toEqual([{ user_id: UID, kind: "departed", occurred_at: "2026-11-02T16:30:00Z" }]);
+    expect(out.sections.bookings_i_entered).toEqual([{ created_by: UID, label: "Hotel" }]);
+    expect(out.readme).toMatch(/journey history/);
+  });
+  it("where those tables don't exist yet the export says nothing about them: no section, no warning", async () => {
+    const a = await buildAccountExport(fake({ tables, missingTable: "trip_events" }).client, user);
+    const b = await buildAccountExport(fake({ tables, missingTable: "trip_commitments" }).client, user);
+    for (const out of [a, b]) { expect(out.warnings).toEqual([]); expect(out.sections.journey_events).toBeUndefined(); expect(out.sections.bookings_i_entered).toBeUndefined(); }
+  });
+  it("a journey-history table that exists but cannot be read IS reported (only 'not there yet' is silent)", async () => {
+    const out = await buildAccountExport(fake({ tables, failTable: "trip_events" }).client, user);
+    expect(out.warnings.join()).toMatch(/journey_events: could not be read/);
   });
   it("includes temporary links only for files inside the person's own folder", async () => {
     const { client } = fake({ tables });

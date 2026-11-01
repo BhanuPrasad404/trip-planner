@@ -39,7 +39,7 @@ export function LiveArrival({ live, vehicle = "car", failed, onClearFailed }: {
       )}
       <ArrivalCard
         prompt={arrival.prompt} unsure={arrival.unsure} done={arrival.done} progress={progress} next={nextInfo} busy={arrival.busy}
-        onConfirm={arrival.confirm} onDismiss={arrival.dismiss} onConfirmUnsure={arrival.confirmUnsure} onDismissUnsure={arrival.dismissUnsure}
+        onConfirm={arrival.confirm} onComplete={() => void arrival.complete()} onPassing={arrival.passing} onExplore={arrival.explore} onDismiss={arrival.dismiss} onConfirmUnsure={arrival.confirmUnsure} onDismissUnsure={arrival.dismissUnsure}
         onUndo={() => void arrival.undo()} onSkipEarlier={() => void arrival.skipEarlier()} onKeepEarlier={arrival.keepEarlier} onClose={arrival.closeDone} onNavigate={onNavigate}
       />
     </>

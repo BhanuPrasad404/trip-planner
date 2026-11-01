@@ -125,14 +125,14 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
 
   const live = useTripLive({
     trip, places, members: data.members, userId, enriched, votes: data.votes, focusDay: ui.focusDay, showAllPlaces: ui.showAll && ui.page === "map", vehicle,
-    mark: visits.mark, alerts: { prefs: alerts.prefs, notify: alerts.notify }, restore: saved, onDriveStart: started, onDriveEnd: ended,
+    mark: visits.mark, arrive: visits.arrive, note: visits.note, alerts: { prefs: alerts.prefs, notify: alerts.notify }, restore: saved, onDriveStart: started, onDriveEnd: ended,
   });
   const { drive } = live;
   // Changes made elsewhere (another member deleted a stop, or I did on another device) reach the drive at once, on every page.
   useTripChanges({ tripId: trip.id, places: data.places, driving: drive.active, onChange: refresh });
   const tolls = useTollWatch({ live, vehicle, notify: alerts.notify, dismiss: alerts.dismiss });
   const setFollow = useCallback((v: boolean) => setUi({ follow: v }), [setUi]);
-  const navUi = useNavUi(live, ui.follow, setFollow, (id, name) => void visits.mark(id, "done", name), saved?.snapshot.ui.headingUp ?? true);
+  const navUi = useNavUi(live, ui.follow, setFollow, (id, name) => void visits.mark(id, "done", name, "planned"), saved?.snapshot.ui.headingUp ?? true);
 
   // While paused (waiting for the tap), Start means "carry on with the same drive", never a new one. And while ANOTHER trip is being
   // driven, Start asks first.

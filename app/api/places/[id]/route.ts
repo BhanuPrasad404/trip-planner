@@ -2,9 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { dbError, jsonError, parseBody } from "@/lib/api";
 import { z } from "zod";
-import { movePlaceSchema, placeHoursSchema, placePrioritySchema, placeVisitSchema, relocatePlaceSchema, stopStatusSchema, uuid } from "@/lib/validation/schemas";
+import { movePlaceSchema, placeHoursSchema, placePrioritySchema, placeVisitSchema, relocatePlaceSchema, stopArrivalSchema, stopStatusSchema, uuid } from "@/lib/validation/schemas";
 import { rateLimiter } from "@/lib/rate-limit";
 import { validateHours } from "@/lib/server/opening-hours";
+import { conflictMessage, decideArrival, decideStatusChange, eventTime } from "@/lib/trip/progress";
+import { activeArrivalUsers, kindForProgress } from "@/lib/trip/journey";
+import { loadArrivalEvents, recordEvent } from "@/lib/server/journey-events";
+import { randomUUID } from "node:crypto";
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,7 +42,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
 // STRICT on purpose: a request is EITHER a move OR a relocation. Mixed or unknown fields are rejected
 // loudly instead of one half being silently dropped (and it blocks smuggling in columns like trip_id).
-const patchSchema = z.union([movePlaceSchema.strict(), relocatePlaceSchema.strict(), stopStatusSchema.strict(), placePrioritySchema.strict(), placeVisitSchema.strict(), placeHoursSchema.strict()]);
+const patchSchema = z.union([movePlaceSchema.strict(), relocatePlaceSchema.strict(), stopStatusSchema.strict(), stopArrivalSchema.strict(), placePrioritySchema.strict(), placeVisitSchema.strict(), placeHoursSchema.strict()]);
 
 // Either mark a stop done/skipped/planned (trip mode), move a stop to another day (day_number; null = back to Ideas),
 // or relocate it when the pin is wrong (lat + lng, optionally a corrected name/address).
@@ -51,7 +55,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // place up). NOTHING is written until the Auth server has confirmed the person, exactly as before.
   const authP = supabase.auth.getUser();
   const parsed = await parseBody(req, patchSchema);
-  const isMove = !parsed.error && !("priority" in parsed.data) && !("visit_minutes" in parsed.data) && !("status" in parsed.data) && !("lat" in parsed.data) && !("hours" in parsed.data);
+  const isMove = !parsed.error && !("priority" in parsed.data) && !("visit_minutes" in parsed.data) && !("status" in parsed.data) && !("arrived" in parsed.data) && !("lat" in parsed.data) && !("hours" in parsed.data);
   // Only a MOVE needs to know which trip the place belongs to; the other edits are a single UPDATE that tells us (through the
   // rows it changed) whether the place exists and is yours — a place you may not edit is invisible to you (Row Level Security).
   // Promise.resolve(...) STARTS the request now: a query builder is lazy and would otherwise wait until it is awaited.
@@ -107,16 +111,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ ok: true });
   }
 
-  if ("status" in input) {
-    const { data, error } = await supabase
-      .from("places")
-      .update({ status: input.status, status_at: input.status === "planned" ? null : new Date().toISOString() })
-      .eq("id", id)
-      .select("id");
-    if (error) return dbError(error, "status: update");
-    if (!data || data.length === 0) return jsonError("Place not found", 404);
-    return NextResponse.json({ ok: true });
-  }
+  if ("status" in input || "arrived" in input) return progress(supabase, id, input, user.id);
+
 
   if ("lat" in input) {
     // A moved pin invalidates the old drive leg and arrival time; re-run Auto-plan to recompute them.
@@ -166,4 +162,104 @@ function pickHours(r: Record<string, unknown>) {
     opening_hours: (r.opening_hours as string | null) ?? null, hours_source: (r.hours_source as string | null) ?? null, hours_ref: (r.hours_ref as string | null) ?? null,
     hours_fetched_at: (r.hours_fetched_at as string | null) ?? null, hours_confirmed_at: (r.hours_confirmed_at as string | null) ?? null, hours_confirmed_by: (r.hours_confirmed_by as string | null) ?? null,
   };
+}
+
+// ── A stop's progress: when it really happened, never overwriting what has moved on (rules: lib/trip/progress.ts) ──
+const RICH = "id, trip_id, name, status, status_at, arrived_at, status_event_id, arrived_event_id";
+const LEGACY = "id, trip_id, name, status, status_at";
+/** The progress columns of migration 20261101000000 are not in the database yet. */
+const missingColumn = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42703" || e.code === "PGRST204" || /column .* (does not exist|of relation)|schema cache/i.test(e.message ?? ""));
+type Row = { id: string; trip_id?: string; name?: string; status?: string | null; status_at?: string | null; arrived_at?: string | null; status_event_id?: string | null; arrived_event_id?: string | null };
+
+async function progress(supabase: Awaited<ReturnType<typeof createClient>>, id: string, input: z.infer<typeof stopStatusSchema> | z.infer<typeof stopArrivalSchema>, userId: string) {
+  const t = eventTime(input.at, Date.now());
+  if (!t.ok) return jsonError(t.error, 422);
+  const recordedAt = new Date().toISOString();
+  const clamped = t.clamped || undefined;
+  /** Only when a write matched nothing do we look at the stop, to say WHY (not yours / already there / moved on). One write is the normal case. */
+  const look = async (): Promise<{ row: Row | null; error: { code?: string; message?: string } | null }> => {
+    let r = await supabase.from("places").select(RICH).eq("id", id).maybeSingle();
+    if (r.error && missingColumn(r.error)) r = await supabase.from("places").select(LEGACY).eq("id", id).maybeSingle();
+    return { row: (r.data as unknown as Row | null) ?? null, error: r.error };
+  };
+  /** The journey's history: one line for each change that really happened. Best effort: it never turns a saved change into a failure. */
+  const log = async (changed: { id: string; trip_id?: string; name?: string } | undefined, kind: ReturnType<typeof kindForProgress>) => {
+    if (!changed?.trip_id) return;
+    // How an arrival was noticed (the phone's location, with how accurate it was, or the traveller's word). A stop's status is always the traveller's word.
+    const evidence = "arrived" in input ? { source: input.source ?? "manual", accuracyM: input.accuracy_m ?? null } : { source: "manual" as const, accuracyM: null };
+    try {
+      const r = await recordEvent(supabase, { tripId: changed.trip_id, userId, kind, occurredAt: t.at, source: evidence.source, accuracyM: evidence.accuracyM, clientEventId: input.event_id ?? randomUUID(), placeId: changed.id, placeName: changed.name ?? null });
+      if (!r.ok && !r.missing) console.error("[api] progress: event not recorded:", r.error?.code, r.error?.message);
+    } catch (e) { console.error("[api] progress: event not recorded:", e); }
+  };
+  const conflict = (row: Row, wanted: "planned" | "done" | "skipped") => {
+    const cur = (row.status === "done" || row.status === "skipped" ? row.status : "planned") as "planned" | "done" | "skipped";
+    return NextResponse.json({ error: conflictMessage(cur, wanted), code: "conflict", current: { status: cur, status_at: row.status_at ?? null } }, { status: 409 });
+  };
+
+  if ("arrived" in input) {
+    const { arrived } = input;
+    // A place can have several people arrived at it, each at their own time. The place's own arrival time is the FIRST person's; a person
+    // saying "not here yet" about themselves must not take someone else's arrival away from the place.
+    if (!arrived) {
+      const seen = await look();
+      const row = seen.row;
+      if (row?.trip_id) {
+        const evs = await loadArrivalEvents(supabase, row.trip_id, id);
+        const others = evs ? [...activeArrivalUsers(evs, id)].filter((u) => u !== userId) : [];
+        if (others.length > 0) {
+          await log(row, kindForProgress({ arrived: false }));
+          return NextResponse.json({ ok: true, arrived_at: row.arrived_at ?? null, others: others.length, clamped });
+        }
+      }
+    }
+    const patch = { arrived_at: arrived ? t.at : null, arrived_event_id: input.event_id ?? null };
+    // Arriving is recorded only for a stop still to be visited, and the FIRST arrival wins; "not here yet" clears it.
+    let q = supabase.from("places").update(patch).eq("id", id);
+    if (arrived) q = q.eq("status", "planned").is("arrived_at", null);
+    const w = await q.select("id, trip_id, name");
+    // The new columns are not in the database yet: say it was not stored (the screen still helps the traveller; nothing is invented).
+    if (w.error) return missingColumn(w.error) ? NextResponse.json({ ok: true, stored: false }) : dbError(w.error, "arrival: update");
+    if (w.data && w.data.length > 0) {
+      await log(w.data[0] as { id: string; trip_id?: string; name?: string }, kindForProgress({ arrived }));
+      return NextResponse.json({ ok: true, arrived_at: patch.arrived_at, clamped });
+    }
+    const { row, error } = await look();
+    if (error) return dbError(error, "arrival: read");
+    if (!row) return jsonError("Place not found", 404); // Row Level Security: a stop you may not edit is invisible to you
+    const d = decideArrival(row, input);
+    // Already arrived by someone else (the place has its arrival time): this person's own arrival is still theirs to record, once.
+    if (arrived && d.kind === "unchanged" && row.arrived_at && (row.status ?? "planned") === "planned") {
+      const evs = await loadArrivalEvents(supabase, row.trip_id ?? "", id);
+      if (evs && !activeArrivalUsers(evs, id).has(userId)) await log(row, kindForProgress({ arrived: true }));
+    }
+    return NextResponse.json({ ok: true, ...(d.kind === "apply" ? { unchanged: true } : { [d.kind]: true }), arrived_at: row.arrived_at ?? null });
+  }
+
+  const legacyPatch = { status: input.status, status_at: input.status === "planned" ? null : t.at };
+  const richPatch = { ...legacyPatch, status_event_id: input.event_id ?? null, status_recorded_at: recordedAt };
+  // With `expected` the write is compare-and-set: it only happens if the stop is still as the sender saw it. A change that slipped in
+  // (another device, an older queued change) matches nothing and is reported as a conflict, never an overwrite. Without `expected`
+  // (an older app version) the write is as it always was.
+  const write = (p: Record<string, unknown>) => {
+    let q = supabase.from("places").update(p).eq("id", id);
+    if (input.expected) q = q.eq("status", input.expected);
+    return q.select("id, trip_id, name");
+  };
+  let w = await write(richPatch);
+  if (w.error && missingColumn(w.error)) w = await write(legacyPatch);
+  if (w.error) return dbError(w.error, "status: update");
+  if (w.data && w.data.length > 0) {
+    await log(w.data[0] as { id: string; trip_id?: string; name?: string }, kindForProgress({ status: input.status }));
+    return NextResponse.json({ ok: true, status: input.status, clamped });
+  }
+
+  // No `expected` and nothing changed: the stop is not there for this person (Row Level Security), exactly as it always was.
+  if (!input.expected) return jsonError("Place not found", 404);
+  const { row, error } = await look();
+  if (error) return dbError(error, "status: read");
+  if (!row) return jsonError("Place not found", 404);
+  const d = decideStatusChange(row, input);
+  if (d.kind === "duplicate" || d.kind === "unchanged") return NextResponse.json({ ok: true, [d.kind]: true, status: row.status ?? "planned" });
+  return conflict(row, input.status);
 }

@@ -28,6 +28,18 @@ import { EXAMPLES } from "@/lib/result/examples";
 import { exampleDraft } from "@/lib/result/example-draft";
 import { PlaceHoursView } from "@/components/place/PlaceHours";
 import { AppNav } from "@/components/shell/AppNav";
+import { JourneyCard } from "@/components/JourneyCard";
+import { PlanChangeCard } from "@/components/PlanChangeCard";
+import { ConditionsCard } from "@/components/ConditionsCard";
+import { PendingSuggestions } from "@/components/PendingSuggestions";
+import { CommitmentsCard } from "@/components/CommitmentsCard";
+import { GroupProgressCard } from "@/components/GroupProgressCard";
+import { TravelPrefsCard } from "@/components/TravelPrefsCard";
+import { memberProgress } from "@/lib/trip/group";
+import { DEFAULT_PREFS } from "@/lib/trip/preferences";
+import { LIMITATIONS } from "@/lib/trip/conditions";
+import { ArrivalCard } from "@/components/ArrivalCard";
+import { buildTimeline, deriveJourney, allowedActions, type JourneyEvent } from "@/lib/trip/journey";
 import { rankAttractions } from "@/lib/place-intel/attractions";
 import { placeRole } from "@/lib/place-intel/role";
 import { resolveHours } from "@/lib/server/hours-resolver";
@@ -85,7 +97,61 @@ const conflictAnswer = resolveHours({ name: "Sri Lakshmi Narasimha Swamy Temple 
 const shellTrips = [{ id: "t1", name: "Hyderabad weekend with friends and a very long trip name", state: "active" }] as never;
 const shell = (body: ReturnType<typeof h>) => h("div", { className: "flex min-h-dvh flex-col md:flex-row" }, h(AppNav, { trips: shellTrips, userInitial: "B", signOutAction: async () => {} }), h("div", { className: "min-w-0 flex-1 pb-28 md:pb-0" }, body));
 
+// Journey screens: a journey that crossed midnight, with long place names, a waiting update, an inferred line and an event that did not fit.
+const JE = (id: string, kind: JourneyEvent["kind"], at: string, o: Partial<JourneyEvent> = {}): JourneyEvent => ({ clientEventId: id.padEnd(8, "x"), kind, occurredAt: at, source: "manual", userId: "u1", ...o });
+const journeyEvents: JourneyEvent[] = [
+  JE("dep", "departed", "2026-11-02T16:30:00Z", { source: "gps", accuracyM: 12, meta: { from: "Banjara Hills, Hyderabad, a very long neighbourhood name" } }),
+  JE("arr", "arrived", "2026-11-02T20:37:00Z", { placeName: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada" }),
+  JE("rst", "rest_started", "2026-11-02T20:50:00Z"),
+  JE("rend", "rest_ended", "2026-11-03T02:30:00Z"),
+  JE("late", "paused", "2026-11-03T03:00:00Z"),
+  JE("dup", "departed", "2026-11-03T04:00:00Z"),
+];
+const journeyNow = deriveJourney(journeyEvents);
+const journeyRows = buildTimeline(journeyEvents, { offsetMin: 330, me: "u1", nowMs: Date.parse("2026-11-03T05:00:00Z"), pending: [JE("pend", "resumed", "2026-11-03T04:30:00Z")] });
+const journeyProps = { correct: async () => undefined, journey: journeyNow, actions: allowedActions(journeyNow.state), rows: journeyRows, record: async () => "saved" as const, fix: { source: "manual" as const }, waiting: 1, stored: true as boolean | null, closed: false, offsetMin: 330 };
+
+// Plan-change screens: the calm nudge, and the options with long names, every list filled (changes, removals, bookings, risks, doubts).
+const pcLong = "Kanaka Durga Temple on Indrakeeladri Hill and the very long name of a place, Vijayawada";
+const pcOption = (o: object = {}) => ({ strategy: "keep-end", label: "Keep the original end date", feasible: true, days: [], rev: 7, canApprove: true, night: { arrivals: 1, drives: 1 }, dates: { startDate: "2026-11-02", numDays: 5, startShiftDays: 0, extraDays: 0 },
+  summary: "3 stops would move to another day, 1 would change time. Your end date stays the same. 1 stop (Kailasagiri) would go back to your ideas. Nothing is deleted.",
+  changes: [{ id: "a", name: pcLong, kind: "moved", from: { day: 1, order: 1, time: "14:00" }, to: { day: 2, order: 1, time: "08:00" }, reason: "Moved from Day 1 to Day 2; it would be reached after dark, and night driving is off; you'd arrive during the night and visit in the morning." },
+    { id: "k", name: "Kailasagiri Hill Park and Ropeway", kind: "proposed-removal", from: { day: 4, order: 1, time: "10:00" }, to: { day: null, order: null, time: null }, reason: "It is optional and the days left are not enough for everything. It would go back to your ideas, not be deleted." }],
+  removals: [{ id: "k", name: "Kailasagiri", reason: "optional" }], notPlaced: [{ id: "x", name: "Araku Valley and the hills around it, a long name", reason: "It can't be reached in one day from Visakhapatnam (about 11.5 hours' drive)." }],
+  limitations: ["Live traffic and road closures aren't available, so drive times are estimates for a normal day."], conditions: [{ id: "w1", kind: "weather", severity: "warning", stopId: "a", name: pcLong, day: 2, title: "Heavy rain forecast at " + pcLong, detail: "about 9 mm in the hour around 9:00 AM on Day 2. A forecast can change.", basis: "forecast", source: "Open-Meteo, fetched 6:10 PM", asOf: 1, recommendation: "The forecast is clearer around 4:00 PM: visit then instead." }],
+  atRisk: [{ id: "a", name: pcLong, why: "You'd be driving at night to reach it." }], bookingConflicts: [{ id: "h", name: "Hotel Sai Residency on the beach road", why: "Hotel Sai Residency on the beach road is fixed for Day 3, and this plan puts it on Day 4. Contact them if you'll be late.", confirmed: true }],
+  unresolved: ["Driving times are estimates: the road-routing service didn't answer, so they are straight-line guesses. Real times may be longer.", "Travel times are estimates, not guarantees, and road conditions and traffic are not known."], ...o });
+const pcAnswer = { baseRev: 1, stale: null, nowDay: 1, journey: "awaiting-departure" as const, proposals: [pcOption(), pcOption({ strategy: "shift", label: "Shift the whole trip", rev: null, canApprove: false, feasible: false, summary: "This option would break a booking." })] };
+const pcBase = { staleness: null, forceOpen: false, closed: false, hasOpenStops: true, status: "idle" as const, answer: null, error: null, busy: null, nightDriving: false, applied: null, quiet: false, onAsk: noop, onApprove: noop, onDecline: noop, onUndo: noop, onClose: noop, onCloseApplied: noop, onKeepPlan: noop };
+
+// Conditions screen: findings with long names (weather, hours from map data, a hill road after dark, range), a break suggestion, the unchecked list.
+const ccItem = (o: object) => ({ id: "x", kind: "weather", severity: "warning", stopId: "a", name: pcLong, day: 2, title: "Heavy rain forecast at " + pcLong, detail: "about 9 mm in the hour around 9:00 AM on Day 2. A forecast can change.", basis: "forecast", source: "Open-Meteo, fetched 6:10 PM", asOf: 1, recommendation: "The forecast is clearer around 4:00 PM: visit then instead. If you'd rather stay dry, one of your saved ideas is indoors: Salar Jung Museum and the long name of it.", ...o });
+const ccReport = { asOf: 0, hasDates: true, limitations: [...LIMITATIONS], unresolved: ["Opening hours couldn't be confirmed for Hussain Sagar Lake and Necklace Road Promenade and 2 more. They are not treated as closed.", "The weather couldn't be checked for Araku Valley and the hills around it (too far ahead for a forecast). That isn't the same as good weather."],
+  items: [ccItem({ id: "1" }), ccItem({ id: "2", kind: "hours", severity: "watch", title: pcLong + " may be closed when you'd be there", basis: "map-hours", source: "OpenStreetMap, not confirmed", detail: "Map data says it is closed at 2:00 PM on Day 1, but nobody has confirmed these hours. Treat it as a doubt, not a fact." }), ccItem({ id: "3", kind: "night", title: "A hill road after dark to " + pcLong, detail: "You'd reach it around 6:30 PM, after sunset (6:05 PM; an hour earlier on a hill road). We don't suggest driving hill roads at night, even if night driving is on.", basis: "sun-calculation", source: "Sunset calculated for the place and date" }), ccItem({ id: "4", kind: "night", severity: "info", title: "A night arrival at Vijayawada", detail: "You'd reach it around 12:30 AM." })] };
+const ccBase = { report: ccReport as never, status: "ready" as const, error: "No connection. Showing what we last knew.", nowMs: 600_000, fuelPct: 50, onFuel: noop, onRefresh: noop, onAdjust: noop, closed: false, drivingMin: 200, nowMinOfDay: 23 * 60 };
+
+// Phase 5 screens: bookings (long names, confirmed and only-your-word, a timed one, the add form), the group's own journeys, preferences.
+const bkLong = "Hotel Sai Residency on the beach road with a very long name, Visakhapatnam";
+const bk = (o: object) => ({ id: "c1", trip_id: "t1", place_id: "g", label: bkLong, kind: "hotel", constraint_class: "fixed", day: 3, earliest_min: null, latest_min: null, source: "confirmed", reference: "SR-2026-11-0042-A", notes: null, created_by: "u1", ...o });
+const bkList = [bk({}), bk({ id: "c2", label: "Kanaka Durga Temple darshan slot and its very long name", kind: "ticket", constraint_class: "time_sensitive", earliest_min: 540, latest_min: 630, source: "user_entered", reference: null })];
+const bkProps = { list: bkList as never, stored: true, error: "Bookings need a database update that hasn't been applied yet, so they can't be saved right now.", busy: false, stops: [{ id: "g", name: "Golconda Fort and the very long name of a place, Hyderabad", day: 1 }], numDays: 5, userId: "u1", isOwner: true, onAdd: async () => true, onConfirmed: async () => true, onRemove: async () => true };
+const grpEv = (id: string, kind: string, at: string, user: string, o: object = {}) => ({ clientEventId: id.padEnd(8, "x"), kind, occurredAt: at, source: "manual", userId: user, ...o });
+const grp = memberProgress([grpEv("g1", "departed", "2026-11-02T16:30:00Z", "u1"), grpEv("g2", "arrived", "2026-11-02T20:30:00Z", "u1", { placeId: "v", placeName: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada" }), grpEv("g3", "departed", "2026-11-03T00:30:00Z", "u2"), grpEv("g4", "rest_started", "2026-11-03T02:30:00Z", "u2")] as never, [{ user_id: "u1", display_name: "Bhanu Prasad from a rather long display name" }, { user_id: "u2", display_name: "Anil" }, { user_id: "u3", display_name: null }], "u1");
+
 export const pages: Record<string, string> = {
+  "pending-suggestions": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PendingSuggestions, { pending: [{ rev: 7, suggestedBy: { id: "m1", name: "Anil with a rather long display name" }, mine: false, createdAt: null, proposal: pcOption() as never }], isOwner: true, busy: null, error: "Only the trip owner can approve, decline or undo changes to the shared plan.", onApprove: noop, onDecline: noop }))),
+  "commitments-card": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(CommitmentsCard, bkProps))),
+  "commitments-form": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(CommitmentsCard, { ...bkProps, error: null, initiallyAdding: true }))),
+  "group-card": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(GroupProgressCard, { members: grp, offsetMin: 330 }))).replace("<details", "<details open"),
+  "travel-prefs": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(TravelPrefsCard, { prefs: DEFAULT_PREFS, onChange: noop }))).replace("<details", "<details open"),
+  "conditions-card": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(ConditionsCard, ccBase))).replace("<details", "<details open"),
+  "plan-change-nudge": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PlanChangeCard, { ...pcBase, staleness: { kind: "late-departure", minutesLate: 605, firstStop: pcLong } }))),
+  "plan-change-options": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PlanChangeCard, { ...pcBase, status: "ready", forceOpen: true, nightDriving: true, answer: pcAnswer as never, initiallyOpen: 7, staleness: { kind: "missed-day", missedDays: 2, firstDay: 1 } }))),
+  "plan-change-applied": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PlanChangeCard, { ...pcBase, applied: { rev: 9, label: "Keep the original end date", changed: 4 } }))),
+  "journey-card": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(JourneyCard, journeyProps))).replace("<details", "<details open"),
+  "journey-card-open": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(JourneyCard, { ...journeyProps, journey: deriveJourney([]), actions: ["departed"], rows: [], waiting: 0, stored: false }))),
+  "arrival-prompt": renderToStaticMarkup(h(ArrivalCard, { prompt: { name: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada", distanceM: 1180, accuracyM: 80, area: true }, unsure: null, done: null, progress: null, next: null, busy: false, onConfirm: noop, onComplete: noop, onPassing: noop, onExplore: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null })),
+  "arrival-arrived": renderToStaticMarkup(h(ArrivalCard, { prompt: null, unsure: null, done: { name: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada", queued: true, earlier: [], stage: "arrived", arrivedAt: Date.parse("2026-11-02T20:37:00Z") }, progress: null, next: null, busy: false, onConfirm: noop, onComplete: noop, onPassing: noop, onExplore: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null })),
   "app-shell": renderToStaticMarkup(withRouter(shell(h("main", { className: "mx-auto w-full max-w-3xl space-y-4 px-4 py-5" },
     h("h1", { className: "font-display text-2xl font-semibold text-pine" }, "Good morning, Banu"),
     h("div", { className: "rounded-2xl border border-line bg-white p-5" }, h("p", { className: "text-ink" }, "A white card on the warm page, with the soft resting shadow.")))))),

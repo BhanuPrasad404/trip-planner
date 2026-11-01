@@ -31,6 +31,8 @@ import { liveDayFor } from "@/lib/trip-state";
 import { isClosed, isResumed, resumedDay } from "@/lib/trip/lifecycle";
 import type { PlaceWithSeason, Trip, TripMember } from "@/lib/types";
 import type { VoteSummary } from "@/lib/votes";
+import { PLAN_HALT_SOURCE } from "@/lib/engine/halt-stops";
+import { useArrivalRoles } from "@/lib/client/use-arrival-roles";
 import type { LiveMarker, PoiMarker } from "@/components/TripMap";
 
 type Args = {
@@ -47,7 +49,11 @@ type Args = {
   /** What the traveller is driving (default: car). */
   vehicle?: Vehicle;
   /** Marks a stop (works offline: queued until there is signal). Needed for "Mark as done" on the arrival card. */
-  mark?: (placeId: string, status: VisitStatus, name?: string) => Promise<"saved" | "queued">;
+  mark?: (placeId: string, status: VisitStatus, name?: string, expected?: VisitStatus) => Promise<"saved" | "queued">;
+  /** "I've arrived" / "not here yet" (works offline). Arriving never marks the stop visited. */
+  arrive?: (placeId: string, arrived: boolean, name?: string, evidence?: { source: "gps" | "manual"; accuracyM?: number }) => Promise<"saved" | "queued">;
+  /** Notes "just passing" / "exploring" in the journey's history. */
+  note?: (kind: "passed_through" | "exploring_started", stop: { id: string; name: string }) => void;
   /** The traveller's alert choices and the alert centre, used to reach them when Trailmate is in the background. */
   alerts?: { prefs: AlertPrefs; notify: (a: AppAlert) => boolean };
   /** A drive saved on this phone to carry on with (after a reload). `resumeGps`: location is already allowed, so follow GPS at once. */
@@ -61,7 +67,7 @@ const noMark = async (): Promise<"saved" | "queued"> => "saved";
 const noop = () => {};
 
 /** Everything "live" in one place: clock, today, drive (GPS + sharing), intelligence, and the map markers they imply. */
-export function useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces = false, vehicle = "car", mark = noMark, alerts, restore = null, onDriveStart, onDriveEnd }: Args) {
+export function useTripLive({ trip, places, members, userId, enriched, votes, focusDay, showAllPlaces = false, vehicle = "car", mark = noMark, arrive, note, alerts, restore = null, onDriveStart, onDriveEnd }: Args) {
   // Read once: what a saved drive brings back (the same drive number, so its decisions and alerts stay valid).
   const [saved] = useState(() => restore);
   const nowMinute = useNowMinute(); // 0 on the server → no clock mismatch
@@ -251,16 +257,20 @@ export function useTripLive({ trip, places, members, userId, enriched, votes, fo
     canMoveNextDay: driveDay < trip.num_days,
   });
 
-  // ── Arrival: "Arriving in 100 m", then "You have arrived at X" with "Mark as done". One detector for every screen. ──
+  // ── Arrival: "Arriving in 100 m", then "You have arrived at X" (I've arrived; marking it visited is separate). One detector for every screen. ──
+  // What KIND of place each stop is (a town or a city is reached as an area of kilometres, everything else as a point). Asked of the server
+  // once per set of stops while a drive is on; unknown means a point, so a missing answer never widens a radius.
+  const rolesSignature = useMemo(() => `${places.map((p) => `${p.id}:${p.name}`).sort().join("|")}#${dest_name ?? ""}`, [places, dest_name]);
+  const roles = useArrivalRoles(trip.id, drive.active, rolesSignature);
   const arrivalStops = useMemo<ArrivalStop[]>(() => {
-    const list: ArrivalStop[] = dayPlaces.map((p, i) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: p.category ?? null, status: (p.status ?? "planned") as ArrivalStatus, order: i + 1, kind: "stop" }));
+    const list: ArrivalStop[] = dayPlaces.map((p, i) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: p.category ?? null, status: (p.status ?? "planned") as ArrivalStatus, order: i + 1, kind: "stop", role: (p as { source_type?: string }).source_type === PLAN_HALT_SOURCE ? "town" : roles[p.id] ?? null }));
     const dest = targets.find((t) => t.kind === "destination");
-    if (dest) list.push({ id: dest.id, name: dest.name, lat: dest.lat, lng: dest.lng, category: null, status: "planned", order: list.length + 1, kind: "destination" });
+    if (dest) list.push({ id: dest.id, name: dest.name, lat: dest.lat, lng: dest.lng, category: null, status: "planned", order: list.length + 1, kind: "destination", role: roles[dest.id] ?? null });
     return list;
-  }, [dayPlaces, targets]);
+  }, [dayPlaces, targets, roles]);
   const stopDriveRef = useRef<() => void>(() => {});
   const arrival = useArrival({
-    tripId: trip.id, userId, stops: arrivalStops, targetId: nextTarget?.id ?? null, enabled: liveOk, session: drive.session, arrivalRef, mark,
+    tripId: trip.id, userId, stops: arrivalStops, targetId: nextTarget?.id ?? null, enabled: liveOk, session: drive.session, arrivalRef, mark, arrive, note,
     onApproach: (s, i) => cue("approach", s, approachText(s.name, i.distanceM)),
     onPrompt: (s, i) => cue("arrived", s, arrivedText(s.name, i.area)),
     onFinish: () => stopDriveRef.current(),

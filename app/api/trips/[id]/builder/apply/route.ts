@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { haltRows, PLAN_HALT_SOURCE } from "@/lib/engine/halt-stops";
 import type { TransitDay } from "@/lib/engine/types";
 import { builderApplySchema, uuid } from "@/lib/validation/schemas";
+import { recordRevision, toSnapshot } from "@/lib/server/journey-events";
 
 export const maxDuration = 30;
 
@@ -66,5 +67,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const stale = supabase.from("places").delete().eq("trip_id", id).eq("source_type", PLAN_HALT_SOURCE);
   const { error: staleError } = await (halts.length ? stale.not("id", "in", `(${halts.map((h) => h.id).join(",")})`) : stale);
   if (staleError) return dbError(staleError, "builder: apply (old halts)");
-  return NextResponse.json({ ok: true, placed: placed.length, movedToIdeas: dropped.length, daysUsed: option.totals.daysUsed, halts: halts.length });
+  // Keep the schedule the traveller just approved: the first one is the original itinerary, later ones are approved revisions.
+  // Best effort (and nothing happens where the history tables are not applied yet): it never fails an applied plan.
+  const revision = await recordRevision(supabase, id, user.id, toSnapshot([...rows, ...halts].map((p) => ({ id: p.id as string, name: p.name as string, day_number: (p.day_number ?? null) as number | null, sequence_order: (p.sequence_order ?? null) as number | null, arrival_time: (p.arrival_time ?? null) as string | null, drive_minutes: (p.drive_minutes ?? null) as number | null, drive_km: (p.drive_km ?? null) as number | null }))), input.engine ? "Plan applied (engine)" : `Plan applied (${input.style})`).catch(() => null);
+  return NextResponse.json({ ok: true, revision: revision ?? undefined, placed: placed.length, movedToIdeas: dropped.length, daysUsed: option.totals.daysUsed, halts: halts.length });
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalJson } from "@/lib/client/use-local-json";
 import { announceStopsChanged } from "@/lib/client/stop-signal";
 import {
-  addToOutbox, describe, foreignKeys, outboxKey, parseOutbox, removeFromOutbox, sendItem,
+  addToOutbox, describe, foreignKeys, newEventId, outboxKey, parseOutbox, removeFromOutbox, sendItem,
   type OutboxAction, type OutboxItem, type SendResult,
 } from "@/lib/client/outbox";
 
@@ -49,6 +49,7 @@ export function useOutbox(tripId: string, userId: string, onSynced: () => void, 
   const finish = useCallback((i: OutboxItem, r: SendResult, reason?: string) => {
     if (r === "retry") return false;
     setStore((c) => ({ items: removeFromOutbox(parseOutbox(JSON.stringify({ items: c.items ?? [] }), now()), i) }));
+    if (r === "failed") syncedRef.current(); // the screen shows the server's truth, not the change it refused
     if (r === "failed") setFailed(`${describe(i)} couldn't be sent${reason ? `: ${reason}` : " — the stop may have been removed, or you may no longer be on this trip."}`);
     return true;
   }, [setStore, now]);
@@ -87,7 +88,8 @@ export function useOutbox(tripId: string, userId: string, onSynced: () => void, 
 
   const send = useCallback(async (action: OutboxAction, label?: string): Promise<SendOutcome> => {
     setFailed(null);
-    const item: OutboxItem = { ...action, at: now(), label };
+    // One id per change (a retry of it is recognised by the server). The status this phone saw is what the change was based on.
+    const item: OutboxItem = { ...action, ...((action.kind === "status" || action.kind === "arrive") && !action.eventId ? { eventId: newEventId() } : {}), at: now(), label };
     let dropped: OutboxItem[] = [];
     setStore((c) => { const r = addToOutbox(parseOutbox(JSON.stringify({ items: c.items ?? [] }), now()), item); dropped = r.dropped; return { items: r.items }; }); // shown at once
     if (dropped.length) setNotice(`Too many changes were waiting, so the oldest ${dropped.length === 1 ? "one was" : `${dropped.length} were`} dropped: ${dropped.map(describe).join("; ")}.`);

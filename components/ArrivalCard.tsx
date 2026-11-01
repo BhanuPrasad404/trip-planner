@@ -3,18 +3,25 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
+import { INDIA_UTC_OFFSET_MIN, clockOf } from "@/lib/travel/clock";
 
 export type ArrivalNext = { name: string; km: number | null; minutes: number | null; mapsHref: string | null; /** How to read km ("about 12 km", "(estimated)"); preferred over km. */ kmText?: string | null };
 
 type Props = {
   prompt: { name: string; distanceM: number; accuracyM: number; /** A large place reached as an area. */ area?: boolean; /** The end of the trip: "Finish drive", not "Mark as done". */ destination?: boolean } | null;
   unsure: { name: string; distanceM: number; accuracyM: number | null } | null;
-  done: { name: string; queued: boolean; earlier: { id: string; name: string }[] } | null;
+  done: { name: string; queued: boolean; earlier: { id: string; name: string }[]; /** Said they arrived, or then marked it visited. */ stage: "arrived" | "done"; arrivedAt: number } | null;
   /** "3 of 5 stops done" */
   progress: { done: number; total: number } | null;
   next: ArrivalNext | null;
   busy: boolean;
   onConfirm: () => void;
+  /** After arriving: mark the stop visited (a separate choice). */
+  onComplete: () => void;
+  /** "Just passing through": nothing is recorded as arrived or visited, and this place is not asked about again. */
+  onPassing: () => void;
+  /** After arriving: "I'm exploring" (noted in the journey; the stop is not marked visited). */
+  onExplore: () => void;
   onDismiss: () => void;
   onConfirmUnsure: () => void;
   onDismissUnsure: () => void;
@@ -27,13 +34,16 @@ type Props = {
 };
 
 const CONFIRMED_VISIBLE_MS = 25_000;
+/** "2:07 AM" in India time, like every other time on the trip. */
+const arrivedText = (ms: number) => { const [h, m] = clockOf(ms, INDIA_UTC_OFFSET_MIN).split(":").map(Number); return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 
 /**
  * What the traveller sees when they reach a stop. Three separate situations, each honest about what we know:
- *   • we are sure enough to ASK ("You have arrived at X" with "Mark as done"),
+ *   • we are sure enough to ASK ("You have arrived at X": "I've arrived" / "Not yet"),
  *   • we are close but the GPS is too vague to be sure (we say so, and they can mark it by hand),
- *   • they said yes: it is saved (or kept on the phone until there is signal), and the next stop is one tap away.
- * Nothing is marked until the traveller says yes. Everything here can be dismissed.
+ *   • they said yes: the arrival is saved with its time (or kept on the phone until there is signal). That is NOT "visited": marking the
+ *     stop visited is a separate choice (here, or later in the list), because arriving is not the same as having seen the place.
+ * Nothing is recorded until the traveller says yes. Everything here can be dismissed.
  */
 export function ArrivalCard(p: Props) {
   // The "marked visited" card tidies itself away after a while, unless there is still a choice to make (skipped stops).
@@ -55,24 +65,34 @@ export function ArrivalCard(p: Props) {
             <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-teal-light text-teal-ink"><Glyph name="pin" size={22} /></span>
             <div className="min-w-0 flex-1">
               <h2 id="arrival-title" className="text-lg font-semibold leading-snug text-pine">{p.prompt.area ? <>You&apos;ve reached the {p.prompt.name} area</> : <>You have arrived at {p.prompt.name}</>}</h2>
-              <p id="arrival-sub" className="mt-0.5 text-sm text-ink-muted">{p.prompt.destination ? "This is the end of your route." : "Mark it as done when you're there, or keep going."}</p>
+              <p id="arrival-sub" className="mt-0.5 text-sm text-ink-muted">{p.prompt.destination ? "This is the end of your route." : "Tell us when you're there. Marking it visited is a separate step."}</p>
               <p className="mt-1 text-xs text-ink-muted">About {p.prompt.distanceM} m from its pin · GPS accurate to ±{p.prompt.accuracyM} m</p>
             </div>
             <button type="button" onClick={p.onDismiss} aria-label={`Dismiss: not at ${p.prompt.name} yet`} className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sky"><Glyph name="close" size={18} /></button>
           </div>
-          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-            <Button onClick={p.onConfirm} loading={p.busy} loadingLabel="Saving…" className="min-h-12 text-base"><Glyph name={p.prompt.destination ? "flag" : "check"} size={18} />{p.prompt.destination ? "Finish drive" : "Mark as done"}</Button>
-            <Button variant="secondary" onClick={p.onDismiss} disabled={p.busy}>Not yet</Button>
-          </div>
+          {p.prompt.destination ? (
+            <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+              <Button onClick={p.onConfirm} loading={p.busy} loadingLabel="Saving…" className="min-h-12 text-base"><Glyph name="flag" size={18} />Finish drive</Button>
+              <Button variant="secondary" onClick={p.onDismiss} disabled={p.busy}>Not yet</Button>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <Button onClick={p.onConfirm} loading={p.busy} loadingLabel="Saving…" className="min-h-12 w-full text-base"><Glyph name="pin" size={18} />I&apos;ve arrived</Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={p.onPassing} disabled={p.busy}>Just passing</Button>
+                <Button variant="secondary" onClick={p.onDismiss} disabled={p.busy}>Not yet</Button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
       {!p.prompt && p.unsure && (
         <section role="status" aria-live="polite" className={`${shell} border-line`}>
           <p className="text-sm font-semibold text-pine">You may be near {p.unsure.name}.</p>
-          <p className="mt-0.5 text-xs text-ink-muted">Your GPS isn&apos;t precise enough to be sure{p.unsure.accuracyM ? ` (±${p.unsure.accuracyM} m)` : ""}, so we won&apos;t mark it for you.</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Your GPS isn&apos;t precise enough to be sure{p.unsure.accuracyM ? ` (±${p.unsure.accuracyM} m)` : ""}, so we won&apos;t record it for you.</p>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={p.onConfirmUnsure} loading={p.busy}>I&apos;m here: mark as done</Button>
+            <Button size="sm" onClick={p.onConfirmUnsure} loading={p.busy}>I&apos;m here</Button>
             <Button size="sm" variant="secondary" onClick={p.onDismissUnsure}>Dismiss</Button>
           </div>
         </section>
@@ -83,9 +103,10 @@ export function ArrivalCard(p: Props) {
           <div className="flex items-start gap-3">
             <span aria-hidden="true" className="tm-check-pop grid h-11 w-11 shrink-0 place-items-center rounded-full bg-teal text-white"><Glyph name="check" size={22} strokeWidth={2.8} /></span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold leading-snug text-pine">{p.done.name} marked as done.</h2>
+              <h2 className="text-base font-semibold leading-snug text-pine">{p.done.stage === "done" ? <>{p.done.name} marked as done.</> : <>You&apos;re at {p.done.name}.</>}</h2>
+              {p.done.stage === "arrived" && <p className="mt-0.5 text-sm text-ink-muted">Arrived {arrivedText(p.done.arrivedAt)}. Not marked as visited yet.</p>}
               {p.done.queued && <p className="mt-0.5 text-xs font-semibold text-[#7a4a00]">Saved on this phone. It will be sent when you&apos;re back online.</p>}
-              {p.progress && p.progress.total > 0 && <p className="mt-0.5 text-sm text-ink-muted">{p.progress.done} of {p.progress.total} {p.progress.total === 1 ? "stop" : "stops"} done today.</p>}
+              {p.done.stage === "done" && p.progress && p.progress.total > 0 && <p className="mt-0.5 text-sm text-ink-muted">{p.progress.done} of {p.progress.total} {p.progress.total === 1 ? "stop" : "stops"} done today.</p>}
             </div>
             <button type="button" onClick={p.onClose} aria-label="Close" className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sky"><Glyph name="close" size={18} /></button>
           </div>
@@ -101,7 +122,15 @@ export function ArrivalCard(p: Props) {
             </div>
           )}
 
-          {!choosing && p.next && (
+          {!choosing && p.done.stage === "arrived" && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" onClick={p.onComplete} loading={p.busy} loadingLabel="Saving…"><Glyph name="check" size={16} />Mark as visited</Button>
+              <Button size="sm" variant="secondary" onClick={p.onExplore}>I&apos;m exploring</Button>
+              <Button size="sm" variant="ghost" onClick={p.onUndo}><Glyph name="uturn" size={15} />Not here yet</Button>
+            </div>
+          )}
+
+          {!choosing && p.done.stage === "done" && p.next && (
             <div className="mt-3 border-t border-line pt-3">
               <p className="text-sm text-ink-muted"><span className="font-semibold text-pine">Next: {p.next.name}</span>{p.next.kmText ? ` · ${p.next.kmText}` : p.next.km !== null ? ` · ${p.next.km < 10 ? p.next.km.toFixed(1) : Math.round(p.next.km)} km` : ""}{p.next.minutes !== null ? ` · about ${p.next.minutes} min` : ""}</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -111,7 +140,7 @@ export function ArrivalCard(p: Props) {
               </div>
             </div>
           )}
-          {!choosing && !p.next && (
+          {!choosing && p.done.stage === "done" && !p.next && (
             <div className="mt-2"><Button size="sm" variant="ghost" onClick={p.onUndo}><Glyph name="uturn" size={15} />Undo</Button></div>
           )}
         </section>

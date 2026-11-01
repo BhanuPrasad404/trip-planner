@@ -25,7 +25,7 @@ export const activeDriveKey = (userId: string) => `tm:drive-active:${userId}`;
 /** Written by the tab that runs the drive as it unloads (a reload, or closed): see markHandoff. */
 export const handoffKey = (userId: string) => `tm:drive-handoff:${userId}`;
 /** Every per-person key a drive leaves behind (arrival memory, remembered targets, the drive itself). */
-export const perUserDriveKeyPrefixes = (userId: string) => [`tm:drive:${userId}:`, `tm:drive-active:${userId}`, `tm:arrival:${userId}:`, `tm:nav-targets:${userId}:`, handoffKey(userId)];
+export const perUserDriveKeyPrefixes = (userId: string) => [`tm:drive:${userId}:`, `tm:drive-active:${userId}`, `tm:arrival:${userId}:`, `tm:nav-targets:${userId}:`, `tm:journey:${userId}:`, handoffKey(userId)];
 
 export type Camera = { center: [number, number]; zoom: number; bearing: number; pitch: number };
 export type DriveUi = { focusDay: number; follow: boolean; headingUp: boolean; showRadar: boolean; showAll: boolean; satellite: boolean; sheet: boolean | null; camera: Camera | null; page: "map" | "live" };

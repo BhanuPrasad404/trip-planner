@@ -72,11 +72,12 @@ export function useTripActions({ tripId, places, onChanged, localDate, localTime
       setBusyId(id);
       const before = snapshotPlaces(places, [id]);
       if (outbox) {
-        const name = places.find((p) => p.id === id)?.name;
-        const r = await outbox.send({ kind: "status", placeId: id, status }, name);
+        const shown = places.find((p) => p.id === id);
+        // `expected`: what this screen showed. If the stop has moved on since (another device), the server refuses instead of overwriting.
+        const r = await outbox.send({ kind: "status", placeId: id, status, expected: (shown?.status ?? "planned") as "planned" | "done" | "skipped" }, shown?.name);
         if (r === "saved" && status !== "planned" && label) setUndo({ label, places: before, deleteIds: [] });
         if (r === "queued") setNotice(OFFLINE_SAVED_TEXT);
-      } else if (await call(`/api/places/${id}`, json("PATCH", { status }), "Couldn't update this stop.")) {
+      } else if (await call(`/api/places/${id}`, json("PATCH", { status, expected: places.find((p) => p.id === id)?.status ?? "planned" }), "Couldn't update this stop.")) {
         if (status !== "planned" && label) setUndo({ label, places: before, deleteIds: [] });
         onChanged();
       }
@@ -122,11 +123,11 @@ export function useTripActions({ tripId, places, onChanged, localDate, localTime
 
   /** "Go there": add a place as the next stop of a day. */
   const insertStop = useCallback(
-    async (stop: { name: string; lat: number; lng: number; category?: string | null }, day: number) => {
+    async (stop: { name: string; lat: number; lng: number; category?: string | null; notes?: string }, day: number) => {
       setError(null);
       setReplanning(true);
       const before = snapshotPlaces(places.filter((p) => p.day_number === day));
-      const body = await call(`/api/trips/${tripId}/insert-stop`, json("POST", { ...stop, day_number: day, notes: "Added from Travel Radar" }), "Couldn't add this stop.");
+      const body = await call(`/api/trips/${tripId}/insert-stop`, json("POST", { ...stop, day_number: day, notes: stop.notes ?? "Added from Travel Radar" }), "Couldn't add this stop.");
       setReplanning(false);
       if (!body) return false;
       setUndo({ label: `Added ${stop.name} as your next stop`, places: before, deleteIds: [String(body.id)] });

@@ -16,9 +16,9 @@ const screens = (r: Remaining) => {
   const text = kmText(r.next.km, r);
   const progress = renderToStaticMarkup(createElement(TripProgress, { stops: [{ id: "k", name: "Kondapalli Fort", status: "planned" }], vehicle: "car", nextName: "Kondapalli Fort", nextKm: r.next.km, nextKmText: text }));
   const arrival = renderToStaticMarkup(createElement(ArrivalCard, {
-    prompt: null, unsure: null, done: { name: "Fort", queued: false, earlier: [] }, progress: { done: 1, total: 2 },
+    prompt: null, unsure: null, done: { name: "Fort", queued: false, earlier: [], stage: "done", arrivedAt: 0 }, progress: { done: 1, total: 2 },
     next: { name: "Kondapalli Fort", km: r.next.km, minutes: r.next.minutes, kmText: text, mapsHref: null }, busy: false,
-    onConfirm: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null,
+    onConfirm: noop, onComplete: noop, onPassing: noop, onExplore: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null,
   }));
   return { text, progress, arrival };
 };

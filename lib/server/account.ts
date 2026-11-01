@@ -25,7 +25,7 @@ export type AccountExport = {
 
 const README =
   "This file contains the data Trailmate holds about you: your account, profile, the trips you belong to (including their stops), " +
-  "your votes, posts, comments, likes, saves, reports, feedback, follows, blocks and notifications, and links to the photos and " +
+  "your votes, posts, comments, likes, saves, reports, feedback, follows, blocks and notifications, your journey history (when you left, paused or arrived) and the bookings you entered, and links to the photos and " +
   "videos you uploaded. Links in 'files' stop working after one hour; download the files you want to keep. Other people's " +
   "names and emails are not included. It is JSON: any text editor can open it.";
 
@@ -35,9 +35,12 @@ export async function buildAccountExport(supabase: SupabaseClient, user: User, n
   const warnings: string[] = [];
   const sections: Record<string, Row[]> = {};
 
-  const run = async (name: string, q: Query): Promise<Row[]> => {
+  /** A table that may not exist yet (its migration not applied) is simply empty: that is not something to warn the person about. */
+  const notThereYet = (e: { code?: string; message?: string }) => e.code === "42P01" || e.code === "PGRST205" || /relation .* does not exist|could not find the table/i.test(e.message ?? "");
+  const run = async (name: string, q: Query, optional = false): Promise<Row[]> => {
     try {
       const { data, error } = await q;
+      if (error && optional && notThereYet(error)) return [];
       if (error) { warnings.push(`${name}: could not be read (${error.message})`); return []; }
       const rows = (data ?? []) as Row[];
       if (rows.length >= EXPORT_ROW_LIMIT) warnings.push(`${name}: only the first ${EXPORT_ROW_LIMIT} rows are included`);
@@ -50,7 +53,7 @@ export async function buildAccountExport(supabase: SupabaseClient, user: User, n
   const mine = (table: string, column: string, select = "*") => supabase.from(table).select(select).eq(column, uid).limit(EXPORT_ROW_LIMIT) as unknown as Query;
 
   // Wave 1: everything that only needs my id.
-  const [profile, trips, memberships, votes, reports, reportFlags, feedback, posts, comments, likes, saves, helpful, tripAdds, postReports, following, blocks, hides, notifications, live] = await Promise.all([
+  const [profile, trips, memberships, votes, reports, reportFlags, feedback, posts, comments, likes, saves, helpful, tripAdds, postReports, following, blocks, hides, notifications, live, journeyEvents, bookings] = await Promise.all([
     run("profile", mine("profiles", "id")),
     run("trips", supabase.from("trips").select("*").limit(EXPORT_ROW_LIMIT) as unknown as Query), // Row Level Security returns only trips I own or belong to
     run("trip_memberships", mine("trip_members", "user_id")),
@@ -70,6 +73,8 @@ export async function buildAccountExport(supabase: SupabaseClient, user: User, n
     run("feed_hides", mine("feed_hides", "user_id")),
     run("notifications", mine("notifications", "user_id")),
     run("live_location", mine("live_locations", "user_id")),
+    run("journey_events", mine("trip_events", "user_id"), true),          // when I left, paused, arrived, corrections (no coordinates are ever kept)
+    run("bookings_i_entered", mine("trip_commitments", "created_by"), true),
   ]);
 
   // Wave 2: things that hang off the first results.
@@ -102,6 +107,8 @@ export async function buildAccountExport(supabase: SupabaseClient, user: User, n
     feed_hides: hides,
     notifications,
     live_location: live,
+    ...(journeyEvents.length ? { journey_events: journeyEvents } : {}),
+    ...(bookings.length ? { bookings_i_entered: bookings } : {}),
   });
 
   // Links to the files I uploaded (valid for an hour). Only paths inside my own folder are ever included.

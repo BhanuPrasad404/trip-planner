@@ -1,5 +1,6 @@
 "use client";
 
+import { INDIA_UTC_OFFSET_MIN, clockOf } from "@/lib/travel/clock";
 import type { Outbox } from "@/lib/client/use-outbox";
 import { dbTime12 } from "@/lib/travel/clock";
 import { useState } from "react";
@@ -62,6 +63,9 @@ type StopCardProps = {
   onShowOnMap?: (placeId: string) => void;
 };
 
+/** "2:07 AM" in India time, like every other time on the trip. */
+const arrivedClock = (iso: string) => { const [h, m] = clockOf(Date.parse(iso), INDIA_UTC_OFFSET_MIN).split(":").map(Number); return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+
 export function StopCard({
   place, photo, status, category, score, scoreFor, seasonReason, moveDays, votes, near, farWarning, seasonSource,
   onMove, onRemove, onVote, onRelocate, onAlternatives, onStatus, reports, reportCtx, busy, menuOpen, selected, onShowOnMap, weather,
@@ -103,6 +107,10 @@ export function StopCard({
             <span className="sr-only"> ({cat.label})</span>
           </h3>
           {driveLine}
+          {/* The traveller said they reached it, but it is not marked visited: arriving and visiting are different things. */}
+          {!finished && place.arrived_at && Number.isFinite(Date.parse(place.arrived_at)) && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-teal-ink"><Glyph name="pin" size={13} />Arrived {arrivedClock(place.arrived_at)} · not marked visited</p>
+          )}
         </div>
         {busy && (
           <span role="status" className="mt-0.5 inline-flex items-center gap-1.5 rounded-full bg-sky px-2.5 py-1 text-xs font-semibold text-ink-muted">

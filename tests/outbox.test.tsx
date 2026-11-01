@@ -55,7 +55,10 @@ describe("outbox (pure)", () => {
     expect(parseOutbox(JSON.stringify({ items: "x" }), T0)).toEqual([]);
   });
   it("each kind becomes the right request (a queued update never carries a photo)", () => {
-    expect(requestFor(st("p1", "done"))).toMatchObject({ url: "/api/places/p1", init: { method: "PATCH", body: JSON.stringify({ status: "done" }) } });
+    expect(requestFor(st("p1", "done"))).toMatchObject({ url: "/api/places/p1", init: { method: "PATCH", body: JSON.stringify({ status: "done", at: new Date(T0).toISOString() }) } });
+    // the time sent is when the person ACTED (this item's `at`), and the ids travel with it
+    expect(JSON.parse(requestFor({ kind: "status", placeId: "p1", status: "done", expected: "planned", eventId: "evt-12345678", at: T0 }).init.body as string)).toEqual({ status: "done", at: new Date(T0).toISOString(), expected: "planned", event_id: "evt-12345678" });
+    expect(JSON.parse(requestFor({ kind: "arrive", placeId: "p1", arrived: true, eventId: "evt-87654321", at: T0 }).init.body as string)).toEqual({ arrived: true, at: new Date(T0).toISOString(), event_id: "evt-87654321" });
     expect(requestFor({ kind: "vote", placeId: "p1", vote: -1, at: T0 })).toMatchObject({ url: "/api/places/p1/vote", init: { method: "POST", body: JSON.stringify({ vote: -1 }) } });
     expect(requestFor({ kind: "move", placeId: "p1", day: null, at: T0 })).toMatchObject({ init: { body: JSON.stringify({ day_number: null }) } });
     expect(requestFor({ kind: "relocate", placeId: "p1", lat: 17.4, lng: 78.5, address: "Abids", at: T0 })).toMatchObject({ init: { body: JSON.stringify({ lat: 17.4, lng: 78.5, address: "Abids" }) } });

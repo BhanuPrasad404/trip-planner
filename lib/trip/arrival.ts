@@ -13,20 +13,30 @@
 // so GPS wobble on the edge cannot make the screen flicker.
 // Large places (a fort, a lake, a sanctuary) are entered far from their pin, so they use a wider zone sized to the place and
 // are worded "You've reached the X area".
+// A TOWN or CITY is not a point either: its pin is somewhere in the middle of kilometres of streets, and a highway runs through it. So
+// a town/city stop (only when we KNOW it is one: see `role`) uses a km-sized zone, accepts a coarser (still honest) GPS reading, and
+// asks for a LONGER and SLOWER stay before it asks, so driving through is not mistaken for arriving. Where we don't know what a place
+// is (`role` absent) it is treated as the point it has always been: no radius is ever guessed for an unknown place.
 // Pure and deterministic: same readings in, same decisions out.
 import { haversineM } from "@/lib/geo";
 
 export type ArrivalStatus = "planned" | "done" | "skipped";
+/** What kind of place a stop is, when known: a town or a city is reached as an area of kilometres. Absent = unknown = a point. */
+export type ArrivalRole = "town" | "city";
 export type ArrivalStop = {
   id: string; name: string; lat: number; lng: number; category: string | null; status: ArrivalStatus; /** Position in the day, 1 = first. */ order: number;
+  /** Only set from real knowledge (a night halt is a town chosen from our settlement list). Never guessed from a name. */
+  role?: ArrivalRole | null;
   /** "destination" = the end of the trip: it can be arrived at, but it is not a stop that is marked done. */
   kind?: "stop" | "destination";
 };
 export type ArrivalFix = { lat: number; lng: number; accuracyM: number | null; speedKmh: number | null; /** When the device measured it (ms). */ fixAt: number; /** The traveller chose this place; it is not GPS. */ manual?: boolean };
 
 export const ARRIVAL = {
-  /** A reading vaguer than this can never announce or confirm anything. */
+  /** A reading vaguer than this can never announce or confirm anything at a POINT (a temple, a cafe). Towns and cities accept more: see `zoneFor`. */
   maxAccuracyM: 30,
+  /** No reading vaguer than this is used for anything, whatever the place. */
+  maxAccuracyAnyM: 150,
   /** Point-like stops (a temple, a cafe, a viewpoint). */
   approachM: 100,
   arriveM: 50,
@@ -51,16 +61,24 @@ export const ARRIVAL = {
 /** Places that are entered far from their pin: the arrival zone is the size of the place. */
 const AREA_M: Record<string, number> = { fort: 300, waterfall: 300, activity: 300, lake: 400, beach: 400, trek: 500, wildlife: 800, hill_station: 800 };
 
-export type Zone = { approachM: number; arriveM: number; approachClearM: number; arriveClearM: number; /** After a "not yet", how far away the traveller must get before we may ask again. */ rearmM: number; /** A large place: "You've reached the X area". */ area: boolean };
+export type Zone = { /** The vaguest reading that may count for this place (m). */ maxAccuracyM: number; /** The shortest stay (ms) and the top speed (km/h) before we ask "have you arrived?". */ minDwellMs: number; maxSpeedKmh: number; approachM: number; arriveM: number; approachClearM: number; arriveClearM: number; /** After a "not yet", how far away the traveller must get before we may ask again. */ rearmM: number; /** A large place: "You've reached the X area". */ area: boolean };
 
-export function zoneFor(category: string | null | undefined): Zone {
+/** Town and city zones, in metres. A city's pin can sit a few km from where you actually enter it. */
+const SETTLEMENT_ZONE: Record<ArrivalRole, Zone> = {
+  town: { maxAccuracyM: 100, minDwellMs: 45_000, maxSpeedKmh: 15, approachM: 5_000, arriveM: 1_500, approachClearM: 6_000, arriveClearM: 2_200, rearmM: 6_000, area: true },
+  city: { maxAccuracyM: 150, minDwellMs: 90_000, maxSpeedKmh: 15, approachM: 10_000, arriveM: 4_000, approachClearM: 12_000, arriveClearM: 5_500, rearmM: 12_000, area: true },
+};
+
+export function zoneFor(category: string | null | undefined, role?: ArrivalRole | null): Zone {
+  if (role && SETTLEMENT_ZONE[role]) return SETTLEMENT_ZONE[role];
   const r = category ? AREA_M[category] : undefined;
-  if (!r) return { approachM: ARRIVAL.approachM, arriveM: ARRIVAL.arriveM, approachClearM: ARRIVAL.approachClearM, arriveClearM: ARRIVAL.arriveClearM, rearmM: 2 * ARRIVAL.approachM, area: false };
-  return { approachM: r + 100, arriveM: r, approachClearM: r + 150, arriveClearM: Math.round(r * 1.5), rearmM: 2 * r + 100, area: true };
+  const point = { maxAccuracyM: ARRIVAL.maxAccuracyM, minDwellMs: ARRIVAL.minDwellMs, maxSpeedKmh: ARRIVAL.maxSpeedKmh };
+  if (!r) return { ...point, approachM: ARRIVAL.approachM, arriveM: ARRIVAL.arriveM, approachClearM: ARRIVAL.approachClearM, arriveClearM: ARRIVAL.arriveClearM, rearmM: 2 * ARRIVAL.approachM, area: false };
+  return { ...point, approachM: r + 100, arriveM: r, approachClearM: r + 150, arriveClearM: Math.round(r * 1.5), rearmM: 2 * r + 100, area: true };
 }
 
 type Candidate = { firstAt: number; lastAt: number; fixes: number };
-export type Handled = { at: number; outcome: "confirmed" | "dismissed"; /** Gone far enough away since, so a dismissed stop may ask again. */ left: boolean };
+export type Handled = { at: number; /** "passing": the traveller said they are only passing through. Not asked again about this place (until the memory expires). */ outcome: "confirmed" | "dismissed" | "passing"; /** Gone far enough away since, so a dismissed stop may ask again. */ left: boolean };
 export type Near = { stopId: string; distanceM: number };
 export type ArrivalState = {
   candidates: Record<string, Candidate>;
@@ -94,7 +112,7 @@ export type ArrivalResult = {
 const usableFix = (f: ArrivalFix, now: number): boolean =>
   !f.manual &&
   Number.isFinite(f.lat) && Number.isFinite(f.lng) && Math.abs(f.lat) <= 90 && Math.abs(f.lng) <= 180 &&
-  f.accuracyM !== null && Number.isFinite(f.accuracyM) && f.accuracyM > 0 && f.accuracyM <= ARRIVAL.maxAccuracyM &&
+  f.accuracyM !== null && Number.isFinite(f.accuracyM) && f.accuracyM > 0 && f.accuracyM <= ARRIVAL.maxAccuracyAnyM &&
   now - f.fixAt <= ARRIVAL.staleMs && f.fixAt <= now + 5_000;
 
 const blockedBy = (h: Handled | undefined) => !!h && (h.outcome === "confirmed" || !h.left);
@@ -131,7 +149,7 @@ export function stepArrival(prev: ArrivalState, fix: ArrivalFix, stops: ArrivalS
         if (blockedBy(state.handled[s.id]) || s.id === state.prompted) continue;
         const d = haversineM(fix, s);
         // Only if the true position could be inside the arrival zone: the uncertainty circle reaches it.
-        if (d - acc <= zoneFor(s.category).arriveM && d < best) { best = d; unsure = { stopId: s.id, distanceM: Math.round(d), accuracyM: Math.round(acc) }; }
+        if (d - acc <= zoneFor(s.category, s.role).arriveM && d < best) { best = d; unsure = { stopId: s.id, distanceM: Math.round(d), accuracyM: Math.round(acc) }; }
       }
     }
     return { state, prompt: null, approach: null, unsure, withdrawn: null };
@@ -139,15 +157,24 @@ export function stepArrival(prev: ArrivalState, fix: ArrivalFix, stops: ArrivalS
 
   state.lastFixAt = fix.fixAt;
   const speedKnown = fix.speedKmh !== null && Number.isFinite(fix.speedKmh);
-  const tooFast = speedKnown && (fix.speedKmh as number) > ARRIVAL.maxSpeedKmh;
+  const acc = fix.accuracyM as number;
   const ready: { id: string; ratio: number; d: number; area: boolean }[] = [];
+  let maybeNear: ArrivalResult["unsure"] = null;
   let approach: Near | null = null;
   let withdrawn: string | null = null;
 
   for (const s of open) {
-    const z = zoneFor(s.category);
+    const z = zoneFor(s.category, s.role);
     const d = haversineM(fix, s);
     const h = state.handled[s.id];
+    const tooFast = speedKnown && (fix.speedKmh as number) > z.maxSpeedKmh;
+
+    // Too vague for THIS place (a +-60 m reading is fine for a town, not for a temple): it can neither confirm nor cancel anything here,
+    // it may only say "you might be near" (never asking to confirm), exactly as a vague reading always could.
+    if (acc > z.maxAccuracyM) {
+      if (!blockedBy(h) && s.id !== state.prompted && d - acc <= z.arriveM && (!maybeNear || d < maybeNear.distanceM)) maybeNear = { stopId: s.id, distanceM: Math.round(d), accuracyM: Math.round(acc) };
+      continue;
+    }
 
     // A dismissed stop may ask again only after the traveller has really gone away.
     if (h && h.outcome === "dismissed" && !h.left && d > z.rearmM) state.handled[s.id] = { ...h, left: true };
@@ -184,11 +211,11 @@ export function stepArrival(prev: ArrivalState, fix: ArrivalFix, stops: ArrivalS
     const prevC = state.candidates[s.id];
     const c: Candidate = prevC && fix.fixAt - prevC.lastAt <= ARRIVAL.gapResetMs ? { firstAt: prevC.firstAt, lastAt: fix.fixAt, fixes: prevC.fixes + 1 } : { firstAt: fix.fixAt, lastAt: fix.fixAt, fixes: 1 };
     state.candidates[s.id] = c;
-    const dwellOk = c.fixes >= ARRIVAL.minFixes && c.lastAt - c.firstAt >= ARRIVAL.minDwellMs;
+    const dwellOk = c.fixes >= ARRIVAL.minFixes && c.lastAt - c.firstAt >= z.minDwellMs;
     if (dwellOk && !blockedBy(state.handled[s.id])) ready.push({ id: s.id, ratio: d / z.arriveM, d, area: z.area });
   }
 
-  if (state.prompted !== null || ready.length === 0) return { state, prompt: null, approach, unsure: null, withdrawn };
+  if (state.prompted !== null || ready.length === 0) return { state, prompt: null, approach, unsure: state.prompted === null ? maybeNear : null, withdrawn };
   const pick = ready.sort((a, b) => a.ratio - b.ratio)[0]; // two zones overlap: ask about the closer one first
   state.prompted = pick.id;
   if (state.near?.stopId === pick.id) state.near = null; // arrived replaces "approaching"
@@ -196,14 +223,14 @@ export function stepArrival(prev: ArrivalState, fix: ArrivalFix, stops: ArrivalS
 }
 
 /** The traveller answered. A confirmed stop is never asked about again; a dismissed one only after they leave and return. */
-export function resolveArrival(prev: ArrivalState, stopId: string, outcome: "confirmed" | "dismissed", now: number): ArrivalState {
+export function resolveArrival(prev: ArrivalState, stopId: string, outcome: "confirmed" | "dismissed" | "passing", now: number): ArrivalState {
   const candidates = { ...prev.candidates };
   delete candidates[stopId];
   return {
     ...prev, candidates,
     prompted: prev.prompted === stopId ? null : prev.prompted,
     near: prev.near?.stopId === stopId ? null : prev.near,
-    handled: { ...prev.handled, [stopId]: { at: now, outcome, left: outcome === "confirmed" } },
+    handled: { ...prev.handled, [stopId]: { at: now, outcome, left: outcome === "confirmed" } }, // "passing" stays blocked like a "not yet" that never re-arms
   };
 }
 
@@ -223,7 +250,7 @@ export function restoreHandled(raw: string | null, now: number): Record<string, 
     const out: Record<string, Handled> = {};
     for (const [id, v] of Object.entries(j ?? {})) {
       const h = v as Partial<Handled> | null;
-      if (h && typeof h.at === "number" && Number.isFinite(h.at) && (h.outcome === "confirmed" || h.outcome === "dismissed") && now - h.at <= ARRIVAL.memoryMs) out[id] = { at: h.at, outcome: h.outcome, left: !!h.left };
+      if (h && typeof h.at === "number" && Number.isFinite(h.at) && (h.outcome === "confirmed" || h.outcome === "dismissed" || h.outcome === "passing") && now - h.at <= ARRIVAL.memoryMs) out[id] = { at: h.at, outcome: h.outcome, left: !!h.left };
     }
     return out;
   } catch {

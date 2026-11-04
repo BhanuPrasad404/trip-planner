@@ -256,3 +256,34 @@ export function describeHere(ix: GeoIndex, lat: number, lng: number): HereName |
   const approximate = first.km > AT_PLACE_KM;
   return { name: approximate ? `Near ${first.hit.name}` : same ? first.hit.name : `${first.hit.name}, ${second.hit.name}`, area: first.hit.area, km: Math.round(first.km * 10) / 10, approximate };
 }
+
+export type WhereIs = {
+  /** The town or village the position is in or nearest to ("Araku Valley"). */
+  place: string;
+  /** Straight-line km to that place (0 when inside it). */
+  km: number;
+  district: string | null;
+  state: string | null;
+};
+
+const NAMED_PLACES: IndexKind[] = ["locality", "town", "city"];
+const namedCache = new WeakMap<GeoIndex, Entry[]>();
+
+/**
+ * Where a position is, in the words a traveller uses: the nearest town or village, its district and its state, from our own GeoNames index
+ * (no network). Null when nothing is within `maxKm` (the position may be in the sea or outside India).
+ */
+export function whereIs(ix: GeoIndex, lat: number, lng: number, maxKm = 40): WhereIs | null {
+  if (!inIndiaBox(lat, lng)) return null;
+  let named = namedCache.get(ix);
+  if (!named) { named = ix.entries.filter((e) => NAMED_PLACES.includes(e.kind)); namedCache.set(ix, named); }
+  const dLat = maxKm / 111, dLng = maxKm / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
+  let best: Entry | null = null, bestKm = Infinity;
+  for (const e of named) {
+    if (Math.abs(e.lat - lat) > dLat || Math.abs(e.lng - lng) > dLng) continue;
+    const km = distanceKm({ lat, lng }, e);
+    if (km < bestKm) { best = e; bestKm = km; }
+  }
+  if (!best || bestKm > maxKm) return null;
+  return { place: best.name, km: Math.round(bestKm * 10) / 10, district: best.district, state: best.state };
+}

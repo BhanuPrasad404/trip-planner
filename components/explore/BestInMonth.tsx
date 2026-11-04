@@ -136,6 +136,7 @@ export function PickCard({ pick, photo, month, tripId, saved, added, addIdea, re
       </div>
       <div className="flex flex-1 flex-col px-3 pb-3 pt-3">
         <h3 className="break-words font-display text-xl font-semibold leading-snug text-pine">{item.name}</h3>
+        {item.where && <p className="mt-1 flex items-start gap-1.5 text-sm font-medium text-ink"><Glyph name="pin" size={15} className="mt-0.5 text-clay" /><span className="min-w-0 break-words">{item.where.text}</span></p>}
         <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-muted"><CategoryGlyph category={glyph} size={15} className="shrink-0 text-teal" />{exploreCategoryLabel(item.category)}{km !== null && ` · ${km} km away`}</p>
         <p className="mt-2 text-sm text-ink">{fit.why}</p>
         {researched?.reason && <p className="mt-1 text-sm text-ink-muted">{researched.reason}{researched.source && <span className="block text-xs">Source: {researched.source}</span>}</p>}

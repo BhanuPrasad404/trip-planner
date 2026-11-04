@@ -9,6 +9,8 @@ import { getExploreStore } from "@/lib/explore/store";
 import { loadOfflineExplore } from "@/lib/explore/offline-load";
 import { getCatalogReader } from "@/lib/catalog/read-server";
 import { exploreForTrip } from "@/lib/server/explore-trip";
+import { attachWhere } from "@/lib/explore/where";
+import { loadGeoIndex } from "@/lib/places/geo-index-load";
 
 // A corridor query may have to ask the map servers (then it is shared for everyone on the same road), so it gets the same time as a region.
 export const maxDuration = 60;
@@ -32,7 +34,8 @@ export async function POST(req: Request) {
       { loadDeps: { store: getExploreStore(), allowUpstream: () => consumeQuota(supabase, "explore", 150), offline: loadOfflineExplore, catalog: getCatalogReader() } },
     );
     if ("error" in answer) return jsonError("Trip not found", 404);
-    return NextResponse.json(answer, { headers: { "Cache-Control": "private, no-store" } });
+    const ix = await loadGeoIndex().catch(() => null);
+    return NextResponse.json({ ...answer, items: attachWhere(answer.items, ix) as typeof answer.items }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     if (e instanceof ExploreQuotaError) return jsonError("You've used today's place searches. Please try again tomorrow.", 429);
     console.error("[api] explore/trip:", e instanceof Error ? e.message : e);

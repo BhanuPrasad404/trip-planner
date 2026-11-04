@@ -10,6 +10,8 @@ import { loadOfflineExplore } from "@/lib/explore/offline-load";
 import { getCatalogReader } from "@/lib/catalog/read-server";
 import { pageItems } from "@/lib/explore/items";
 import { classifyMapFailure } from "@/lib/explore/failure";
+import { attachWhere } from "@/lib/explore/where";
+import { loadGeoIndex } from "@/lib/places/geo-index-load";
 
 // A long map query may run (a whole state), so this is allowed more time than a nearby search.
 export const maxDuration = 60;
@@ -31,7 +33,7 @@ export async function POST(req: Request) {
     const anchor = input.anchor ?? (input.scope.kind === "point" ? { lat: input.scope.lat, lng: input.scope.lng } : null);
     const page = pageItems(loaded.items, { sort: input.sort, anchor, q: input.q, cursor: input.cursor, limit: input.limit });
     return NextResponse.json(
-      { items: page.items, nextCursor: page.nextCursor, total: page.total, source: loaded.source, stale: loaded.stale, fetchedAt: new Date(loaded.fetchedAt).toISOString() },
+      { items: attachWhere(page.items, await loadGeoIndex().catch(() => null)), nextCursor: page.nextCursor, total: page.total, source: loaded.source, stale: loaded.stale, fetchedAt: new Date(loaded.fetchedAt).toISOString() },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {

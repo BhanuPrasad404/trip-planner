@@ -65,9 +65,9 @@ export function PulseCard({ name, lat, lng, hours = null, hoursCheckedAt = null,
         type="button"
         aria-expanded={open}
         onClick={() => { const next = !open; setOpen(next); if (next && !pulse && !busy) void load(); }}
-        className="tm-action min-h-11 text-sm font-semibold"
+        className="tm-action-quiet !px-2.5"
       >
-        {open ? "Hide live pulse" : "Live pulse"}<span className="sr-only"> for {name}</span>
+        <Glyph name="radio" size={16} />{open ? "Hide live pulse" : "Live pulse"}<span className="sr-only"> for {name}</span>
       </button>
       {open && (
         <div className="mt-2 rounded-xl border border-line bg-white p-3" aria-live="polite">

@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Logo } from "../Logo";
 import { Glyph } from "@/components/ui/Glyph";
-import { IconChevron, IconMenu } from "./icons";
+import { Avatar } from "@/components/ui/Avatar";
+import { avatarUrl } from "@/lib/avatar";
+import { IconChevron } from "./icons";
 import { useHideOnScroll } from "@/lib/client/use-hide-on-scroll";
 import { buildNav, currentTrip, isDrivingSurface, type NavTrip } from "./nav";
 
@@ -22,9 +24,10 @@ const write = (v: boolean) => {
   listeners.forEach((l) => l());
 };
 
-type Props = { trips: NavTrip[]; userInitial: string; signOutAction: () => Promise<void>; userId?: string | null };
+type Props = { trips: NavTrip[]; userInitial: string; signOutAction: () => Promise<void>; userId?: string | null; /** The person's profile picture (a storage path), or null: their initial is shown. */ avatarPath?: string | null };
 
-export function AppNav({ trips, userInitial, signOutAction, userId = null }: Props) {
+export function AppNav({ trips, userInitial, signOutAction, userId = null, avatarPath = null }: Props) {
+  const picture = avatarUrl(avatarPath);
   const pathname = usePathname() ?? "/";
   const collapsed = useSyncExternalStore(subscribe, read, () => false);
   const [drawer, setDrawer] = useState(false);
@@ -68,7 +71,9 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
     );
   };
 
-  const primaryMobile = items.filter((i) => ["discover", "trips", "live", "map"].includes(i.id));
+  // The phone bar: Discover, Trips, the big + in the middle (create / go to), Live, Map.
+  const byId = (id: string) => items.find((i) => i.id === id)!;
+  const mobileSlots = [byId("discover"), byId("trips"), "create" as const, byId("live"), byId("map")];
 
   return (
     <>
@@ -89,7 +94,7 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
         <nav className="flex-1 overflow-y-auto px-3 py-2"><ul className="space-y-1">{items.map((i) => link(i, collapsed))}</ul></nav>
         <div className={`flex items-center gap-2 border-t border-white/10 p-3 ${collapsed ? "flex-col" : "justify-between"}`}>
           <Link href="/profile" className="flex items-center gap-2 rounded-lg" aria-label="Your profile">
-            <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-teal text-sm font-bold">{userInitial}</span>
+            <Avatar src={picture} initial={userInitial} size={36} />
           </Link>
           <button
             type="button"
@@ -108,7 +113,7 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
       <header className="relative z-20 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
         <div className="flex items-center justify-between gap-3">
           <Link href="/dashboard" aria-label="Trailmate dashboard" className="rounded-xl"><Logo tagline /></Link>
-          <Link href="/profile" aria-label="Your profile" className="grid h-11 w-11 place-items-center rounded-full bg-teal text-base font-bold text-white shadow-md ring-2 ring-white">{userInitial}</Link>
+          <Link href="/profile" aria-label="Your profile" className="rounded-full shadow-md ring-2 ring-white transition active:scale-95"><Avatar src={picture} initial={userInitial} size={44} /></Link>
         </div>
         {showSearch && (
           <Link href="/explore" aria-label="Search destinations and plan your next ride" className="tm-glass mt-3 flex min-h-12 items-center gap-3 rounded-full px-4 text-[15px] text-ink-muted">
@@ -118,36 +123,47 @@ export function AppNav({ trips, userInitial, signOutAction, userId = null }: Pro
           </Link>
         )}
       </header>
-      <nav aria-label="Main navigation" data-mobile-nav data-hidden={barHidden} onFocus={() => setFocusInside(true)} onBlur={() => setFocusInside(false)} className={`tm-glass fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 rounded-[1.75rem] text-ink transition-transform duration-200 motion-reduce:transition-none md:hidden ${barHidden ? "translate-y-[calc(100%+1.5rem)]" : "translate-y-0"}`}>
-        <ul className="grid grid-cols-5">
-          {primaryMobile.map((it) => {
+      <nav aria-label="Main navigation" data-mobile-nav data-hidden={barHidden} onFocus={() => setFocusInside(true)} onBlur={() => setFocusInside(false)} className={`tm-glass fixed inset-x-3 bottom-[max(0.6rem,env(safe-area-inset-bottom))] z-40 rounded-[2rem] px-1.5 pb-1.5 pt-2 text-ink transition-transform duration-200 motion-reduce:transition-none md:hidden ${barHidden ? "translate-y-[calc(100%+1.5rem)]" : "translate-y-0"}`}>
+        <ul className="grid grid-cols-5 items-end">
+          {mobileSlots.map((slot) => {
+            if (slot === "create") {
+              return (
+                <li key="create" className="flex justify-center">
+                  <button type="button" onClick={() => setDrawer(true)} aria-haspopup="dialog" aria-expanded={drawer} aria-label="Create or go to"
+                    className="tm-fab relative -mt-9 grid h-[4.1rem] w-[4.1rem] place-items-center rounded-full bg-gradient-to-br from-teal to-pine text-white ring-[6px] ring-white transition active:scale-90">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true" className={`transition-transform duration-300 ${drawer ? "rotate-45" : ""}`}><path d="M12 5v14M5 12h14" /></svg>
+                  </button>
+                </li>
+              );
+            }
+            const it = slot;
             const active = it.match(pathname);
             return (
-              <li key={it.id}>
-                <Link href={it.href} aria-current={active ? "page" : undefined} className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active ? "text-teal-ink" : "text-ink-muted"}`}>
-                  <it.Icon className={active ? "text-teal" : ""} />{it.label.replace("My trips", "Trips").replace("Live trip", "Live")}
-                  <span aria-hidden="true" data-glow={active || undefined} className={`mt-0.5 h-[3px] w-9 rounded-full ${active ? "bg-teal" : "bg-transparent"}`} />
+              <li key={it.id} className="flex justify-center">
+                <Link href={it.href} aria-current={active ? "page" : undefined} className={`flex min-h-[3.75rem] min-w-[3.9rem] flex-col items-center justify-center gap-0.5 rounded-full px-2 text-[11px] font-semibold transition-colors active:scale-95 ${active ? "bg-pine text-white" : "text-ink-muted"}`}>
+                  <it.Icon className={active ? "text-white" : ""} />{it.label.replace("My trips", "Trips").replace("Live trip", "Live")}
+                  {it.id === "live" && trip?.state === "active" && <span aria-label="Trip in progress" className="absolute ml-7 mt-[-1.6rem] h-2 w-2 animate-pulse rounded-full bg-marigold motion-reduce:animate-none" />}
                 </Link>
               </li>
             );
           })}
-          <li>
-            <button type="button" onClick={() => setDrawer(true)} aria-haspopup="dialog" aria-expanded={drawer} className="flex min-h-16 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-ink-muted">
-              <IconMenu />More
-              <span aria-hidden="true" className="mt-0.5 h-0.5 w-9 rounded-full bg-transparent" />
-            </button>
-          </li>
         </ul>
       </nav>
 
       {drawer && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="More">
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Create or go to">
           <button type="button" aria-label="Close menu" onClick={closeDrawer} className="absolute inset-0 bg-[var(--tm-scrim)]" />
-          <div className="tm-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-ink">
+          <div className="tm-glass tm-sheet-in absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-ink">
             <span aria-hidden="true" className="mx-auto mb-3 block h-1 w-10 rounded-full bg-line" />
-            <ul className="space-y-1">{items.filter((i) => !["dashboard", "trips", "live", "map"].includes(i.id)).map((i) => link(i, false, closeDrawer, true))}</ul>
+            <p className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Create</p>
+            <div className="mt-2 grid grid-cols-2 gap-2.5">
+              <Link href="/plan" onClick={closeDrawer} className="flex min-h-[5.5rem] flex-col justify-between rounded-3xl bg-pine p-4 text-white transition active:scale-[0.98]"><Glyph name="navigate" size={24} className="text-marigold" /><span className="text-base font-semibold leading-tight">Plan a new trip</span></Link>
+              <Link href="/discover" onClick={closeDrawer} className="flex min-h-[5.5rem] flex-col justify-between rounded-3xl bg-teal-light p-4 text-teal-ink transition active:scale-[0.98]"><Glyph name="camera" size={24} /><span className="text-base font-semibold leading-tight">Share a place</span></Link>
+            </div>
+            <p className="mt-4 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Go to</p>
+            <ul className="mt-1 space-y-1">{items.filter((i) => !["discover", "trips", "live", "map", "plan"].includes(i.id)).map((i) => link(i, false, closeDrawer, true))}</ul>
             <SignOutForm action={signOutAction} userId={userId} className="mt-3 border-t border-line pt-3">
-              <button type="submit" className="min-h-11 w-full rounded-xl bg-sky text-sm font-semibold text-ink hover:bg-line">Sign out</button>
+              <button type="submit" className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky text-sm font-semibold text-ink hover:bg-line"><Glyph name="signOut" size={16} />Sign out</button>
             </SignOutForm>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/server/trip-data";
 import { tripState } from "@/lib/trip-state";
 import { AppNav } from "./AppNav";
+import { isOwnAvatarPath } from "@/lib/avatar";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ServiceWorker } from "./ServiceWorker";
 import { DriveProvider } from "@/components/drive/DriveProvider";
@@ -15,6 +16,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
   let trips: NavTrip[] = [];
   let initial = "?";
   let userId: string | null = null;
+  let avatarPath: string | null = null;
   try {
     const supabase = await createClient();
     // The sign-in check and the trips list go out together (they used to be two round trips in a row on every full page load).
@@ -27,6 +29,8 @@ export async function AppShell({ children }: { children: ReactNode }) {
     const user = auth.data.user;
     if (user) {
       userId = user.id;
+      const fromRecord = user.user_metadata?.avatar_path;       // kept on the sign-in record when the picture changes: no extra database read
+      avatarPath = isOwnAvatarPath(fromRecord, user.id) ? fromRecord : null;
       initial = (user.user_metadata?.display_name ?? user.email ?? "?").toString()[0]?.toUpperCase() ?? "?";
       trips = (list.data ?? []).map((t) => ({ id: t.id as string, name: t.name as string, state: tripState(t as { start_date: string | null; num_days: number }, today) }));
     }
@@ -38,7 +42,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col md:flex-row">
       <ServiceWorker />
       <DialogHost />
-      <AppNav trips={trips} userInitial={initial} signOutAction={signOut} userId={userId} />
+      <AppNav trips={trips} userInitial={initial} signOutAction={signOut} userId={userId} avatarPath={avatarPath} />
       <div className="min-w-0 flex-1 pb-28 md:pb-0">
         {/* The active drive lives here, around every signed-in page, so moving around the app never ends it. */}
         <DriveProvider userId={userId}>

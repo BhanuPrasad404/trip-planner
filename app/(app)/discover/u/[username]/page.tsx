@@ -15,9 +15,9 @@ export default async function TravelerPage({ params }: { params: Promise<{ usern
   const { supabase, user } = await requireUser(`/discover/u/${encodeURIComponent(raw)}`);
   const name = blockSchema.safeParse({ username: decodeURIComponent(raw) });
   if (!name.success) notFound();
-  const { data: p } = await supabase.from("profiles").select("id, username, display_name, bio, is_private").eq("username", name.data.username).maybeSingle();
+  const { data: p } = await supabase.from("profiles").select("id, username, display_name, bio, is_private, avatar_path").eq("username", name.data.username).maybeSingle();
   if (!p) notFound();
-  const profile = p as { id: string; username: string; display_name: string | null; bio: string | null; is_private: boolean };
+  const profile = p as { id: string; username: string; display_name: string | null; bio: string | null; is_private: boolean; avatar_path?: string | null };
   const mine = profile.id === user.id;
 
   const [standingMap, follow, page] = await Promise.all([
@@ -34,7 +34,7 @@ export default async function TravelerPage({ params }: { params: Promise<{ usern
   return (
     <main id="main">
       <TravelerProfile
-        profile={{ username: profile.username, displayName: profile.display_name, bio: profile.bio, isPrivate: profile.is_private, mine }}
+        profile={{ username: profile.username, displayName: profile.display_name, bio: profile.bio, isPrivate: profile.is_private, avatarPath: profile.avatar_path ?? null, mine }}
         standing={standing} follow={followState} posts={page.items} nextCursor={page.nextCursor} postsHidden={postsHidden}
       />
     </main>

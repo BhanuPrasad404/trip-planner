@@ -102,8 +102,8 @@ describe("the phone's own bars match the page", () => {
   it("the address bar is the page's warm white on phones, and the installed app's status bar text is dark", () => {
     expect(layout).toContain('media: "(max-width: 767px)", color: "#faf8f3"'); expect(layout).toContain('statusBarStyle: "default"');
   });
-  it("the installed app's splash and theme colour are the same warm white as the opening screen; the icon tile stays deep green", () => {
+  it("the installed app's theme colour is the page's warm white; its splash and icon tile are the opening screen's marigold yellow", () => {
     const pwa = readFileSync("lib/pwa.tsx", "utf8");
-    expect(pwa).toContain('PWA_THEME = "#faf8f3"'); expect(pwa).toContain('PWA_BACKGROUND = "#faf8f3"'); expect(pwa).toContain('PWA_TILE = "#0b3d3a"');
+    expect(pwa).toContain('PWA_THEME = "#faf8f3"'); expect(pwa).toContain('PWA_BACKGROUND = "#e8a33d"'); expect(pwa).toContain('PWA_TILE = "#e8a33d"');
   });
 });

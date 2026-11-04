@@ -98,7 +98,7 @@ export function PostDetail({ initial, more, trips, focusTripId, hasProfile }: { 
             <h1 className="font-display text-3xl font-semibold leading-tight text-pine">{item.destination.name}</h1>
             {where && <p className="mt-1 text-sm text-ink-muted">{where}</p>}
             <p className="mt-3 flex items-center gap-2.5">
-              <Link href={travelerPath(item.author.username)} aria-label={`@${item.author.username}'s profile`} className="shrink-0 rounded-full"><Avatar username={item.author.username} displayName={item.author.displayName} /></Link>
+              <Link href={travelerPath(item.author.username)} aria-label={`@${item.author.username}'s profile`} className="shrink-0 rounded-full"><Avatar username={item.author.username} displayName={item.author.displayName} avatarPath={item.author.avatarPath} /></Link>
               <span className="min-w-0 text-sm"><Link href={travelerPath(item.author.username)} className="font-semibold text-pine hover:underline">@{item.author.username}</Link>{item.isMine ? " (you)" : ""}{item.kind === "report" ? " · condition report" : ""}<br />
                 <span className="text-xs text-ink-muted"><time dateTime={item.createdAt}>Posted {postedAt(item.createdAt)}</time></span></span>
               {!item.isMine && (

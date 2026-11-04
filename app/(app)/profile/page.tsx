@@ -18,21 +18,21 @@ export default async function ProfilePage() {
   const { supabase, user } = await requireUser("/profile");
   const trips = await loadLearnTrips(supabase);
   const setup = getSetupStatus();
-  const { data: profile } = await supabase.from("profiles").select("username, display_name, bio, interests, is_private, show_follow_lists").eq("id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("username, display_name, bio, interests, is_private, show_follow_lists, avatar_path").eq("id", user.id).maybeSingle();
   const { data: contribution } = await supabase.rpc("my_contribution");
   const c = (Array.isArray(contribution) ? contribution[0] : contribution) as { posts: number; destinations: number; travelers_helped: number; saves: number; helpful: number; trip_adds: number } | null;
 
   return (
-    <main id="main" className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+    <main id="main" className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader eyebrow="You" title="Profile" subtitle={user.email ?? undefined} actions={<SignOutForm action={signOut} userId={user.id}><Button type="submit" variant="secondary" size="sm">Sign out</Button></SignOutForm>} />
 
-      <TravelerProfileForm initial={profile ?? null} />
+      <TravelerProfileForm initial={profile ?? null} userId={user.id} fallbackName={(user.user_metadata?.display_name ?? user.email ?? "").toString()} />
 
       {profile && <ContributionCard posts={c?.posts ?? 0} destinations={c?.destinations ?? 0} travelersHelped={c?.travelers_helped ?? 0} saves={c?.saves ?? 0} helpful={c?.helpful ?? 0} tripAdds={c?.trip_adds ?? 0} />}
 
       <TravelStyleClient trips={trips} />
 
-      <section aria-labelledby="privacy-heading" className="rounded-2xl border border-line bg-white p-5">
+      <section aria-labelledby="privacy-heading" className="rounded-[2rem] border border-line bg-white p-5 sm:p-6">
         <h2 id="privacy-heading" className="font-display text-lg font-semibold text-pine">Your location & privacy</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-muted">
           <li>Your location is used only while you press <strong>Start drive</strong> or run a nearby search, and only to work out what is ahead of you.</li>

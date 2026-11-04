@@ -4,7 +4,9 @@ import { useRef } from "react";
 import { canAddMore } from "@/lib/feed/compose";
 import { MEDIA_LIMITS } from "@/lib/social/media";
 import { Spinner } from "@/components/ui/Spinner";
-import { CameraIcon, CloseIcon, PenIcon, PlusIcon, ShieldIcon, StarIcon, UploadIcon } from "../icons";
+import { CloseIcon, PenIcon, PlusIcon, ShieldIcon, StarIcon } from "../icons";
+import { Glyph } from "@/components/ui/Glyph";
+import type { GlyphName } from "@/lib/glyphs";
 import type { CameraSupport } from "@/lib/client/camera-support";
 import type { CameraMode } from "@/lib/client/recorder";
 import type { ComposerItem } from "./types";
@@ -32,31 +34,41 @@ export function MediaStep({ items, dragging, busy, onFiles, onRemove, onMakeCove
       <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take a photo" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
 
       {items.length === 0 ? (
-        <div className={`flex min-h-[320px] flex-col items-center justify-center gap-5 rounded-[28px] border-2 border-dashed px-6 py-10 text-center transition-colors ${dragging ? "border-teal bg-teal-light" : "border-teal/35 bg-gradient-to-b from-teal-light/70 to-white"}`}>
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-teal shadow-md ring-1 ring-teal/15"><UploadIcon size={28} /></span>
-          <div>
-            <p className="font-display text-2xl font-semibold text-pine">Show what it looks like</p>
-            <p className="mx-auto mt-1.5 max-w-xs text-sm text-ink-muted">{dragging ? "Drop to add" : "Drag photos or a short video here, or pick them from your device."}</p>
+        <div className="space-y-4">
+          {/* The drop zone: a small stack of postcards with an upload badge (drawn, not a stock picture) */}
+          <div className={`flex flex-col items-center gap-3 rounded-[2rem] border-2 border-dashed px-5 py-8 text-center transition-colors ${dragging ? "border-teal bg-teal-light" : "border-teal/35 bg-white/70"}`}>
+            <div aria-hidden="true" className="relative h-28 w-44">
+              <svg viewBox="0 0 176 112" className="h-full w-full">
+                <rect x="30" y="14" width="104" height="78" rx="12" transform="rotate(8 82 53)" fill="var(--teal-light)" />
+                <g transform="rotate(-6 80 56)">
+                  <rect x="22" y="10" width="104" height="80" rx="12" fill="#fff" stroke="var(--line)" />
+                  <rect x="30" y="18" width="88" height="64" rx="8" fill="var(--marigold-light)" />
+                  <circle cx="98" cy="36" r="8" fill="var(--marigold)" />
+                  <path d="M30 82V58c14-14 26-10 38 2 12-18 28-16 50 4v18z" fill="var(--teal)" opacity="0.8" />
+                  <path d="M30 82V68c18-8 32-4 44 4 14-8 28-6 44 2v8z" fill="var(--pine)" />
+                </g>
+              </svg>
+              <span className="absolute -bottom-1 right-2 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-teal to-pine text-white shadow-float ring-4 ring-white"><Glyph name="arrowUp" size={26} strokeWidth={2.6} /></span>
+            </div>
+            <div>
+              <p className="font-display text-2xl font-semibold text-pine">Add photos or a video</p>
+              <p className="mt-1 text-sm text-ink-muted">{dragging ? "Drop to add" : "Drag & drop, or choose from below"}</p>
+            </div>
           </div>
-          <div className="grid grid-cols-1 w-full max-w-md gap-2.5 sm:grid-cols-3">
-            {cameraSupport.photo ? (
-              <button type="button" onClick={() => onCamera("photo")} className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl bg-teal px-3 text-sm font-semibold text-white shadow-sm active:scale-95 transition-transform"><CameraIcon size={24} />Take photo</button>
-            ) : (
-              <button type="button" onClick={() => camera.current?.click()} className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl bg-teal px-3 text-sm font-semibold text-white shadow-sm active:scale-95 transition-transform md:hidden"><CameraIcon size={24} />Take photo</button>
-            )}
-            {cameraSupport.video && (
-              <button type="button" onClick={() => onCamera("video")} className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl bg-red-500 px-3 text-sm font-semibold text-white shadow-sm active:scale-95 transition-transform">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white"><span className="h-2.5 w-2.5 rounded-full bg-white" /></span>Record video
-              </button>
-            )}
-            <button type="button" onClick={() => picker.current?.click()} className={`flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl border border-teal/40 bg-white px-3 text-sm font-semibold text-teal-ink active:scale-95 transition-transform ${cameraSupport.photo || cameraSupport.video ? "" : "sm:col-span-3"}`}><PlusIcon size={22} />Upload from device</button>
-          </div>
+
+          <ul className="space-y-3">
+            {cameraSupport.photo
+              ? <Option glyph="camera" tone="pine" title="Take a photo" hint="Capture the moment directly." onClick={() => onCamera("photo")} />
+              : <Option glyph="camera" tone="pine" title="Take a photo" hint="Capture the moment directly." onClick={() => camera.current?.click()} />}
+            {cameraSupport.video && <Option glyph="video" tone="mint" title="Record a video" hint={`Share up to ${MEDIA_LIMITS.videoSeconds} seconds.`} onClick={() => onCamera("video")} />}
+            <Option glyph="gallery" tone="sun" title="Choose from gallery" hint="Upload existing travel memories." onClick={() => picker.current?.click()} />
+          </ul>
           {!cameraSupport.photo && cameraSupport.why && (
-            <p role="note" className="max-w-sm text-xs leading-relaxed text-ink-muted">
-              {cameraSupport.why === "insecure" ? "The in-app camera needs a secure (https) page, so it is off here." : "This browser doesn't offer in-app camera access."} Use <strong>Upload from device</strong>{" "}— on a phone, <strong>Take photo</strong> opens your camera app.
+            <p role="note" className="text-xs leading-relaxed text-ink-muted">
+              {cameraSupport.why === "insecure" ? "The in-app camera needs a secure (https) page, so it is off here." : "This browser doesn't offer in-app camera access."} Use <strong>Choose from gallery</strong>{" "}to add a photo or video you already have.
             </p>
           )}
-          <p className="text-xs text-ink-muted">Up to {MEDIA_LIMITS.mediaPerPost} photos, or one video up to {MEDIA_LIMITS.videoSeconds} seconds — recorded or uploaded</p>
+          <p className="text-center text-xs text-ink-muted">Up to {MEDIA_LIMITS.mediaPerPost} photos, or one video up to {MEDIA_LIMITS.videoSeconds} seconds — recorded or uploaded</p>
         </div>
       ) : (
         <>
@@ -100,8 +112,8 @@ export function MediaStep({ items, dragging, busy, onFiles, onRemove, onMakeCove
         </>
       )}
 
-      <div className="flex items-start gap-2.5 rounded-2xl bg-sky/70 px-3.5 py-3 text-xs leading-relaxed text-ink-muted">
-        <ShieldIcon size={18} className="mt-0.5 shrink-0 text-teal" />
+      <div className="flex items-center gap-3.5 rounded-3xl border border-teal/20 bg-gradient-to-r from-teal-light to-white px-4 py-3.5 text-sm leading-snug text-ink-muted">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-teal shadow-card ring-1 ring-teal/20"><ShieldIcon size={22} /></span>
         <p><strong className="text-pine">Your location stays private.</strong> Photos are re-saved without camera details or GPS, and GPS is removed from videos, before anything leaves your device.</p>
       </div>
 
@@ -111,5 +123,19 @@ export function MediaStep({ items, dragging, busy, onFiles, onRemove, onMakeCove
         </button>
       )}
     </div>
+  );
+}
+
+const TILE = { pine: "bg-gradient-to-br from-teal to-pine text-white", mint: "bg-teal-light text-teal-ink", sun: "bg-marigold-light text-marigold-ink" } as const;
+/** One way to add media: a big colour tile, a title and a hint, and a chevron. */
+function Option({ glyph, tone, title, hint, onClick }: { glyph: GlyphName; tone: keyof typeof TILE; title: string; hint: string; onClick: () => void }) {
+  return (
+    <li>
+      <button type="button" onClick={onClick} className="group flex min-h-[4.75rem] w-full items-center gap-4 rounded-3xl border border-line bg-white p-3 text-left shadow-card transition active:scale-[0.985] hover:border-teal/40">
+        <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${TILE[tone]}`}><Glyph name={glyph} size={26} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-base font-semibold text-pine">{title}</span><span className="block text-sm text-ink-muted">{hint}</span></span>
+        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky text-pine transition group-hover:bg-teal-light"><Glyph name="chevronRight" size={18} /></span>
+      </button>
+    </li>
   );
 }

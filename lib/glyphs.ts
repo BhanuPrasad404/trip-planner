@@ -9,7 +9,7 @@ import {
   ArrowUp, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Volume2, VolumeX, Moon, Layers,
   Maximize2, Minimize2, Trash2, SkipForward, CalendarDays, ExternalLink, MessageSquare, CloudRain, Thermometer, Wind, Bus, Motorbike,
   CloudLightning, CloudFog, EyeOff, Cloud, CloudSun, CloudMoon, OctagonAlert, Eye, History, Star, Search,
-  Mic, ClipboardPaste, Plus, RefreshCw, WandSparkles, Compass, Snowflake, Heart,
+  Mic, ClipboardPaste, Plus, RefreshCw, WandSparkles, Compass, Snowflake, Heart, Radio, Video, Image as GalleryIcon, ChevronRight, User, AtSign, ShieldCheck, LogOut, Briefcase, Map as MapIcon, House,
 } from "lucide";
 import type { IconNode } from "lucide";
 
@@ -30,7 +30,7 @@ export const GLYPHS = {
   rain: CloudRain, wind: Wind, bus: Bus, motorbike: Motorbike, thermometer: Thermometer, trash: Trash2, skip: SkipForward, calendar: CalendarDays, external: ExternalLink, chat: MessageSquare,
   storm: CloudLightning, fog: CloudFog, lowVisibility: EyeOff, cloud: Cloud, cloudSun: CloudSun, cloudMoon: CloudMoon,
   severe: OctagonAlert, watch: Eye, recent: History, star: Star, search: Search,
-  mic: Mic, paste: ClipboardPaste, plus: Plus, refresh: RefreshCw, wand: WandSparkles, compass: Compass, snow: Snowflake, heart: Heart,
+  mic: Mic, paste: ClipboardPaste, plus: Plus, refresh: RefreshCw, wand: WandSparkles, compass: Compass, snow: Snowflake, heart: Heart, radio: Radio, video: Video, gallery: GalleryIcon, chevronRight: ChevronRight, user: User, at: AtSign, shield: ShieldCheck, signOut: LogOut, briefcase: Briefcase, mapOutline: MapIcon, home: House,
   faceAngry: Angry, faceSad: Frown, faceOkay: Meh, faceGood: Smile, faceGreat: Laugh,
 } as const satisfies Record<string, IconNode>;
 

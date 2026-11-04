@@ -2,6 +2,7 @@ import { KIND_META } from "@/lib/poi/types";
 import type { PoiPhoto } from "@/lib/intel/poi-media";
 import type { RadarItem } from "@/lib/intel/types";
 import { PlaceRow } from "./PlaceRow";
+import { Glyph } from "@/components/ui/Glyph";
 
 type Props = {
   radar: RadarItem[];
@@ -16,22 +17,22 @@ type Props = {
 /** TRAVEL RADAR — "4 useful stops ahead". Things on your road, in the order you reach them. */
 export function RadarList({ radar, photos, mapping, trafficConnected, onAdd, busy }: Props) {
   return (
-    <section aria-labelledby="radar-heading" className="rounded-2xl border border-line bg-white p-4 sm:p-5">
+    <section aria-labelledby="radar-heading" className="rounded-3xl border border-line bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="radar-heading" className="font-display text-lg font-semibold text-pine">Travel Radar</h2>
-        <p className="font-mono text-xs text-ink-muted">{radar.length > 0 ? `${radar.length} useful stop${radar.length === 1 ? "" : "s"} ahead` : mapping ? "mapping the road ahead…" : "nothing notable ahead"}</p>
+        <p className="rounded-full bg-teal-light px-3 py-1 text-xs font-semibold text-teal-ink">{radar.length > 0 ? `${radar.length} useful stop${radar.length === 1 ? "" : "s"} ahead` : mapping ? "mapping the road ahead…" : "nothing notable ahead"}</p>
       </div>
       {radar.length === 0 ? (
         <p className="mt-2 text-sm text-ink-muted">
           {mapping ? "We're still mapping places along your road. This fills in as the map data loads." : "No strong stops found along the next stretch of road. That can also mean the map has few places listed here."}
         </p>
       ) : (
-        <ul className="mt-1 divide-y divide-line">
+        <ul className="mt-2 space-y-1">
           {radar.map((r) => (
             <PlaceRow key={r.key} kind={r.kind} name={r.name} lat={r.lat} lng={r.lng} etaMin={r.etaMin} aheadKm={r.aheadKm} detourMin={r.detourMin} open={r.open} note={r.note} hours={r.hours} fetchedAt={r.fetchedAt} photo={photos[r.key]}>
               {onAdd && (
-                <button type="button" disabled={busy} onClick={() => onAdd(r)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60">
-                  Add as next stop<span className="sr-only"> {KIND_META[r.kind].label}: {r.name}</span>
+                <button type="button" disabled={busy} onClick={() => onAdd(r)} className="tm-action">
+                  <Glyph name="plus" size={16} />Add as next stop<span className="sr-only"> {KIND_META[r.kind].label}: {r.name}</span>
                 </button>
               )}
             </PlaceRow>

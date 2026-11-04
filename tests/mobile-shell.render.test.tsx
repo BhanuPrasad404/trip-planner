@@ -32,8 +32,8 @@ describe("phone header: the brand, an avatar and a search pill", () => {
     expect(r.root.findAll((n) => n.type === "a" && n.props.href === "/dashboard" && n.props["aria-label"] === "Trailmate dashboard").length).toBeGreaterThan(0);
   });
   it("has a 44 px avatar link to the profile with the person's initial", async () => {
-    const a = (await mount()).root.findAll((n) => n.type === "a" && n.props["aria-label"] === "Your profile" && String(n.props.className).includes("h-11"))[0];
-    expect(a).toBeTruthy(); expect(text(a)).toBe("G"); expect(a.props.href).toBe("/profile");
+    const a = (await mount()).root.findAll((n) => n.type === "a" && n.props["aria-label"] === "Your profile" && String(n.props.className).includes("rounded-full") && n.props.href === "/profile")[0];
+    expect(a).toBeTruthy(); expect(text(a)).toBe("G"); expect(a.findAll((n) => n.props.style?.width === 44).length).toBeGreaterThan(0);
   });
   it("has a search pill that goes to Explore (where searching lives), with the invitation text, a clear label and a tall tap target", async () => {
     const s = search(await mount());
@@ -51,34 +51,39 @@ describe("phone header: the brand, an avatar and a search pill", () => {
 describe("floating glass bottom navigation", () => {
   it("floats inset from the edges and above the phone's home bar, as glass with rounded corners, on phones only", async () => {
     const c = String(bar(await mount()).props.className);
-    for (const k of ["fixed", "inset-x-2", "env(safe-area-inset-bottom)", "tm-glass", "rounded-[1.75rem]", "md:hidden", "z-40"]) expect(c).toContain(k);
+    for (const k of ["fixed", "inset-x-3", "env(safe-area-inset-bottom)", "tm-glass", "rounded-[2rem]", "md:hidden", "z-40"]) expect(c).toContain(k);
   });
-  it("keeps the same five destinations, with the same links", async () => {
+  it("keeps the same four destinations with the same links, and a big + in the middle (create / go to)", async () => {
     pathname = `/trips/${TRIP}/live`;
     const r = await mount(); const links = bar(r).findAll((n) => n.type === "a").map((a) => [text(a).trim(), a.props.href]);
     expect(links).toEqual([["Discover", "/discover"], ["Trips", "/trips"], ["Live", `/trips/${TRIP}/live`], ["Map", `/trips/${TRIP}/map`]]);
-    expect(text(bar(r))).toContain("More");
+    const order = bar(r).findAll((n) => n.type === "li").map((li) => (li.findAll((n) => n.type === "button").length ? "+" : text(li).trim().replace(/Trip in progress/, "")));
+    expect(order).toEqual(["Discover", "Trips", "+", "Live", "Map"]);
+    const plus = bar(r).findAll((n) => n.type === "button")[0];
+    expect(plus.props["aria-label"]).toBe("Create or go to"); expect(String(plus.props.className)).toContain("tm-fab");
   });
-  it("the current tab is teal with an underline bar and aria-current; the others are quiet with none", async () => {
+  it("the current tab is a filled pine pill with aria-current; the others are quiet with none", async () => {
     pathname = `/trips/${TRIP}/live`;
     const r = await mount(); const items = bar(r).findAll((n) => n.type === "a");
     const active = items.filter((a) => a.props["aria-current"] === "page"); expect(active).toHaveLength(1); expect(text(active[0])).toContain("Live");
-    expect(String(active[0].props.className)).toContain("text-teal-ink");
-    expect(bar(r).findAll((n) => n.props["data-glow"] === true)).toHaveLength(1);
+    expect(String(active[0].props.className)).toContain("bg-pine"); expect(String(active[0].props.className)).toContain("text-white");
     for (const a of items.filter((x) => x !== active[0])) { expect(String(a.props.className)).toContain("text-ink-muted"); expect(a.props["aria-current"]).toBeUndefined(); }
   });
-  it("gives no tab a glow when you are on a page that is none of them", async () => {
-    pathname = "/profile"; expect(bar(await mount()).findAll((n) => n.props["data-glow"] === true)).toHaveLength(0);
+  it("fills no tab when you are on a page that is none of them", async () => {
+    pathname = "/profile"; expect(bar(await mount()).findAll((n) => n.type === "a" && n.props["aria-current"] === "page")).toHaveLength(0);
   });
-  it("every destination is a 64 px tall target (well over the 44 px minimum)", async () => {
+  it("every destination is a tall, wide target (well over the 44 px minimum) and the + is a 65 px disc", async () => {
     const r = await mount();
-    for (const el of [...bar(r).findAll((n) => n.type === "a"), ...bar(r).findAll((n) => n.type === "button")]) expect(String(el.props.className)).toContain("min-h-16");
+    for (const el of bar(r).findAll((n) => n.type === "a")) { expect(String(el.props.className)).toContain("min-h-[3.75rem]"); expect(String(el.props.className)).toContain("min-w-[3.9rem]"); }
+    expect(String(bar(r).findAll((n) => n.type === "button")[0].props.className)).toContain("h-[4.1rem]");
   });
-  it("the More menu opens as the same floating white surface", async () => {
+  it("the + opens Create / Go to as the same floating white surface, with Plan a new trip, Share a place, the other pages and Sign out", async () => {
     vi.stubGlobal("document", { addEventListener: () => undefined, removeEventListener: () => undefined });
     const r = await mount(); await act(async () => { r.root.findAll((n) => n.type === "button" && n.props["aria-haspopup"] === "dialog")[0].props.onClick(); });
     const sheet = r.root.findAll((n) => n.props.role === "dialog")[0];
     expect(sheet.findAll((n) => typeof n.props.className === "string" && n.props.className.includes("tm-glass") && n.props.className.includes("rounded-t-3xl"))).toHaveLength(1);
+    const t = text(sheet); for (const w of ["Plan a new trip", "Share a place", "Explore", "Memories", "Profile", "Sign out"]) expect(t).toContain(w);
+    expect(sheet.findAll((n) => n.type === "a").map((a) => a.props.href)).toEqual(expect.arrayContaining(["/plan", "/discover", "/explore", "/memories", "/profile"]));
     vi.unstubAllGlobals();
   });
   it("the desktop sidebar is untouched: still a solid pine sidebar shown from 768 px up", async () => {

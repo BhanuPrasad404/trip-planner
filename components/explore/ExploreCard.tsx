@@ -10,6 +10,7 @@ import { sourceLabel, type ExploreItem } from "@/lib/explore/items";
 import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
 import type { PlacePhoto as Photo } from "@/lib/place-photos";
 import { PlaceHours, exploreItemRef } from "@/components/place/PlaceHours";
+import { AboutPlace } from "@/components/place/AboutPlace";
 
 /** What researched season data says about this place, only when a researched entry matches it by name and location. */
 export type SeasonNote = { good: boolean; yearRound: boolean; reason: string | null; source: string | null; months: string };
@@ -79,6 +80,7 @@ export function ExploreCard({ item, photo, season, saved, onToggleSave, added, o
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
           {onAddStop && <button type="button" onClick={onAddStop} className={solid}>Add as a stop<span className="sr-only">: {item.name}</span></button>}
           {onAdd && (added ? <span className="inline-flex min-h-11 items-center gap-1.5 px-1 text-sm font-semibold text-teal-ink"><Glyph name="check" size={16} />Added to Ideas</span> : <button type="button" onClick={onAdd} className={onAddStop ? ghost : solid}>Add to my ideas<span className="sr-only">: {item.name}</span></button>)}
+          <AboutPlace place={{ name: item.name, lat: item.lat, lng: item.lng, category: item.category, wikipedia: item.wikipedia, wikidata: item.wikidata, heritage: item.heritage, hours: item.hours, website: item.website }} className={ghost} label="About" />
           <a href={googleMapsPlace(item)} target="_blank" rel="noopener noreferrer" className={ghost}>Map<span className="sr-only"> of {item.name} (opens in a new tab)</span></a>
           <button type="button" aria-expanded={open} aria-controls={panel} onClick={() => setOpen((v) => !v)} className="ml-auto inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-ink-muted">{open ? "Hide details" : "Details"}<Glyph name={open ? "up" : "down"} size={16} /></button>
         </div>

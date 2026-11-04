@@ -11,7 +11,7 @@ import { PostGrid } from "./PostGrid";
 import { StandingCard } from "./TravelerBadge";
 
 export type FollowState = "none" | "pending" | "following";
-export type ProfileView = { username: string; displayName: string | null; bio: string | null; isPrivate: boolean; mine: boolean };
+export type ProfileView = { username: string; displayName: string | null; bio: string | null; isPrivate: boolean; avatarPath?: string | null; mine: boolean };
 
 /** Follow / Following / Requested. Instant on screen; the server's answer wins; a failure puts it back with the reason. */
 export function FollowButton({ username, initial, onChange, compact = false, onError }: {
@@ -107,7 +107,7 @@ export function TravelerProfile({ profile, standing, follow, posts: initial, nex
         <Link href="/discover" className="inline-flex min-h-11 items-center gap-1 rounded-full pl-1 pr-3 text-sm font-semibold text-pine hover:bg-sky"><BackIcon size={22} />Discover</Link>
       </div>
       <header className="flex flex-wrap items-start gap-4 px-4 sm:px-0">
-        <Avatar username={profile.username} displayName={profile.displayName} size={72} />
+        <Avatar username={profile.username} displayName={profile.displayName} avatarPath={profile.avatarPath} size={72} />
         <div className="min-w-0 flex-1 basis-48">
           <h1 className="break-words font-display text-3xl font-semibold leading-tight text-pine">{profile.displayName ?? `@${profile.username}`}</h1>
           {profile.displayName && <p className="text-sm text-ink-muted">@{profile.username}</p>}

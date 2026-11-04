@@ -11,6 +11,8 @@ import { LiveHeader, type NextInfo } from "./live/LiveHeader";
 import { StartTripSheet } from "./live/StartTripSheet";
 import { UnplannedStopSheet } from "./live/UnplannedStopSheet";
 import { TripActivity } from "./live/TripActivity";
+import { AboutPlace } from "./place/AboutPlace";
+import { aboutKindOf } from "@/lib/place-about";
 import { PlanChangeCard } from "./PlanChangeCard";
 import { PendingSuggestions } from "./PendingSuggestions";
 import { ConditionsCard } from "./ConditionsCard";
@@ -293,16 +295,19 @@ function LiveScreen({ e }: { e: Engine }) {
                   const eta = result?.stopEtas.find((e) => e.id === p.id);
                   const d = delayText(eta?.delayMin ?? null);
                   return (
-                    <li key={p.id} className="py-3 text-sm">
+                    <li key={p.id} className="py-3.5 text-sm">
                       <div className="flex items-start gap-3">
-                        <span className="w-[4.5rem] shrink-0 text-xs font-medium text-ink-muted">{dbTime12(p.arrival_time) ?? "No time"}</span>
+                        <span className="mt-0.5 w-[4.75rem] shrink-0 rounded-lg bg-sky px-2 py-1 text-center text-xs font-semibold tabular-nums text-ink-muted">{dbTime12(p.arrival_time) ?? "No time"}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="break-words font-semibold text-pine">{p.name}</p>
-                          {eta && <p className="text-xs text-ink-muted">You&apos;d arrive about <strong>{eta.etaClock}</strong>{d && <span className={`ml-2 rounded-full px-2 py-0.5 font-semibold ${d.tone === "late" ? "bg-clay-light text-clay-ink" : d.tone === "ok" ? "bg-teal-light text-teal-ink" : "bg-sky text-ink-muted"}`}>{d.text}</span>}</p>}
-                          <div className="mt-1 flex flex-wrap items-center gap-x-4">
-                            <a href={googleMapsDirections(p, vehicle)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
-                            <button type="button" disabled={busy} onClick={() => void markDone(p)} className="tm-action min-h-11 py-1.5 font-semibold disabled:opacity-60"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Done</span></button>
-                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="tm-action min-h-11 py-1.5 disabled:opacity-60">Skip</button>
+                          <p className="break-words text-base font-semibold leading-snug text-pine">{p.name}</p>
+                          {eta && <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">You&apos;d arrive about <strong className="text-pine">{eta.etaClock}</strong>{d && <span className={`rounded-full px-2 py-0.5 font-semibold ${d.tone === "late" ? "bg-clay-light text-clay-ink" : d.tone === "ok" ? "bg-teal-light text-teal-ink" : "bg-sky text-ink-muted"}`}>{d.text}</span>}</p>}
+                          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                            <a href={googleMapsDirections(p, vehicle)} target="_blank" rel="noopener noreferrer" className="tm-action-solid"><Glyph name="navigate" size={16} />Navigate<span className="sr-only"> to {p.name} in Google Maps (opens in a new tab)</span></a>
+                            <button type="button" disabled={busy} onClick={() => void markDone(p)} className="tm-action"><Glyph name="check" size={16} />Done<span className="sr-only">: {p.name}</span></button>
+                            <button type="button" disabled={busy} onClick={() => void actions.setStatus(p.id, "skipped", `Skipped ${p.name}`)} className="tm-action-quiet">Skip<span className="sr-only"> {p.name}</span></button>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                            <AboutPlace place={{ name: p.name, lat: p.lat, lng: p.lng, category: aboutKindOf(p.category) }} className="tm-action-quiet !px-2.5" label="About" />
                           </div>
                           <PulseCard name={p.name} lat={p.lat} lng={p.lng} showTravelerPhotos />
                         </div>

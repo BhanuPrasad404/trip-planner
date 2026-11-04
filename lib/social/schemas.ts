@@ -13,8 +13,13 @@ export const profileSchema = z.object({
   interests: z.array(z.string().trim().toLowerCase().min(2).max(24)).max(8).default([]).transform((a) => [...new Set(a)]),
   is_private: z.boolean().default(false),
   show_follow_lists: z.boolean().default(true),
+  /** The profile picture: absent = unchanged, null = remove, a path = use that file (checked against the person's own folder by the route). */
+  avatar_path: z.union([z.string().max(100), z.null()]).optional(),
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
+
+/** Change only the profile picture: a path to use, or null to remove it. */
+export const avatarSchema = z.object({ path: z.union([z.string().max(100), z.null()]) });
 
 export const followSchema = z.object({ username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, "Invalid username") });
 

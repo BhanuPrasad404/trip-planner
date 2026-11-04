@@ -1,5 +1,7 @@
 "use client";
 
+import { AboutPlace } from "@/components/place/AboutPlace";
+import { aboutKindOf } from "@/lib/place-about";
 import { INDIA_UTC_OFFSET_MIN, clockOf } from "@/lib/travel/clock";
 import type { Outbox } from "@/lib/client/use-outbox";
 import { dbTime12 } from "@/lib/travel/clock";
@@ -248,6 +250,7 @@ export function StopCard({
               <span className="inline-flex items-center gap-1.5 rounded-full bg-marigold-light px-2.5 py-1 text-xs font-semibold text-[#7a4a00]"><Glyph name="sparkles" size={12} />AI suggestion</span>
             )}
           </div>
+          <AboutPlace place={{ name: place.name, lat: place.lat, lng: place.lng, category: aboutKindOf(place.category) }} className="tm-action" label="About this place" />
           {place.address && <p className="flex items-start gap-1.5 break-words text-sm text-ink-muted"><Glyph name="pin" size={14} className="mt-0.5" />{place.address}</p>}
           {score && <GoScoreBadge score={score} forDay={scoreFor} />}
           {status === "wrong_season" && seasonReason && <p className="text-sm leading-relaxed text-ink-muted">{seasonReason}</p>}

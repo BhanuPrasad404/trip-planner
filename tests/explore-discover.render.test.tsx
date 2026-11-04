@@ -55,7 +55,7 @@ const buttons = (r: TestRenderer.ReactTestRenderer, label: string) => r.root.fin
 const press = async (r: TestRenderer.ReactTestRenderer, label: string, nth = 0) => { const b = buttons(r, label)[nth]; if (!b) throw new Error(`no button "${label}"`); await act(async () => { b.props.onClick(); }); await flush(); };
 const flush = async () => { for (let i = 0; i < 6; i++) await act(async () => { await Promise.resolve(); }); };
 const exploreCalls = () => requests.filter((x) => x.url === "/api/explore").map((x) => x.body as Record<string, unknown>);
-const cards = (r: TestRenderer.ReactTestRenderer) => r.root.findAll((n) => n.type === "li" && typeof n.props.className === "string" && n.props.className.includes("rounded-2xl") && text(n).includes("Fort "));
+const cards = (r: TestRenderer.ReactTestRenderer) => r.root.findAll((n) => n.type === "li" && n.props["data-card"] === "place" && text(n).includes("Fort "));
 
 const mount = async (props: Partial<React.ComponentProps<typeof ExploreView>> = {}) => {
   let r!: TestRenderer.ReactTestRenderer;

@@ -36,32 +36,45 @@ describe("Plan stop card", () => {
   });
 });
 
-describe("Explore destination cards", () => {
-  const tag = (id: string, name: string, lat = 17.36): ExploreSeasonTag => ({ id, place_name: name, lat, lng: 78.47, category: "temple", good_months: [10, 11], reason: "Cooler months.", region: "Telangana", confidence: "researched", source_urls: ["https://example.com/x"], distanceKm: 84 });
+describe("Explore 'Best in month' cards", () => {
+  const pick = (id: string, name: string, lat: number) => ({
+    item: { id, name, category: "temple", lat, lng: 78.47, notable: true, heritage: false, hours: null, website: null, wikipedia: null, wikidata: null, photo: null },
+    fit: { verdict: "great", score: 100, why: "Usually 27 °C by day, rain on about 10% of days" }, researched: null, km: 12,
+  });
   const realFetch = globalThis.fetch;
-  beforeEach(() => { forgetKnownPhotos(); forgetFailedImages(); });
-  afterEach(() => { globalThis.fetch = realFetch; });
-
-  it("puts the real photo on the card that has one and leaves the other card as it was", async () => {
-    globalThis.fetch = vi.fn(async (_u: unknown, init?: RequestInit) => {
+  const anchors = [{ id: "d", label: "Hyderabad", lat: 17.38, lng: 78.48 }];
+  const serve = (photoStatus: number) => vi.fn(async (u: unknown, init?: RequestInit) => {
+    const url = String(u);
+    if (url === "/api/explore/season") return new Response(JSON.stringify({ picks: [pick("wd:Q1", "Charminar", 17.36), pick("wd:Q2", "Sri Rama Temple", 17.5)], empty: null, candidates: 2, basis: "weather", month: 10 }), { status: 200 });
+    if (url === "/api/place-photos") {
+      if (photoStatus !== 200) return new Response("{}", { status: photoStatus });
       const { places } = JSON.parse(String(init?.body)) as { places: { key: string; name: string }[] };
       return new Response(JSON.stringify({ photos: Object.fromEntries(places.filter((p) => p.name === "Charminar").map((p) => [p.key, photo])) }), { status: 200 });
-    }) as unknown as typeof fetch;
+    }
+    return new Response(JSON.stringify({ items: [], nextCursor: null, total: 0, places: [], destinations: [], source: "catalog", stale: false, fetchedAt: "2026-11-01T00:00:00Z" }), { status: 200 });
+  }) as unknown as typeof fetch;
+  beforeEach(() => { forgetKnownPhotos(); forgetFailedImages(); });
+  afterEach(() => { globalThis.fetch = realFetch; });
+  const mount = async () => {
     let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(<ExploreView tripId={null} anchors={[]} seasonTags={[tag("a", "Charminar"), tag("b", "Sri Rama Hotel", 17.5)]} month={10} />, { createNodeMock: () => ({ complete: false, naturalWidth: 0 }) }); });
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { r = TestRenderer.create(<ExploreView tripId={null} anchors={anchors} seasonTags={[]} month={10} />, { createNodeMock: () => ({ complete: false, naturalWidth: 0 }) }); });
+    for (let i = 0; i < 4; i++) await act(async () => { await Promise.resolve(); });
+    return r;
+  };
+
+  it("puts the real photo on the card that has one and leaves the other card as it was", async () => {
+    globalThis.fetch = serve(200);
+    const r = await mount();
     const imgs = r.root.findAllByType("img");
     expect(imgs).toHaveLength(1);
     expect(imgs[0].props.alt).toBe("Photo of Charminar");
     const text = JSON.stringify(r.toJSON());
     expect(text).toContain("Photo: Jane Doe, CC BY-SA 4.0");
-    expect(text).toContain("Sri Rama Hotel"); // the other card is still there, without a photo
+    expect(text).toContain("Sri Rama Temple"); // the other card is still there, without a photo
   });
   it("shows the cards normally, with icons, when the lookup is rate-limited", async () => {
-    globalThis.fetch = vi.fn(async () => new Response("{}", { status: 429 })) as unknown as typeof fetch;
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(<ExploreView tripId={null} anchors={[]} seasonTags={[tag("a", "Charminar")]} month={10} />); });
-    await act(async () => { await Promise.resolve(); });
+    globalThis.fetch = serve(429);
+    const r = await mount();
     expect(r.root.findAllByType("img")).toHaveLength(0);
     expect(JSON.stringify(r.toJSON())).toContain("Charminar");
   });

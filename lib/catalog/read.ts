@@ -31,10 +31,10 @@ export function catalogAsk(scope: ExploreScope, kinds: ExploreKinds): { fn: "cat
   if (scope.kind === "state") return { fn: "catalog_in_region", args: { _code: scope.code, ...common } };
   if (scope.kind === "point") {
     if (![scope.lat, scope.lng, scope.radius_km].every(Number.isFinite)) return null;
-    return { fn: "catalog_near", args: { _lat: scope.lat, _lng: scope.lng, _radius_m: Math.round(Math.min(50, Math.max(1, scope.radius_km)) * 1000), ...common } };
+    return { fn: "catalog_near", args: { _lat: scope.lat, _lng: scope.lng, _radius_m: Math.round(Math.min(100, Math.max(1, scope.radius_km)) * 1000), ...common } };
   }
   if (scope.line.length < 2 || !scope.line.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1])) || !Number.isFinite(scope.radius_km)) return null;
-  return { fn: "catalog_along", args: { _line: { type: "LineString", coordinates: scope.line }, _buffer_m: Math.round(Math.min(25, Math.max(1, scope.radius_km)) * 1000), ...common } };
+  return { fn: "catalog_along", args: { _line: { type: "LineString", coordinates: scope.line }, _buffer_m: Math.round(Math.min(50, Math.max(1, scope.radius_km)) * 1000), ...common } };
 }
 
 type Row = {

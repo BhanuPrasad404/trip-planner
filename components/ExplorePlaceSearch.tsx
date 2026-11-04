@@ -24,16 +24,17 @@ export function ExplorePlaceSearch({ onPick, near = null }: Props) {
 
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-semibold text-pine">Explore anywhere in India</label>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
+      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">Explore anywhere in India</label>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:min-w-[18rem]"><Glyph name="search" size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-teal" />
         <input
           id={id} type="search" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" enterKeyHint="search" maxLength={120}
           onKeyDown={(e) => { if (e.key === "Enter" && typed.length >= 2) { e.preventDefault(); s.searchMap(); } }}
           placeholder="A city, town or landmark, e.g. Hampi, Munnar, Jaisalmer"
-          className="min-h-11 w-full min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-base sm:min-w-[18rem]"
-        />
+          className="min-h-14 w-full rounded-2xl border-2 border-line bg-sky pl-12 pr-4 text-base font-medium placeholder:text-ink-muted/80 focus:border-teal focus:bg-white"
+        /></div>
         {typed.length >= 2 && (
-          <button type="button" onClick={s.searchMap} disabled={s.mapLoading} className="min-h-11 rounded-xl border border-teal bg-teal-light px-4 text-sm font-semibold text-teal-ink disabled:opacity-60">
+          <button type="button" onClick={s.searchMap} disabled={s.mapLoading} className="min-h-14 rounded-2xl border border-pine bg-pine px-5 text-sm font-semibold text-white disabled:opacity-60">
             {s.mapLoading ? "Searching…" : s.mapSearched ? "Search again" : "Search the map"}
           </button>
         )}

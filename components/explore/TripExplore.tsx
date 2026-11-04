@@ -10,7 +10,8 @@ import { DestinationSheet } from "@/components/feed/DestinationSheet";
 import { communityLine } from "@/lib/explore/community";
 import { AddStopSheet } from "./AddStopSheet";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
+import { CategoryGlyph } from "@/components/ui/Glyph";
+import { ChipRow, PlaceSkeletons, Segmented, pill } from "./kit";
 import { Glyph } from "@/components/ui/Glyph";
 import { EXPLORE_CATEGORIES, exploreCategoryLabel, type ExploreCategoryId } from "@/lib/explore/categories";
 import { plannerCategory } from "@/lib/explore/glyph";
@@ -31,7 +32,6 @@ type Props = {
   addError: string | null;
 };
 
-const chip = (on: boolean) => `min-h-11 rounded-full border px-3 text-sm font-semibold ${on ? "border-pine bg-pine text-white" : "border-line bg-white text-ink-muted hover:border-teal"}`;
 const EYEBROW = { planned: "From your plan", active: "On the road", staying: "Where you are", none: "" } as const;
 
 export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) {
@@ -53,14 +53,15 @@ export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) 
   if (a && a.mode === "none") return null;
 
   const staying = a?.mode === "staying" || (a?.route === null && !!a);
-  const widths: { value: string; label: string }[] = ([5, 10, 20] as const).map((r) => ({ value: String(r), label: staying ? `${Math.min(30, r * 2)} km round the place` : `${r} km either side of the road` }));
+  const around = (r: number) => Math.min(50, r * 2);
+  const widths = ([5, 10, 25, 50] as const).map((r) => ({ value: r, label: `${staying ? around(r) : r} km` }));
   const catLabel = category === "all" ? "places" : exploreCategoryLabel(category).toLowerCase();
   const toSaved = (i: RoutedItem) => ({ key: i.id, name: i.name, lat: i.lat, lng: i.lng, category: plannerCategory(i.category), region: null });
 
   return (
-    <section aria-labelledby="trip-explore-heading" className="rounded-3xl border border-line bg-white p-5 sm:p-6">
+    <section aria-labelledby="trip-explore-heading" className="rounded-[2rem] border border-line bg-white p-5 sm:p-6">
       {a && <p className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">{EYEBROW[a.mode]}</p>}
-      <h2 id="trip-explore-heading" className="mt-1 break-words font-display text-2xl font-semibold text-pine">{a ? a.headline : "Finding places for your trip…"}</h2>
+      <h2 id="trip-explore-heading" className="mt-1 break-words font-display text-2xl font-semibold leading-tight text-pine sm:text-3xl">{a ? a.headline : "Finding places for your trip…"}</h2>
       {a?.route && <p className="mt-1 text-sm text-ink-muted">{a.route.km} km of road{a.remainingStops > 0 ? ` · ${a.remainingStops} ${a.remainingStops === 1 ? "stop" : "stops"} still to do` : ""}</p>}
       {a && a.notes.length > 0 && (
         <ul className="mt-3 space-y-1.5">
@@ -68,14 +69,15 @@ export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) 
         </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="What to look for">
-        <button type="button" aria-pressed={category === "all"} onClick={() => setCategory("all")} className={chip(category === "all")}>All</button>
-        {EXPLORE_CATEGORIES.map((c) => <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? "all" : c.id)} className={chip(category === c.id)}>{c.label}</button>)}
+      <div className="mt-4">
+        <ChipRow label="What to look for">
+          <button type="button" aria-pressed={category === "all"} onClick={() => setCategory("all")} className={pill(category === "all")}>All</button>
+          {EXPLORE_CATEGORIES.map((c) => <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? "all" : c.id)} className={pill(category === c.id)}><CategoryGlyph category={plannerCategory(c.id)} size={16} />{c.label}</button>)}
+        </ChipRow>
       </div>
-      <div className="mt-3 flex flex-wrap items-end gap-3">
-        <div className="min-w-[14rem]">
-          <label htmlFor="trip-explore-width" className="text-sm font-semibold text-pine">How far</label>
-          <div className="mt-1"><Select id="trip-explore-width" label="How far from your route" value={String(radius)} onChange={(v) => setRadius(Number(v) as Radius)} options={widths} /></div>
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div className="min-w-[16rem] flex-1 sm:flex-none">
+          <Segmented label={staying ? "How far round the place" : "How far either side of the road"} value={radius} options={widths} onChange={setRadius} />
         </div>
         {a && a.mode !== "planned" && here.status !== "on" && (
           <div>
@@ -87,7 +89,7 @@ export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) 
 
       {addError && <p role="alert" className="mt-2 text-sm font-semibold text-clay-ink">{addError}</p>}
       <div aria-live="polite" className="mt-4">
-        {state.status === "loading" && <Skeleton />}
+        {state.status === "loading" && <PlaceSkeletons count={3} />}
         {state.status === "error" && (
           <div role="alert" className="rounded-2xl border border-clay/40 bg-clay-light/50 p-4 text-sm">
             <p className="font-semibold text-clay-ink">{state.error}</p>
@@ -99,10 +101,10 @@ export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) 
           <div className="rounded-2xl border border-dashed border-line bg-white/70 p-5 text-sm text-ink-muted">
             {a.empty === "no_data"
               ? <p>The map has no {catLabel} listed {staying ? "around here" : "along this road"} yet. Coverage is thinner for small places, so this doesn&apos;t mean there is nothing to see. Try another kind of place, or search a nearby town below.</p>
-              : <p>There are {catLabel} in the area, but none within {staying ? `${Math.min(30, radius * 2)} km` : `${radius} km of your route`}.</p>}
+              : <p>There are {catLabel} in the area, but none within {staying ? `${around(radius)} km` : `${radius} km of your route`}.</p>}
             <div className="mt-3 flex flex-wrap gap-2">
               {category !== "all" && <Button size="sm" variant="secondary" onClick={() => setCategory("all")}>Show all kinds</Button>}
-              {radius !== 20 && <Button size="sm" variant="secondary" onClick={() => setRadius(radius === 5 ? 10 : 20)}>Look wider</Button>}
+              {radius !== 50 && <Button size="sm" variant="secondary" onClick={() => setRadius(radius === 5 ? 10 : radius === 10 ? 25 : 50)}>Look wider</Button>}
             </div>
           </div>
         )}
@@ -135,15 +137,5 @@ export function TripExplore({ tripId, saved, added, addIdea, addError }: Props) 
       )}
       <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL). Opening hours say where they come from and whether anyone confirmed them; unconfirmed map hours are labelled so. We don&apos;t show crowds, ratings or &ldquo;open now&rdquo; because we have no reliable source for them here. Traveller reports come from posts in Discover; each shows how old it is.</p>
     </section>
-  );
-}
-
-function Skeleton() {
-  return (
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading places" aria-busy="true">
-      {Array.from({ length: 3 }, (_, i) => (
-        <li key={i} className="rounded-2xl border border-line bg-white p-5"><div className="h-36 animate-pulse rounded-xl bg-sky motion-reduce:animate-none" /><div className="mt-3 h-5 w-2/3 animate-pulse rounded bg-sky motion-reduce:animate-none" /><div className="mt-2 h-4 w-1/2 animate-pulse rounded bg-sky motion-reduce:animate-none" /></li>
-      ))}
-    </ul>
   );
 }

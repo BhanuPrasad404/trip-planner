@@ -415,11 +415,19 @@ export const exploreSchema = z.object({
 export const exploreTripSchema = z.object({
   trip_id: uuid,
   category: z.enum([...EXPLORE_CATEGORY_IDS, "all"]).default("all"),
-  radius_km: z.union([z.literal(5), z.literal(10), z.literal(20)]).default(10),
+  radius_km: z.union([z.literal(5), z.literal(10), z.literal(25), z.literal(50)]).default(10),
   cursor: z.number().int().min(0).max(2000).default(0),
   limit: z.number().int().min(1).max(30).default(12),
   position: z.object({ lat: latitude, lng: longitude }).nullish().transform((v) => v ?? null),
 });
+
+// "Best in <month>": near a point (radius 50 or 100 km) or in a state. The month defaults to this month in India.
+export const exploreSeasonSchema = z.object({
+  lat: latitude.nullish(), lng: longitude.nullish(),
+  region: z.string().trim().min(2).max(3).nullish(),
+  radius_km: z.union([z.literal(50), z.literal(100)]).default(50),
+  month: z.number().int().min(1).max(12).nullish(),
+}).refine((v) => !!v.region || (v.lat != null && v.lng != null), { message: "Give a place or a state" });
 
 // "What happens to my plan if I add this as a stop?" Read-only preview. The day is optional (the server suggests one).
 export const exploreEffectSchema = z.object({

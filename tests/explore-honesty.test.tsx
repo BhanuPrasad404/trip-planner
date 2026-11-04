@@ -25,27 +25,32 @@ describe("Explore does not dress up unsourced data as research", () => {
     expect(isResearched(tag({ confidence: "draft" }))).toBe(false);
   });
 
-  it("by default shows only researched places and counts them truthfully, naming the regions that are really in the data", () => {
+  it("'Best in <month>' is not a fixed list: nothing is preloaded, and it asks the server about where the traveller is", () => {
     const html = render([researchedAP, researchedTG, starterA, starterB]);
-    expect(html).toContain("Araku Valley");
-    expect(html).toContain("Warangal Fort");
-    expect(html).not.toContain("Bhandardara");
-    expect(html).not.toContain("Della Adventure Park");
-    expect(html).toContain("Covers 2 places in Andhra Pradesh and Telangana");
+    expect(html).toContain("Best in October");
+    expect(html).toContain("Near my trip");
+    expect(html).toContain("Near me");
+    expect(html).toContain("A state");
+    for (const name of ["Araku Valley", "Warangal Fort", "Bhandardara", "Della Adventure Park"]) expect(html).not.toContain(name); // no static list in the page
     expect(html).not.toContain("Maharashtra");
-    expect(html).toContain("Also show 2 unverified"); // available, but opt-in
-    expect(html).toContain("Researched");
   });
 
-  it("is honest when nothing is researched yet", () => {
-    const html = render([starterA]);
-    expect(html).toContain("No researched places are available yet");
-    expect(html).not.toContain("Bhandardara");
+  it("with no trip and no remembered state it asks where to look instead of showing a list for everybody", () => {
+    const html = renderToStaticMarkup(<ExploreView tripId={null} anchors={[]} seasonTags={[researchedAP]} month={10} />);
+    expect(html).toContain("Pick where you are, or a state, to see what is best in October");
+    expect(html).not.toContain("Araku Valley");
   });
 
-  it("the live search section stays empty until someone asks (nothing preloaded)", () => {
+  it("a visitor with no trip gets a list for their rough area straight away, and says it is approximate", () => {
+    const html = renderToStaticMarkup(<ExploreView tripId={null} anchors={[]} seasonTags={[]} month={11} guess={{ lat: 28.6, lng: 77.2 }} />);
+    expect(html).toContain("near your area");
+    expect(html).toContain("approximate area");
+    expect(html).not.toContain("Pick where you are");
+  });
+
+  it("the food, stays and fuel section stays empty until someone asks (nothing preloaded)", () => {
     const html = render([researchedAP]);
-    expect(html).toContain("Around your trip");
+    expect(html).toContain("near your trip");
     expect(html).not.toContain("km away");
   });
 });

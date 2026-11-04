@@ -71,7 +71,7 @@ export async function exploreForTrip(supabase: SupabaseClient, input: ExploreTri
     items = rankAlongRoute(loaded.items, line, ctx, { maxOffKm: input.radiusKm, limit: input.limit });
     await measureTop(items, line, deps.routing ?? routingProvider(), input.cursor);
   } else if (ctx.focus) {
-    const radius = Math.min(30, input.radiusKm * 2);
+    const radius = Math.min(50, input.radiusKm * 2);
     loaded = await load({ kind: "point", lat: ctx.focus.lat, lng: ctx.focus.lng, radius_km: radius }, input.category, deps.loadDeps);
     items = rankAround(loaded.items, ctx.focus, { maxOffKm: radius, limit: input.limit });
   } else return none("no_trip");

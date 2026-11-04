@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { googleMapsPlace } from "@/lib/maps-links";
 import { type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { Button } from "./ui/Button";
 import { Select } from "@/components/ui/Select";
-import { Glyph, CategoryGlyph, KindGlyph, KindBadge } from "@/components/ui/Glyph";
+import { Glyph, KindGlyph, KindBadge } from "@/components/ui/Glyph";
 import { SafeImg } from "@/components/ui/SafeImg";
-import { PlacePhoto } from "@/components/ui/PlacePhoto";
-import { usePlacePhotos } from "@/lib/client/use-place-photos";
 import { DiscoverSection } from "@/components/explore/DiscoverSection";
+import { BestInMonth } from "@/components/explore/BestInMonth";
+import { ChipRow, SectionTitle, pill } from "@/components/explore/kit";
+import { MoodTiles } from "@/components/explore/MoodTiles";
+import { ExplorePlaceSearch } from "@/components/ExplorePlaceSearch";
+import type { ExploreCategoryId } from "@/lib/explore/categories";
 import { TripExplore } from "@/components/explore/TripExplore";
 import { useSavedPlaces } from "@/lib/client/use-saved-places";
 import { creditText } from "@/lib/place-photos/safety";
@@ -21,41 +23,28 @@ export type ExploreSeasonTag = {
   confidence: string | null; source_urls: string[] | null; distanceKm: number | null;
 };
 type Anchor = { id: string; label: string; lat: number; lng: number };
-type Props = { tripId: string | null; anchors: Anchor[]; seasonTags: ExploreSeasonTag[]; month: number };
+type Props = { guess?: { lat: number; lng: number } | null; tripId: string | null; anchors: Anchor[]; seasonTags: ExploreSeasonTag[]; month: number };
 
-const MONTH = (m: number) => new Date(2000, m - 1, 1).toLocaleString("en-IN", { month: "long" });
-const DISCOVER: NearbyKind[] = ["sights", "food", "stay", "pharmacy", "fuel"];
+const DISCOVER: NearbyKind[] = ["food", "stay", "pharmacy", "fuel"];
 const DISCOVER_LABEL: Record<string, string> = { sights: "Sights & views", food: "Food", stay: "Stays", pharmacy: "Pharmacies", fuel: "Fuel" };
 
 /** A place counts as "researched" only if it has a source we can show. Rows from the developer starter file do not. */
 export const isResearched = (t: Pick<ExploreSeasonTag, "confidence" | "source_urls">) => t.confidence === "researched" && (t.source_urls?.length ?? 0) > 0;
-const isYearRound = (t: Pick<ExploreSeasonTag, "good_months">) => new Set(t.good_months).size >= 12;
 
-export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
-  const [cat, setCat] = useState<string | null>(null);
-  const [showOut, setShowOut] = useState(false);
-  const [showUnverified, setShowUnverified] = useState(false);
+export function ExploreView({ guess = null, tripId, anchors, seasonTags, month }: Props) {
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [addError, setAddError] = useState<string | null>(null);
   const [custom, setCustom] = useState<Anchor | null>(null);
   const [anchorId, setAnchorId] = useState(anchors[0]?.id ?? "");
-  const [kind, setKind] = useState<NearbyKind>("sights");
+  const [kind, setKind] = useState<NearbyKind>("food");
   const [busy, setBusy] = useState(false);
   const [places, setPlaces] = useState<NearbyPlace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const saved = useSavedPlaces();
+  const [mode, setMode] = useState<"region" | "place">(anchors.length > 0 ? "place" : "region");
+  const [category, setCategory] = useState<ExploreCategoryId | "all">("all");
 
   const researched = seasonTags.filter(isResearched);
-  const unverified = seasonTags.filter((t) => !isResearched(t));
-  const pool = showUnverified ? seasonTags : researched;
-  const regions = [...new Set(researched.map((t) => t.region).filter((r): r is string => !!r))].sort();
-  const inSeason = pool.filter((t) => t.good_months.includes(month));
-  const out = pool.filter((t) => !t.good_months.includes(month));
-  const cats = [...new Set(pool.map((t) => normalizeCategory(t.category)))];
-  const matches = (t: ExploreSeasonTag) => !cat || normalizeCategory(t.category) === cat;
-  const list = (showOut ? [...inSeason, ...out] : inSeason).filter(matches);
-  // Real photos of the destinations, filled in after the cards are on screen. No confident match = no photo, the card stays as it is.
-  const cardPhotos = usePlacePhotos(list.map((t) => ({ key: `season-${t.id}`, name: t.place_name, lat: t.lat, lng: t.lng })));
 
   async function addIdea(p: { key: string; name: string; lat: number; lng: number; category?: string | null; seasonId?: string; note?: string }) {
     if (!tripId) return;
@@ -87,77 +76,49 @@ export function ExploreView({ tripId, anchors, seasonTags, month }: Props) {
     }
   }
 
+  /** Takes the person to the results they just asked for (no animation if they prefer none). */
+  function goDiscover() {
+    if (typeof document === "undefined") return;
+    const el = document.getElementById("discover");
+    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => el?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" }));
+  }
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 sm:space-y-10">
+      <div className="relative z-10 -mt-14 rounded-3xl border border-line bg-white p-4 shadow-float sm:p-5">
+        <ExplorePlaceSearch onPick={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); setMode("place"); void discover("food", a); goDiscover(); }} />
+      </div>
+
+      <MoodTiles value={category} onPick={(c) => { setCategory(category === c ? "all" : c); goDiscover(); }} />
+
       {tripId && (
         <TripExplore tripId={tripId} saved={saved} added={added} addError={addError}
           addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }} />
       )}
 
+      <BestInMonth guess={guess} anchors={allAnchors} month={month} tripId={tripId} saved={saved} added={added} addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }} />
+
       <DiscoverSection
         tripId={tripId} anchors={allAnchors} anchorId={anchorId} onAnchorChange={(id) => { setAnchorId(id); if (places) void discover(kind, id); }}
-        onPickPlace={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("sights", a); }}
+        onPickPlace={(p) => { const a: Anchor = { id: "custom", label: p.name, lat: p.lat, lng: p.lng }; setCustom(a); setAnchorId(a.id); void discover("food", a); }}
         researched={researched} month={month} saved={saved} added={added} addError={addError}
+        mode={mode} onMode={setMode} category={category} onCategory={setCategory} hideSearch
         addIdea={async (p) => { await addIdea({ ...p, category: p.category ?? null }); }}
       />
 
-      <section aria-labelledby="season-heading">
-        <h2 id="season-heading" className="font-display text-2xl font-semibold text-pine">Best in {MONTH(month)}</h2>
-        <p className="mt-1 max-w-2xl text-sm text-ink-muted">Places at their best this month, from season data we researched, each with its source. {researched.length > 0 ? <>Covers {researched.length} places in {regions.join(" and ")} so far — it grows region by region.</> : <>No researched places are available yet.</>}</p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Filter by type">
-          <button type="button" aria-pressed={cat === null} onClick={() => setCat(null)} className={`min-h-9 rounded-full border px-3 text-sm font-semibold ${cat === null ? "border-pine bg-pine text-white" : "border-line bg-white text-ink-muted"}`}>All</button>
-          {cats.map((c) => <button key={c} type="button" aria-pressed={cat === c} onClick={() => setCat(cat === c ? null : c)} className={`min-h-9 rounded-full border px-3 text-sm font-semibold ${cat === c ? "border-pine bg-pine text-white" : "border-line bg-white text-ink-muted"}`}><CategoryGlyph category={c} size={15} className="mr-1.5 inline align-text-bottom" />{CATEGORIES[c].label}</button>)}
-          <label className="ml-auto inline-flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={showOut} onChange={(e) => setShowOut(e.target.checked)} /> Also show out-of-season</label>
-          {unverified.length > 0 && <label className="inline-flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={showUnverified} onChange={(e) => setShowUnverified(e.target.checked)} /> Also show {unverified.length} unverified</label>}
-        </div>
-
-        {addError && <p role="alert" className="mt-2 text-sm font-semibold text-clay-ink">{addError}</p>}
-        {list.length === 0 ? (
-          <p className="mt-4 rounded-2xl border border-dashed border-line bg-white/70 p-6 text-sm text-ink-muted">{pool.length === 0 ? "No season data is available yet." : `Nothing in this filter is at its best in ${MONTH(month)}. Try another type, or show out-of-season places.`}</p>
-        ) : (
-          <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {list.map((t) => {
-              const c = CATEGORIES[normalizeCategory(t.category)];
-              const good = t.good_months.includes(month);
-              const yearRound = isYearRound(t);
-              const verified = isResearched(t);
-              const key = `season-${t.id}`;
-              return (
-                <li key={t.id} className="flex flex-col rounded-2xl border border-line bg-white p-5">
-                  {cardPhotos[key] && <div className="mb-3"><PlacePhoto photo={cardPhotos[key]} name={t.place_name} credit sizes="(min-width: 640px) 33vw, 92vw" className="h-36 w-full" fallback={<CategoryGlyph category={normalizeCategory(t.category)} size={28} />} /></div>}
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="break-words font-display text-lg font-semibold text-pine"><CategoryGlyph category={normalizeCategory(t.category)} size={18} className="mr-1.5 inline align-text-bottom text-teal" />{t.place_name}</h3>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${yearRound ? "bg-sky text-ink-muted" : good ? "bg-teal-light text-teal-ink" : "bg-clay-light text-clay-ink"}`}>{yearRound ? "No seasonal pattern" : good ? "In season" : "Out of season"}</span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-ink-muted">{c.label}{t.region && ` · ${t.region}`}{t.distanceKm !== null && ` · ${Math.round(t.distanceKm)} km from ${anchors[0]?.label ?? "your trip"}`}</p>
-                  {t.reason && <p className="mt-2 text-sm leading-relaxed">{t.reason}</p>}
-                  {yearRound ? <p className="mt-2 font-mono text-[11px] text-ink-muted">Listed as open to visit all year</p> : <p className="mt-2 font-mono text-[11px] text-ink-muted">Best: {t.good_months.map((m) => MONTH(m).slice(0, 3)).join(", ")}</p>}
-                  {!verified && <p className="mt-1 text-xs font-semibold text-clay-ink">Unverified starter data — no source, not researched.</p>}
-                  {t.source_urls?.[0] && <p className="mt-1 text-xs text-ink-muted">{t.confidence === "researched" ? "Researched" : "Draft"} · <a href={t.source_urls[0]} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2">{new URL(t.source_urls[0]).hostname.replace(/^www\./, "")}<span className="sr-only"> (opens in a new tab)</span></a></p>}
-                  <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 text-sm">
-                    <a href={googleMapsPlace(t)} target="_blank" rel="noopener noreferrer" className="tm-action min-h-11 py-1.5 font-semibold">Open in Google Maps<span className="sr-only"> (opens in a new tab)</span></a>
-                    {tripId && (added.has(key) ? <span className="font-semibold text-teal-ink"><span className="inline-flex items-center gap-1.5"><Glyph name="check" size={16} />Added to Ideas</span></span> : <button type="button" onClick={() => void addIdea({ key, name: t.place_name, lat: t.lat, lng: t.lng, category: t.category, seasonId: t.id })} className="tm-action min-h-11 py-1.5 font-semibold">Add to my ideas</button>)}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section aria-labelledby="around-heading" className="rounded-3xl border border-line bg-white p-5 sm:p-6">
-        <h2 id="around-heading" className="font-display text-2xl font-semibold text-pine">Around {custom ? custom.label : anchors.length > 0 ? "your trip" : "a place"}</h2>
-        <p className="mt-1 text-sm text-ink-muted">Real places from OpenStreetMap; well-known ones first. Photos come from Wikipedia and Wikimedia Commons (free licences, credited), and only where a real one exists. Price and rating filters will appear once a source for them is connected — we don&apos;t guess.</p>
+      <section aria-labelledby="around-heading" className="rounded-[2rem] border border-line bg-white p-5 sm:p-6">
+        <div id="around-heading"><SectionTitle eyebrow="On the way" title={<>Food, stays &amp; fuel near {custom ? custom.label : anchors.length > 0 ? "your trip" : "a place"}</>}>Real places from OpenStreetMap, closest first. We show no prices or ratings because we have no source for them; we don&apos;t guess.</SectionTitle></div>
         {allAnchors.length === 0 ? (
           <p className="mt-3 text-sm text-ink-muted">Pick a place above, or create a trip with a start or destination, to look around it.</p>
         ) : (
           <>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="explore-around">Around</label><div className="min-w-[10rem]"><Select id="explore-around" label="Explore around" value={anchorId} onChange={(v) => { setAnchorId(v); if (places) void discover(kind, v); }} options={allAnchors.map((a) => ({ value: a.id, label: a.label }))} className="!min-h-11 !text-sm font-normal" /></div></div>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="What to look for">
-                {DISCOVER.map((k) => <button key={k} type="button" disabled={busy} aria-pressed={places !== null && kind === k} onClick={() => void discover(k)} className={`min-h-10 rounded-full border px-3 text-sm font-semibold disabled:opacity-60 ${places !== null && kind === k ? "border-teal bg-teal-light text-teal-ink" : "border-line bg-white text-ink-muted hover:border-teal"}`}><KindGlyph kind={k} size={15} className="mr-1.5 inline align-text-bottom" />{DISCOVER_LABEL[k]}</button>)}
-              </div>
+            <div className="mt-4 space-y-3">
+              <div className="min-w-0 max-w-sm"><label htmlFor="explore-around" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Around</label><div className="mt-1"><Select id="explore-around" label="Explore around" value={anchorId} onChange={(v) => { setAnchorId(v); if (places) void discover(kind, v); }} options={allAnchors.map((a) => ({ value: a.id, label: a.label }))} className="!min-h-11 !text-sm font-normal" /></div></div>
+              <ChipRow label="What to look for">
+                {DISCOVER.map((k) => <button key={k} type="button" disabled={busy} aria-pressed={places !== null && kind === k} onClick={() => void discover(k)} className={`${pill(places !== null && kind === k)} disabled:opacity-60`}><KindGlyph kind={k} size={16} />{DISCOVER_LABEL[k]}</button>)}
+              </ChipRow>
             </div>
             <div aria-live="polite" className="mt-3">
               {busy && <p className="text-sm text-ink-muted">Looking…</p>}

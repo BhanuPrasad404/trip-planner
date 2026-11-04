@@ -11,6 +11,6 @@ export function decimateLine(line: [number, number][], max = MAX_ROUTE_POINTS): 
 }
 
 /** The corridor widths the traveller may choose (km either side of the road). */
-export const CORRIDOR_KM = [5, 10, 20] as const;
+export const CORRIDOR_KM = [5, 10, 25, 50] as const;
 export type CorridorKm = (typeof CORRIDOR_KM)[number];
 export const DEFAULT_CORRIDOR_KM: CorridorKm = 10;

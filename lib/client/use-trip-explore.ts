@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExploreCategoryId } from "@/lib/explore/categories";
 import type { ExploreTripAnswer } from "@/lib/server/explore-trip";
 
-export type TripExploreQuery = { tripId: string; category: ExploreCategoryId | "all"; radiusKm: 5 | 10 | 20; position: { lat: number; lng: number } | null };
+export type TripExploreQuery = { tripId: string; category: ExploreCategoryId | "all"; radiusKm: 5 | 10 | 25 | 50; position: { lat: number; lng: number } | null };
 export type TripExploreState = {
   status: "loading" | "ready" | "error";
   /** The last answer (the first page's headline, notes, mode…), with `items` being everything loaded so far. */

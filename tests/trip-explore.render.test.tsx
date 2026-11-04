@@ -74,7 +74,7 @@ describe("TripExplore", () => {
   });
   it("never claims what it can't know: no 'open now', crowd, rating or 'live' on a card; the footer says why", async () => {
     const { r } = await mount();
-    const cardText = text(r.root.findAll((n) => n.type === "li" && typeof n.props.className === "string" && n.props.className.includes("rounded-2xl"))[0]);
+    const cardText = text(r.root.findAll((n) => n.type === "li" && n.props["data-card"] === "place")[0]);
     expect(cardText).not.toMatch(/open now|crowd|rating|\blive\b|quiet|busy|popular|you'll love|matches your/i);
     expect(all(r)).toMatch(/don.t show crowds, ratings or .open now. because we have no reliable source/);
   });
@@ -112,7 +112,7 @@ describe("TripExplore", () => {
     const { r } = await mount();
     expect(all(r)).toContain("none within 10 km of your route");
     await act(async () => { buttons(r, "Look wider")[0].props.onClick(); }); await flush();
-    expect(requests.filter((x) => x.url === "/api/explore/trip").pop()!.body).toMatchObject({ radius_km: 20 });
+    expect(requests.filter((x) => x.url === "/api/explore/trip").pop()!.body).toMatchObject({ radius_km: 25 });
   });
   it("provider trouble: plain words, a retry, and the search below still works (never a blank screen)", async () => {
     reply = { status: 502, body: { error: "The map servers are busy right now. Please try again in a minute." } };
@@ -135,7 +135,7 @@ describe("TripExplore", () => {
     const { r } = await mount();
     reply = { status: 200, body: answer({ items: [routed("n1", "Bhongir Fort", ["x"]), routed("n2", "Yadagirigutta", ["y"])], nextCursor: null, total: 20 }) };
     await act(async () => { buttons(r, "Show more places")[0].props.onClick(); }); await flush();
-    const cards = r.root.findAll((n) => n.type === "li" && typeof n.props.className === "string" && n.props.className.includes("rounded-2xl") && /Fort|Yadagirigutta/.test(text(n)));
+    const cards = r.root.findAll((n) => n.type === "li" && n.props["data-card"] === "place" && /Fort|Yadagirigutta/.test(text(n)));
     expect(cards.map((c) => (/Yadagirigutta/.test(text(c)) ? "Y" : "B"))).toEqual(["B", "Y"]);       // each once, in order
     expect(requests.filter((x) => x.url === "/api/explore/trip").pop()!.body).toMatchObject({ cursor: 12 });
   });

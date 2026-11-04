@@ -98,18 +98,23 @@ export function BestInMonth({ guess = null, anchors, month: thisMonth, tripId, s
 
       <div aria-live="polite" className="mt-4">
         {!sig && <p className="rounded-2xl border border-dashed border-white/30 bg-white/10 p-5 text-sm text-white/85">Pick where you are, or a state, to see what is best in {MONTH_LONG(month)}.</p>}
-        {loading && <ul className="-mx-5 flex gap-3 overflow-hidden px-5 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-3" aria-busy="true" aria-label="Loading the best places">{[0, 1, 2].map((i) => <li key={i} className="w-[78%] shrink-0 rounded-3xl border border-white/20 bg-white/10 p-2 sm:w-auto"><div className="aspect-[16/10] animate-pulse rounded-2xl bg-white/20 motion-reduce:animate-none" /><div className="h-16" /></li>)}</ul>}
+        {loading && <ul className="relative -mx-5 flex gap-3 overflow-hidden px-5 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-3" aria-busy="true" aria-label="Loading the best places">{[0, 1, 2].map((i) => <li key={i} className="w-[78%] shrink-0 rounded-3xl border border-white/20 bg-white/10 p-2 sm:w-auto"><div className="aspect-[16/10] animate-pulse rounded-2xl bg-white/20 motion-reduce:animate-none" /><div className="h-16" /></li>)}</ul>}
         {current?.error && <p role="alert" className="rounded-2xl bg-clay-light p-4 text-sm font-semibold text-clay-ink">{current.error} <button type="button" onClick={() => { setAnswer(null); setAttempt((a) => a + 1); }} className="tm-action ml-1 min-h-11 font-semibold">Try again</button></p>}
         {current?.data && current.data.empty && <p className="rounded-2xl border border-dashed border-white/30 bg-white/10 p-5 text-sm text-white/85">{EMPTY_TEXT[current.data.empty]}</p>}
         {picks.length > 0 && (
-          <ul className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden">
+          <PickRow>
             {picks.map((p) => <PickCard key={p.item.id} pick={p} photo={photos[`best-${p.item.id}`]} month={month} tripId={tripId} saved={saved} added={added} addIdea={addIdea} regionName={region ? regionByCode(region)?.name ?? null : null} />)}
-          </ul>
+          </PickRow>
         )}
         {picks.length > 0 && <p className="mt-3 text-xs text-white/75">How we pick: typical daily high and rain for {MONTH_LONG(month)} over six past years (Open-Meteo), matched to each kind of place. Places marked Researched also have a sourced note on their best months. A good month is not a promise for one particular day; check the forecast before you go.</p>}
       </div>
     </section>
   );
+}
+
+/** The swipe row on a phone, a grid on a larger screen. Positioned, so the screen-reader text inside its cards stays inside it. */
+export function PickRow({ children }: { children: React.ReactNode }) {
+  return <ul className="relative -mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden">{children}</ul>;
 }
 
 const TONE = { great: "bg-teal-light text-teal-ink", good: "bg-teal-light text-teal-ink", fair: "bg-sky text-ink-muted", poor: "bg-clay-light text-clay-ink" } as const;

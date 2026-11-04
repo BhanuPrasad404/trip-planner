@@ -58,30 +58,6 @@ export function TextField({ label, hint, error, className = "", ...props }: Text
   );
 }
 
-type SelectFieldProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "id"> & {
-  label: string;
-  hint?: ReactNode;
-  error?: string | null;
-};
-
-export function SelectField({ label, hint, error, className = "", children, ...props }: SelectFieldProps) {
-  const id = useId();
-  const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
-  return (
-    <FieldShell id={id} label={label} hint={hint} error={error}>
-      <select
-        id={id}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        className={`${control} ${className}`}
-        {...props}
-      >
-        {children}
-      </select>
-    </FieldShell>
-  );
-}
-
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (

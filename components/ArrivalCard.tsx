@@ -64,8 +64,8 @@ export function ArrivalCard(p: Props) {
           <div className="flex items-start gap-3">
             <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-teal-light text-teal-ink"><Glyph name="pin" size={22} /></span>
             <div className="min-w-0 flex-1">
-              <h2 id="arrival-title" className="text-lg font-semibold leading-snug text-pine">{p.prompt.area ? <>You&apos;ve reached the {p.prompt.name} area</> : <>You have arrived at {p.prompt.name}</>}</h2>
-              <p id="arrival-sub" className="mt-0.5 text-sm text-ink-muted">{p.prompt.destination ? "This is the end of your route." : "Tell us when you're there. Marking it visited is a separate step."}</p>
+              <h2 id="arrival-title" className="text-lg font-semibold leading-snug text-pine">{p.prompt.destination ? <>You have arrived at {p.prompt.name}</> : p.prompt.area ? <>We think you&apos;ve reached the {p.prompt.name} area. Have you arrived?</> : <>We think you&apos;ve reached {p.prompt.name}. Have you arrived?</>}</h2>
+              <p id="arrival-sub" className="mt-0.5 text-sm text-ink-muted">{p.prompt.destination ? "This is the end of your route." : "Nothing is recorded until you answer. Finishing the stop is a separate step."}</p>
               <p className="mt-1 text-xs text-ink-muted">About {p.prompt.distanceM} m from its pin · GPS accurate to ±{p.prompt.accuracyM} m</p>
             </div>
             <button type="button" onClick={p.onDismiss} aria-label={`Dismiss: not at ${p.prompt.name} yet`} className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sky"><Glyph name="close" size={18} /></button>
@@ -77,9 +77,9 @@ export function ArrivalCard(p: Props) {
             </div>
           ) : (
             <div className="mt-3 space-y-2">
-              <Button onClick={p.onConfirm} loading={p.busy} loadingLabel="Saving…" className="min-h-12 w-full text-base"><Glyph name="pin" size={18} />I&apos;ve arrived</Button>
+              <Button onClick={p.onConfirm} loading={p.busy} loadingLabel="Saving…" className="min-h-12 w-full text-base"><Glyph name="pin" size={18} />Yes, I&apos;ve arrived</Button>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={p.onPassing} disabled={p.busy}>Just passing</Button>
+                <Button variant="secondary" onClick={p.onPassing} disabled={p.busy}>Just passing through</Button>
                 <Button variant="secondary" onClick={p.onDismiss} disabled={p.busy}>Not yet</Button>
               </div>
             </div>
@@ -104,7 +104,7 @@ export function ArrivalCard(p: Props) {
             <span aria-hidden="true" className="tm-check-pop grid h-11 w-11 shrink-0 place-items-center rounded-full bg-teal text-white"><Glyph name="check" size={22} strokeWidth={2.8} /></span>
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-semibold leading-snug text-pine">{p.done.stage === "done" ? <>{p.done.name} marked as done.</> : <>You&apos;re at {p.done.name}.</>}</h2>
-              {p.done.stage === "arrived" && <p className="mt-0.5 text-sm text-ink-muted">Arrived {arrivedText(p.done.arrivedAt)}. Not marked as visited yet.</p>}
+              {p.done.stage === "arrived" && <p className="mt-0.5 text-sm text-ink-muted">Arrived {arrivedText(p.done.arrivedAt)}. Tap <strong>Finished this stop</strong> when you&apos;re done here; until then it isn&apos;t marked visited.</p>}
               {p.done.queued && <p className="mt-0.5 text-xs font-semibold text-[#7a4a00]">Saved on this phone. It will be sent when you&apos;re back online.</p>}
               {p.done.stage === "done" && p.progress && p.progress.total > 0 && <p className="mt-0.5 text-sm text-ink-muted">{p.progress.done} of {p.progress.total} {p.progress.total === 1 ? "stop" : "stops"} done today.</p>}
             </div>
@@ -124,8 +124,8 @@ export function ArrivalCard(p: Props) {
 
           {!choosing && p.done.stage === "arrived" && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" onClick={p.onComplete} loading={p.busy} loadingLabel="Saving…"><Glyph name="check" size={16} />Mark as visited</Button>
-              <Button size="sm" variant="secondary" onClick={p.onExplore}>I&apos;m exploring</Button>
+              <Button size="sm" onClick={p.onComplete} loading={p.busy} loadingLabel="Saving…"><Glyph name="check" size={16} />Finished this stop</Button>
+              <Button size="sm" variant="secondary" onClick={p.onExplore}>Still exploring</Button>
               <Button size="sm" variant="ghost" onClick={p.onUndo}><Glyph name="uturn" size={15} />Not here yet</Button>
             </div>
           )}

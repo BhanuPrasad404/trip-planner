@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
+import { TimePicker } from "@/components/ui/TimePicker";
 import type { Commitment, NewCommitment } from "@/lib/client/use-commitments";
 
 const KIND: Record<Commitment["kind"], string> = { hotel: "Hotel", ticket: "Ticket", event: "Event", reservation: "Reservation", transport: "Transport", activity: "Activity" };
@@ -95,19 +97,13 @@ export function CommitmentsCard(p: Props) {
           <form className="mt-3 space-y-3 rounded-xl bg-sky px-3 py-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
             <TextField label="What is it?" hint="For example: Hotel Sai Residency, night 3" value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm font-semibold text-pine">Kind
-                <select className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2 text-sm" value={kind} onChange={(e) => setKind(e.target.value as Commitment["kind"])}>{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-              </label>
-              <label className="block text-sm font-semibold text-pine">Day
-                <select className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2 text-sm" value={day} onChange={(e) => setDay(Number(e.target.value))}>{days.map((d) => <option key={d} value={d}>Day {d}</option>)}</select>
-              </label>
+              <div><label htmlFor="booking-kind" className="block text-sm font-semibold text-pine">Kind</label>
+                <div className="mt-1"><Select id="booking-kind" label="Kind of booking" value={kind} onChange={(v) => setKind(v as Commitment["kind"])} options={Object.entries(KIND).map(([k, v]) => ({ value: k, label: v }))} /></div></div>
+              <div><label htmlFor="booking-day" className="block text-sm font-semibold text-pine">Day</label>
+                <div className="mt-1"><Select id="booking-day" label="Day of the trip" value={String(day)} onChange={(v) => setDay(Number(v))} options={days.map((d) => ({ value: String(d), label: `Day ${d}` }))} /></div></div>
             </div>
-            <label className="block text-sm font-semibold text-pine">Which stop is it?
-              <select className="mt-1 min-h-11 w-full rounded-xl border border-line bg-white px-2 text-sm" value={placeId} onChange={(e) => setPlaceId(e.target.value)}>
-                <option value="">None in particular</option>
-                {p.stops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </label>
+            <div><label htmlFor="booking-stop" className="block text-sm font-semibold text-pine">Which stop is it?</label>
+              <div className="mt-1"><Select id="booking-stop" label="Which stop is it?" value={placeId} onChange={setPlaceId} options={[{ value: "", label: "None in particular" }, ...p.stops.map((s) => ({ value: s.id, label: s.name }))]} /></div></div>
             <fieldset className="space-y-1">
               <legend className="text-sm font-semibold text-pine">How firm is it?</legend>
               <label className="flex min-h-11 items-center gap-2 text-sm text-pine"><input type="radio" name="cls" className="h-5 w-5 accent-[var(--teal)]" checked={cls === "fixed"} onChange={() => setCls("fixed")} />The day can&apos;t move</label>
@@ -115,8 +111,8 @@ export function CommitmentsCard(p: Props) {
             </fieldset>
             {cls === "time_sensitive" && (
               <div className="grid grid-cols-2 gap-3">
-                <TextField label="Arrive from (optional)" type="time" value={from} onChange={(e) => setFrom(e.target.value)} />
-                <TextField label="Arrive by (optional)" type="time" value={by} onChange={(e) => setBy(e.target.value)} />
+                <div><label htmlFor="booking-from" className="block text-sm font-semibold text-pine">Arrive from (optional)</label><div className="mt-1"><TimePicker id="booking-from" label="Arrive from" value={from} onChange={setFrom} clearable /></div></div>
+                <div><label htmlFor="booking-by" className="block text-sm font-semibold text-pine">Arrive by (optional)</label><div className="mt-1"><TimePicker id="booking-by" label="Arrive by" value={by} onChange={setBy} clearable /></div></div>
               </div>
             )}
             <label className="flex min-h-11 items-start gap-2 text-sm text-pine"><input type="checkbox" className="mt-1 h-5 w-5 accent-[var(--teal)]" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /><span>This is confirmed with the hotel, venue or provider. Confirmed bookings are never moved.</span></label>

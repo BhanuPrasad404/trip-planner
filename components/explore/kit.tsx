@@ -13,7 +13,7 @@ export const pill = (on: boolean, dark = false) =>
 /** A one-line row of chips that scrolls sideways (snap, no scrollbar) and bleeds to the screen edge inside a padded card. */
 export function ChipRow({ label, children, bleed = "5" }: { label: string; children: React.ReactNode; /** The padding of the card it sits in, so the row can run to the screen edge. */ bleed?: "4" | "5" }) {
   return (
-    <div role="group" aria-label={label} className={`flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start ${bleed === "4" ? "-mx-4 px-4" : "-mx-5 px-5 sm:-mx-6 sm:px-6"}`}>
+    <div role="group" aria-label={label} className={`relative flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start ${bleed === "4" ? "-mx-4 px-4" : "-mx-5 px-5 sm:-mx-6 sm:px-6"}`}>
       {children}
     </div>
   );

@@ -1,3 +1,4 @@
+import { DialogHost } from "@/components/ui/DialogHost";
 import type { ReactNode } from "react";
 import { signOut } from "@/app/actions/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -36,6 +37,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <ServiceWorker />
+      <DialogHost />
       <AppNav trips={trips} userInitial={initial} signOutAction={signOut} userId={userId} />
       <div className="min-w-0 flex-1 pb-28 md:pb-0">
         {/* The active drive lives here, around every signed-in page, so moving around the app never ends it. */}

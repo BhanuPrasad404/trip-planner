@@ -8,6 +8,7 @@
 //   • on any other page a small "Driving to <stop>" bar takes the traveller back in one tap.
 //   • only one browser tab runs it (lib/drive/lock.ts); another tab says where it runs, and takes over if that tab is closed (but not
 //     while that tab is reloading: it gets its drive back).
+import { askConfirm, hostMounted, showNotice } from "@/lib/client/dialog";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { DriveEngine, type Engine } from "./DriveEngine";
@@ -267,18 +268,24 @@ export function DriveProvider({ userId, children }: { userId: string | null; chi
   }, [engines, forget]);
 
   /** Start pressed on a trip that is NOT the one being driven: one drive at a time, so ask first (inside the tap, so it can start). */
-  const guardStart = useCallback((tripId: string, tripName: string): boolean => {
+  const guardStart = useCallback((tripId: string, tripName: string): boolean | Promise<boolean> => {
     const a = activeRef.current;
     if (elsewhereRef.current) {
-      window.alert(`Your drive${a ? ` (${a.tripName})` : ""} is running in another Trailmate tab. End it there first, or close that tab.`);
+      const message = `Your drive${a ? ` (${a.tripName})` : ""} is running in another Trailmate tab. End it there first, or close that tab.`;
+      if (hostMounted()) void showNotice({ title: "A drive is already running", body: message, confirmLabel: "OK" }); else window.alert(message);
       return false;
     }
     if (!a || a.tripId === tripId) return true;
-    if (!window.confirm(`You're driving ${a.tripName}${a.next ? ` (next: ${a.next.name})` : ""}. End that drive and start driving ${tripName}?`)) return false;
+    const message = `You're driving ${a.tripName}${a.next ? ` (next: ${a.next.name})` : ""}. End that drive and start driving ${tripName}?`;
+    if (hostMounted()) {
+      // Our own dialog: the drive here starts only after a yes (that tap is itself the gesture the phone wants).
+      return askConfirm({ title: "End your current drive?", body: message, confirmLabel: "End it and start this one", cancelLabel: "Keep driving" }).then((yes) => { if (yes) endActive(); return yes; });
+    }
+    if (!window.confirm(message)) return false;
     endActive();
     return true;
   }, [endActive]);
-  const guards = useRef(new Map<string, () => boolean>());
+  const guards = useRef(new Map<string, () => boolean | Promise<boolean>>());
   const guardRef = useRef(guardStart);
   useEffect(() => { guardRef.current = guardStart; });
   const guardOf = (id: string, name: string) => {

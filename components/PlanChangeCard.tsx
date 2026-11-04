@@ -1,5 +1,6 @@
 "use client";
 
+import { explainStaleness } from "@/lib/trip/live-phase";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
@@ -80,6 +81,7 @@ export function PlanChangeCard(p: Props) {
       <section aria-labelledby="plan-change-heading" className="rounded-2xl border border-marigold/40 bg-marigold-light px-4 py-4 text-[#5c3a00]" data-testid="plan-change-nudge">
         <h2 id="plan-change-heading" className="font-semibold">{h.title}</h2>
         <p className="mt-1 text-sm">{h.body}</p>
+        <Why s={p.staleness} />
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" onClick={() => p.onAsk()} className="min-h-11">See my options</Button>
           <Button size="sm" variant="secondary" onClick={p.onKeepPlan} className="min-h-11">Keep my plan as it is</Button>
@@ -95,6 +97,7 @@ export function PlanChangeCard(p: Props) {
         <div className="min-w-0 flex-1">
           <h2 id="plan-change-heading" className="font-display text-lg font-semibold text-pine">{head.title}</h2>
           <p className="mt-0.5 text-sm text-ink-muted">{head.body}</p>
+          {p.staleness && <Why s={p.staleness} calm />}
         </div>
         <button type="button" onClick={() => { setOpen(null); p.onClose(); }} aria-label="Close" className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sky"><Glyph name="close" size={18} /></button>
       </div>
@@ -147,5 +150,17 @@ export function PlanChangeCard(p: Props) {
         <Button size="sm" variant="ghost" className="min-h-11" onClick={() => { p.onKeepPlan(); setOpen(null); p.onClose(); }}>Keep my plan as it is</Button>
       </div>
     </section>
+  );
+}
+
+/** What happened, why it matters, and what happens if the traveller does nothing: the three things to know before choosing. */
+function Why({ s, calm = false }: { s: NonNullable<Props["staleness"]>; calm?: boolean }) {
+  const w = explainStaleness(s);
+  return (
+    <dl className={`mt-2 space-y-1.5 rounded-xl px-3 py-2.5 text-sm ${calm ? "bg-sky text-ink" : "bg-white/60"}`}>
+      <div><dt className="inline font-semibold">What happened: </dt><dd className="inline">{w.happened}</dd></div>
+      <div><dt className="inline font-semibold">Why it matters: </dt><dd className="inline">{w.why}</dd></div>
+      <div><dt className="inline font-semibold">If you do nothing: </dt><dd className="inline">{w.ifNothing}</dd></div>
+    </dl>
   );
 }

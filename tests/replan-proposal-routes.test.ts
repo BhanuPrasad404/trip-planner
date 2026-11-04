@@ -9,7 +9,7 @@ type Row = Record<string, unknown>;
 const db = {
   user: { id: "u1" } as { id: string } | null,
   trips: [] as Row[], places: [] as Row[], trip_events: [] as Row[], trip_plan_revisions: [] as Row[], trip_commitments: [] as Row[], trip_members: [] as Row[],
-  missing: new Set<string>(), failUpsert: false, failTripUpdate: false, afterRead: null as null | { table: string; fn: () => void },
+  missing: new Set<string>(), keyIndex: false, failUpsert: false, failTripUpdate: false, afterRead: null as null | { table: string; fn: () => void },
 };
 type T = "trips" | "places" | "trip_events" | "trip_plan_revisions" | "trip_commitments" | "trip_members";
 const UNIQUE: Partial<Record<T, string[][]>> = { trip_events: [["trip_id", "client_event_id"]], trip_plan_revisions: [["trip_id", "rev"]] };
@@ -19,10 +19,13 @@ function from(table: T) {
   const run = (): { data: unknown; error: { code: string; message: string } | null } => {
     if (db.missing.has(table)) return { data: null, error: { code: "42P01", message: `relation "${table}" does not exist` } };
     const rows = db[table] as Row[];
-    const match = (r: Row) => q.filters.every(([k, v]) => (v === "__null__" ? r[k] == null : r[k] === v)) && q.notNull.every((k) => r[k] != null);
+    const val = (r: Row, k: string) => (k.startsWith("meta->>") ? (r.meta as Row | undefined)?.[k.slice(7)] : r[k]);
+    const match = (r: Row) => q.filters.every(([k, v]) => (v === "__null__" ? val(r, k) == null : val(r, k) === v)) && q.notNull.every((k) => r[k] != null);
     if (q.op === "insert") {
       const row = { ...(q.payload as Row) };
       for (const key of UNIQUE[table] ?? []) if (rows.some((r) => key.every((k) => r[k] === row[k]))) return { data: null, error: { code: "23505", message: "duplicate key" } };
+      // The prepared migration's partial unique index: one proposed revision per (trip, dedupe_key).
+      if (db.keyIndex && table === "trip_plan_revisions" && row.kind === "proposed" && (row.meta as Row | undefined)?.dedupe_key && rows.some((r) => r.kind === "proposed" && r.trip_id === row.trip_id && (r.meta as Row | undefined)?.dedupe_key === (row.meta as Row).dedupe_key)) return { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "trip_plan_revisions_proposal_key"' } };
       rows.push({ recorded_at: new Date().toISOString(), created_at: new Date().toISOString(), ...row });
       return { data: null, error: null };
     }
@@ -95,7 +98,7 @@ const snap = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 let userSeq = 0; // one person per test: the propose route is rate limited per person
 beforeEach(() => {
   fx.heights = null; fx.forecast = {}; fx.weatherCalls = 0;
-  db.user = { id: `u${++userSeq}` }; db.missing = new Set(); db.failUpsert = false; db.failTripUpdate = false; db.afterRead = null;
+  db.user = { id: `u${++userSeq}` }; db.missing = new Set(); db.keyIndex = false; db.failUpsert = false; db.failTripUpdate = false; db.afterRead = null;
   db.trips = [{ id: TRIP, owner_id: db.user!.id, num_days: 3, start_date: "2026-11-01", start_lat: 17.385, start_lng: 78.4867, start_city: "Hyderabad", start_time: null }];
   db.places = [place(1, "Vijayawada", 16.5062, 80.648, 1, 1, { arrival_time: "14:00" }), place(2, "Kanaka Durga Temple", 16.5128, 80.6055, 2, 1, { category: "temple", priority: "high" }), place(3, "Visakhapatnam", 17.6868, 83.2185, 3, 1, { arrival_time: "15:00" })];
   db.trip_events = []; db.trip_commitments = []; db.trip_members = [];
@@ -136,10 +139,44 @@ describe("asking for options changes NOTHING", () => {
     expect(body.proposals.map((p: any) => p.strategy)).toEqual(["leave-now", "tomorrow", "shift", "keep-end"]);
     expect(body.journey).toBe("awaiting-departure");
   });
-  it("logs that something was proposed (history), not that anything changed", async () => {
+  it("writes no history line of its own: a proposal is bookkeeping, not something that happened on the trip", async () => {
     await propose({ strategies: ["extend"] });
-    expect(db.trip_events.map((e) => e.kind)).toEqual(["revision_proposed"]);
-    expect(db.trip_events[0].source).toBe("system");
+    expect(db.trip_events).toEqual([]);
+    expect(db.trip_plan_revisions.filter((x) => x.kind === "proposed")).toHaveLength(1);
+  });
+  it("asking again for the same situation shows the stored suggestion: same revision, one stored copy, no matter how many times", async () => {
+    const first = (await j(await propose({ strategies: ["extend"] }))).proposals[0];
+    for (let i = 0; i < 4; i++) expect((await j(await propose({ strategies: ["extend"] }))).proposals[0].rev).toBe(first.rev);
+    expect(db.trip_plan_revisions.filter((x) => x.kind === "proposed")).toHaveLength(1);
+  });
+  it("a different question is a different suggestion: night driving, keeping a stop, or another way of dealing with it", async () => {
+    const a = (await j(await propose({ strategies: ["extend"] }))).proposals[0].rev;
+    const b = (await j(await propose({ strategies: ["extend"], night_driving: true }))).proposals[0].rev;
+    expect(b).not.toBe(a);
+    expect(db.trip_plan_revisions.filter((x) => x.kind === "proposed")).toHaveLength(2);
+  });
+  it("a changed schedule is a new situation: the old suggestion is not reused for it", async () => {
+    const a = (await j(await propose({ strategies: ["extend"] }))).proposals[0].rev;
+    db.places[0].sequence_order = 2; db.places[1].sequence_order = 1; db.places[0].day_number = 2; db.places[1].day_number = 1;
+    expect((await j(await propose({ strategies: ["extend"] }))).proposals[0].rev).not.toBe(a);
+  });
+  it("two requests at the same instant store ONE suggestion (the database's one-per-key rule decides; the loser reads the winner's)", async () => {
+    db.keyIndex = true;
+    const answers = await Promise.all([propose({ strategies: ["extend"] }), propose({ strategies: ["extend"] }), propose({ strategies: ["extend"] })]);
+    const revs = (await Promise.all(answers.map(j))).map((b) => b.proposals[0].rev);
+    expect(new Set(revs).size).toBe(1);
+    expect(db.trip_plan_revisions.filter((x) => x.kind === "proposed")).toHaveLength(1);
+  });
+  it("without the database rule (before the migration), parallel requests still all answer with the same revision", async () => {
+    db.keyIndex = false;
+    const answers = await Promise.all([propose({ strategies: ["extend"] }), propose({ strategies: ["extend"] })]);
+    const revs = (await Promise.all(answers.map(j))).map((b) => b.proposals[0].rev);
+    expect(new Set(revs).size).toBe(1);
+  });
+  it("a suggestion older than three hours is looked at fresh (the clock may have moved the answer)", async () => {
+    const a = (await j(await propose({ strategies: ["extend"] }))).proposals[0].rev;
+    const spy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 4 * 3_600_000);
+    try { expect((await j(await propose({ strategies: ["extend"] }))).proposals[0].rev).not.toBe(a); } finally { spy.mockRestore(); }
   });
   it("an infeasible option is explained but never stored, so it can never be approved", async () => {
     const body = await j(await propose({ strategies: ["keep-end"], local_date: "2026-11-03", local_time: "18:00" }));
@@ -181,7 +218,7 @@ describe("approving applies exactly the stored proposal", () => {
     expect(db.trip_plan_revisions.find((x) => x.rev === 1)).toEqual(originalBefore); // the original itinerary is forever as it was
     const approved = db.trip_plan_revisions.find((x) => x.kind === "approved")!;
     expect(approved.meta).toMatchObject({ of: rev, strategy: "extend" });
-    expect(db.trip_events.map((e) => e.kind)).toEqual(expect.arrayContaining(["revision_proposed", "revision_approved"]));
+    expect(db.trip_events.map((e) => e.kind)).toEqual(["revision_approved"]);
   });
   it("'shift' on a trip that hasn't started moves its DATES and leaves every stop on its day number", async () => {
     const { rev, proposal } = await stored("shift");

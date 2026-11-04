@@ -4,11 +4,13 @@ import { dbTime12 } from "@/lib/travel/clock";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { LiveArrival } from "./LiveArrival";
 import { LiveTolls } from "./LiveTolls";
-import { TripProgress } from "./TripProgress";
 import { VehicleSelector } from "./VehicleSelector";
 import { AlertBanners, AlertSettings } from "./AlertCenter";
 import { OutboxStatus } from "./OutboxStatus";
-import { JourneyCard } from "./JourneyCard";
+import { LiveHeader, type NextInfo } from "./live/LiveHeader";
+import { StartTripSheet } from "./live/StartTripSheet";
+import { UnplannedStopSheet } from "./live/UnplannedStopSheet";
+import { TripActivity } from "./live/TripActivity";
 import { PlanChangeCard } from "./PlanChangeCard";
 import { PendingSuggestions } from "./PendingSuggestions";
 import { ConditionsCard } from "./ConditionsCard";
@@ -24,6 +26,9 @@ import { usePlanChange } from "@/lib/client/use-plan-change";
 import { planStaleness, type PStop } from "@/lib/trip/replan-proposal";
 import { clockToMinutes } from "@/lib/travel/clock";
 import { useJourney } from "@/lib/client/use-journey";
+import { departureTiming, livePhase } from "@/lib/trip/live-phase";
+import { STOP_TYPE_INFO } from "@/lib/trip/unplanned";
+import { timeText } from "@/lib/trip/journey";
 import { INDIA_UTC_OFFSET_MIN } from "@/lib/travel/clock";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -85,6 +90,7 @@ function LiveScreen({ e }: { e: Engine }) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [mapTheme] = useMapTheme();
   const [planOpen, setPlanOpen] = useState(false);
+  const [sheet, setSheet] = useState<"start" | "unplanned" | null>(null);
   const { setUi } = e;
   useEffect(() => { if (e.ui.page !== "live") setUi({ page: "live" }); }, [e.ui.page, setUi]);
 
@@ -177,8 +183,33 @@ function LiveScreen({ e }: { e: Engine }) {
   );
   const days = Array.from({ length: trip.num_days }, (_, i) => i + 1);
 
+  // What the screen is about right now. The journey's own events stay the single authority; this only names the moment.
+  const phase = livePhase({ closed: live.closed, journey: journey.journey, approaching: !!live.arrival.approach });
+  const nextEta = nextTarget ? result?.stopEtas.find((x) => x.id === nextTarget.id) : undefined;
+  const nextDelay = delayText(nextEta?.delayMin ?? null);
+  const nextInfo: NextInfo | null = nextTarget ? {
+    name: nextTarget.name, plannedTime: nextTarget.kind === "stop" ? nextPlanned ?? null : null, distanceText: left ? kmText(left.next.km, left) : null, minutes: left ? left.next.minutes : null,
+    etaClock: nextEta?.etaClock ?? null, delay: nextDelay ? { text: nextDelay.text, tone: nextDelay.tone === "late" || nextDelay.tone === "ok" ? nextDelay.tone : "neutral" } : null,
+    after: live.remaining.filter((p) => p.id !== nextTarget.id)[0]?.name ?? null,
+  } : null;
+  const plannedDate = trip.start_date && /^\d{4}-\d{2}-\d{2}$/.test(trip.start_date) ? new Date(Date.parse(`${trip.start_date}T00:00:00Z`) + (driveDay - 1) * 86_400_000).toISOString().slice(0, 10) : null;
+  const timing = departureTiming({ plannedDate, plannedMin: trip.start_time ? clockToMinutes(trip.start_time.slice(0, 5)) : null, nowDate: live.localDate, nowMin });
+  const at = journey.journey.atPlace;
+  const atPlaceRow = at?.placeId ? places.find((p) => p.id === at.placeId) ?? null : null;
+  const atStop = at ? { name: at.name ?? atPlaceRow?.name ?? "this stop", arrivedClock: timeText(at.arrivedAt, INDIA_UTC_OFFSET_MIN), canFinish: !!atPlaceRow && (atPlaceRow.status ?? "planned") === "planned" } : null;
+  const routeText = [trip.start_city, trip.end_mode === "start" ? "back home" : trip.dest_name].filter(Boolean).join(" → ") || null;
+  const [headBusy, setHeadBusy] = useState(false);
+  const doJourney = async (kind: "paused" | "rest_started" | "resumed" | "rest_ended") => { setHeadBusy(true); await journey.record(kind, { source: journeyFix.source, accuracyM: journeyFix.source === "gps" ? journeyFix.accuracyM : undefined }); setHeadBusy(false); };
+
   return (
     <main id="main" className="mx-auto w-full max-w-7xl space-y-5 px-4 py-5 sm:px-6">
+      <LiveHeader
+        phase={phase} tripName={trip.name} route={routeText} next={nextInfo} timing={timing} stops={{ done: live.dayPlaces.filter((p) => p.status === "done").length, skipped: live.dayPlaces.filter((p) => p.status === "skipped").length, total: live.dayPlaces.length }}
+        since={journey.journey.since ? `since ${timeText(journey.journey.since, INDIA_UTC_OFFSET_MIN)}` : null} atStop={atStop} hasLocation={journeyFix.source === "gps"}
+        closedWords={trip.closed_reason === "cancelled" ? "This trip was called off." : "This trip is finished."} busy={headBusy}
+        onStart={() => setSheet("start")} onUnplanned={() => setSheet("unplanned")} onPause={() => void doJourney("paused")} onRest={() => void doJourney("rest_started")} onResume={() => void doJourney(journey.journey.state === "resting" ? "rest_ended" : "resumed")}
+        onFinishStop={() => { if (atPlaceRow) void markDone(atPlaceRow); }} onStartDrive={drive.active ? null : drive.start}
+      />
       {live.overrun && (
         <p role="status" className="rounded-xl border border-marigold/40 bg-marigold-light px-4 py-3 text-sm text-[#7a4a00]">
           <strong>Running past the planned end.</strong> This trip was planned to finish on {live.timing?.lastDate && live.localDate ? dayWithDate(live.timing.lastDate, live.localDate) : "its last day"}; you&apos;re still on Day {driveDay}, so everything below keeps working.
@@ -208,23 +239,21 @@ function LiveScreen({ e }: { e: Engine }) {
         isOwner={userId === trip.owner_id} suggested={planChange.suggested} onSuggest={(rev) => void planChange.suggest(rev)}
       />
       <PendingSuggestions pending={planChange.pending} isOwner={userId === trip.owner_id} busy={planChange.busy} error={planChange.status === "idle" ? planChange.error : null} onApprove={(rev) => void planChange.approve(rev)} onDecline={(rev) => void planChange.decline(rev)} />
+      {!planOpen && !live.closed && planChange.status === "idle" && !planChange.applied && !staleness && places.some((p) => (p.status ?? "planned") === "planned" && p.day_number !== null) && (
+        <div><Button size="sm" variant="ghost" className="min-h-11" onClick={() => setPlanOpen(true)}><Glyph name="uturn" size={15} />Rearrange the rest of my trip</Button></div>
+      )}
+      {phase === "not-started" && !live.closed && (
+        <>
+      <TravelPrefsCard prefs={travel.prefs} onChange={travel.set} />
       <ConditionsCard report={conditions.report} status={conditions.status} error={conditions.error} nowMs={live.nowMs} fuelPct={conditions.fuelPct} onFuel={conditions.setFuelPct} onRefresh={() => void conditions.refresh()} onAdjust={() => setPlanOpen(true)} closed={live.closed} drivingMin={drive.active ? drive.drivingMin : null} nowMinOfDay={nowMin} />
       {!live.closed && (
         <CommitmentsCard list={commitments.list} stored={commitments.stored} error={commitments.error} busy={commitments.busy} numDays={trip.num_days} userId={userId} isOwner={userId === trip.owner_id}
           stops={places.filter((p) => p.day_number !== null).map((p) => ({ id: p.id, name: p.name, day: p.day_number }))}
           onAdd={commitments.add} onConfirmed={commitments.setConfirmed} onRemove={commitments.remove} />
       )}
-      {!planOpen && !live.closed && planChange.status === "idle" && !planChange.applied && !staleness && places.some((p) => (p.status ?? "planned") === "planned" && p.day_number !== null) && (
-        <div><Button size="sm" variant="ghost" className="min-h-11" onClick={() => setPlanOpen(true)}><Glyph name="uturn" size={15} />Rearrange the rest of my trip</Button></div>
+        </>
       )}
-      <TravelPrefsCard prefs={travel.prefs} onChange={travel.set} />
-      <GroupProgressCard members={memberProgress(journey.events, members, userId)} offsetMin={INDIA_UTC_OFFSET_MIN} />
-      <JourneyCard journey={journey.journey} actions={journey.actions} rows={journey.rows} record={journey.record} correct={journey.correct} problem={journey.problem} fix={journeyFix} waiting={journey.pendingCount} stored={journey.stored} closed={live.closed} offsetMin={INDIA_UTC_OFFSET_MIN} unplanned={{ add: (name) => journey.record("unplanned_stop_added", { source: "manual", placeName: name }), addToPlan: journeyFix.source === "gps" && drive.me ? (name) => actions.insertStop({ name, lat: drive.me!.lat, lng: drive.me!.lng, category: null, notes: "A stop made on the way, added during the journey." }, driveDay) : null, dayLabel: `Day ${driveDay}` }} />
-      <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
       <NextBestAction advice={advice[0] ?? null} busy={busy} onAccept={(a) => void accept(a)} onKeep={keep} fallback={fallback} onStartDrive={drive.start} />
-      <TripProgress stops={live.dayPlaces.map((p) => ({ id: p.id, name: p.name, status: ((p.status ?? "planned") as "planned" | "done" | "skipped") }))} vehicle={vehicle} nextName={nextTarget?.name ?? null} nextKm={left?.next.km ?? null} nextKmText={left ? kmText(left.next.km, left) : null} />
-      <LiveTolls tolls={tolls} />
-      <TripHealthStrip health={result ? { ...result.health, weather: weatherHealth(e.weather.board) } : null} />
       {intel.mode === "preview" && result && live.localDate && live.localTime && (
         <p role="note" className="flex items-start gap-2 rounded-xl bg-sky px-3 py-2 text-sm text-ink-muted">
           <Glyph name="info" size={16} className="mt-0.5 shrink-0 text-pine" />
@@ -305,9 +334,39 @@ function LiveScreen({ e }: { e: Engine }) {
         </div>
       </div>
 
+
+      <div className="space-y-5">
+      {phase !== "not-started" && !live.closed && (
+        <>
+      <TravelPrefsCard prefs={travel.prefs} onChange={travel.set} />
+      <ConditionsCard report={conditions.report} status={conditions.status} error={conditions.error} nowMs={live.nowMs} fuelPct={conditions.fuelPct} onFuel={conditions.setFuelPct} onRefresh={() => void conditions.refresh()} onAdjust={() => setPlanOpen(true)} closed={live.closed} drivingMin={drive.active ? drive.drivingMin : null} nowMinOfDay={nowMin} />
+      {!live.closed && (
+        <CommitmentsCard list={commitments.list} stored={commitments.stored} error={commitments.error} busy={commitments.busy} numDays={trip.num_days} userId={userId} isOwner={userId === trip.owner_id}
+          stops={places.filter((p) => p.day_number !== null).map((p) => ({ id: p.id, name: p.name, day: p.day_number }))}
+          onAdd={commitments.add} onConfirmed={commitments.setConfirmed} onRemove={commitments.remove} />
+      )}
+        </>
+      )}
+      <GroupProgressCard members={memberProgress(journey.events, members, userId)} offsetMin={INDIA_UTC_OFFSET_MIN} />
+      <TripActivity rows={journey.rows} correct={journey.correct} problem={journey.problem} waiting={journey.pendingCount} stored={journey.stored} ignored={journey.journey.ignored.length} offsetMin={INDIA_UTC_OFFSET_MIN} />
+      <VehicleSelector value={vehicle} onChange={(v) => { setVehicle(v); if (live.navigation.phase !== "idle") window.setTimeout(live.navigation.retry, 0); /* a different vehicle means a different route */ }} />
+      <LiveTolls tolls={tolls} />
+      <TripHealthStrip health={result ? { ...result.health, weather: weatherHealth(e.weather.board) } : null} />
+      </div>
+
       <AlertBanners alerts={alerts.active} onDismiss={alerts.dismiss} onAction={alerts.act} />
       <OutboxStatus outbox={visits.outbox} />
       <LiveArrival live={live} vehicle={vehicle} failed={visits.failed} onClearFailed={visits.clearFailed} />
+
+      {sheet === "start" && (
+        <StartTripSheet from={live.startedFrom?.label ?? trip.start_city ?? null} timing={timing} hasLocation={journeyFix.source === "gps"} onClose={() => setSheet(null)}
+          onConfirm={async () => { const r = await journey.record("departed", journeyFix); if (r !== "failed" && !drive.active) drive.start(); return r; }} />
+      )}
+      {sheet === "unplanned" && (
+        <UnplannedStopSheet near={journeyFix.source === "gps" && drive.me ? { lat: drive.me.lat, lng: drive.me.lng } : null} dayLabel={`Day ${driveDay}`} onClose={() => setSheet(null)}
+          record={(p) => journey.record("unplanned_stop_added", { source: "manual", placeName: p.name, meta: { category: p.type } })}
+          addToPlan={(p) => actions.insertStop({ name: p.name, lat: p.lat, lng: p.lng, category: STOP_TYPE_INFO[p.type].plan, notes: "A stop made on the way, added during the journey." }, driveDay)} />
+      )}
 
       {askFor && <QuickReport place={askFor} onClose={() => setAskFor(null)} />}
       <UndoToast undo={actions.undo} busy={actions.replanning} onUndo={() => void actions.runUndo().then(() => intel.refresh())} onDismiss={actions.dismissUndo} />

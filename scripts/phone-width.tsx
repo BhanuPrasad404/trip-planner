@@ -28,7 +28,8 @@ import { EXAMPLES } from "@/lib/result/examples";
 import { exampleDraft } from "@/lib/result/example-draft";
 import { PlaceHoursView } from "@/components/place/PlaceHours";
 import { AppNav } from "@/components/shell/AppNav";
-import { JourneyCard } from "@/components/JourneyCard";
+import { LiveHeader } from "@/components/live/LiveHeader";
+import { TripActivity } from "@/components/live/TripActivity";
 import { PlanChangeCard } from "@/components/PlanChangeCard";
 import { ConditionsCard } from "@/components/ConditionsCard";
 import { PendingSuggestions } from "@/components/PendingSuggestions";
@@ -42,7 +43,8 @@ import { ArrivalCard } from "@/components/ArrivalCard";
 import { ExploreView } from "@/components/ExploreView";
 import { ExploreHero } from "@/components/explore/Hero";
 import { ExploreCard } from "@/components/explore/ExploreCard";
-import { PickCard } from "@/components/explore/BestInMonth";
+import { PickCard, PickRow } from "@/components/explore/BestInMonth";
+import { MoodTiles } from "@/components/explore/MoodTiles";
 import { buildTimeline, deriveJourney, allowedActions, type JourneyEvent } from "@/lib/trip/journey";
 import { rankAttractions } from "@/lib/place-intel/attractions";
 import { placeRole } from "@/lib/place-intel/role";
@@ -113,7 +115,7 @@ const journeyEvents: JourneyEvent[] = [
 ];
 const journeyNow = deriveJourney(journeyEvents);
 const journeyRows = buildTimeline(journeyEvents, { offsetMin: 330, me: "u1", nowMs: Date.parse("2026-11-03T05:00:00Z"), pending: [JE("pend", "resumed", "2026-11-03T04:30:00Z")] });
-const journeyProps = { correct: async () => undefined, journey: journeyNow, actions: allowedActions(journeyNow.state), rows: journeyRows, record: async () => "saved" as const, fix: { source: "manual" as const }, waiting: 1, stored: true as boolean | null, closed: false, offsetMin: 330 };
+const liveHeadProps = { tripName: "Home - vizag and a very long trip name", route: "Visakhapatnam → Hyderabad via Vijayawada", next: { name: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada", plannedTime: "9:00 AM", distanceText: "142 km", minutes: 155, etaClock: "11:40 AM", delay: { text: "25 min late", tone: "late" as const }, after: "Undavalli Caves" }, timing: { kind: "unknown" as const, minutes: 0, text: "" }, stops: { done: 1, skipped: 0, total: 5 }, since: null as string | null, atStop: null as null | { name: string; arrivedClock: string | null; canFinish: boolean }, hasLocation: true, closedWords: null as string | null, busy: false, onStart: noop, onUnplanned: noop, onPause: noop, onRest: noop, onResume: noop, onFinishStop: noop };
 
 // Plan-change screens: the calm nudge, and the options with long names, every list filled (changes, removals, bookings, risks, doubts).
 const pcLong = "Kanaka Durga Temple on Indrakeeladri Hill and the very long name of a place, Vijayawada";
@@ -152,8 +154,12 @@ export const pages: Record<string, string> = {
   "plan-change-nudge": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PlanChangeCard, { ...pcBase, staleness: { kind: "late-departure", minutesLate: 605, firstStop: pcLong } }))),
   "plan-change-options": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PlanChangeCard, { ...pcBase, status: "ready", forceOpen: true, nightDriving: true, answer: pcAnswer as never, initiallyOpen: 7, staleness: { kind: "missed-day", missedDays: 2, firstDay: 1 } }))),
   "plan-change-applied": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(PlanChangeCard, { ...pcBase, applied: { rev: 9, label: "Keep the original end date", changed: 4 } }))),
-  "journey-card": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(JourneyCard, journeyProps))).replace("<details", "<details open"),
-  "journey-card-open": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(JourneyCard, { ...journeyProps, journey: deriveJourney([]), actions: ["departed"], rows: [], waiting: 0, stored: false }))),
+  // The Live screen: the header in each moment (long names, every button), and the activity diary open.
+  "live-header-start": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(LiveHeader, { ...liveHeadProps, phase: "not-started", hasLocation: false, timing: { kind: "late", minutes: 190, text: "It's 3 h 10 min past your planned 6:30 AM departure." } }))),
+  "live-header-road": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(LiveHeader, { ...liveHeadProps, phase: "travelling", since: "since 9:44 AM" }))),
+  "live-header-stop": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(LiveHeader, { ...liveHeadProps, phase: "at-stop", atStop: { name: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada", arrivedClock: "2:07 AM", canFinish: true } }))),
+  "live-header-rest": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(LiveHeader, { ...liveHeadProps, phase: "resting", since: "since 9:44 PM" }))),
+  "trip-activity": renderToStaticMarkup(h("main", { id: "main", className: "px-4 py-5" }, h(TripActivity, { rows: journeyRows, correct: async () => undefined, waiting: 1, stored: true, ignored: 1, offsetMin: 330 }))),
   "arrival-prompt": renderToStaticMarkup(h(ArrivalCard, { prompt: { name: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada", distanceM: 1180, accuracyM: 80, area: true }, unsure: null, done: null, progress: null, next: null, busy: false, onConfirm: noop, onComplete: noop, onPassing: noop, onExplore: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null })),
   "arrival-arrived": renderToStaticMarkup(h(ArrivalCard, { prompt: null, unsure: null, done: { name: "Kanaka Durga Temple on Indrakeeladri Hill, Vijayawada", queued: true, earlier: [], stage: "arrived", arrivedAt: Date.parse("2026-11-02T20:37:00Z") }, progress: null, next: null, busy: false, onConfirm: noop, onComplete: noop, onPassing: noop, onExplore: noop, onDismiss: noop, onConfirmUnsure: noop, onDismissUnsure: noop, onUndo: noop, onSkipEarlier: noop, onKeepEarlier: noop, onClose: noop, onNavigate: null })),
   "app-shell": renderToStaticMarkup(withRouter(shell(h("main", { className: "mx-auto w-full max-w-3xl space-y-4 px-4 py-5" },
@@ -181,7 +187,12 @@ export const pages: Record<string, string> = {
   "explore-cards": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6" }, h("ul", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" },
     h(ExploreCard, { item: { id: "wd:Q1", name: "Sri Venkateswara Swamy Vari Devasthanam and a very long name", category: "temple", lat: 17, lng: 78, notable: true, heritage: true, hours: null, website: null, wikipedia: null, wikidata: "Q1", photo: null, km: 12 }, season: null, saved: true, onToggleSave: noop, added: false, onAdd: noop, onAddStop: noop, reasons: ["4.2 km off your route, about 15 min extra by road"], community: { text: "3 traveller reports · latest yesterday", fresh: "new" }, onCommunity: noop }),
     h(PickCard, { pick: { item: { id: "wd:Q2", name: "Araku Valley and the hills around it", category: "viewpoint", lat: 18, lng: 82, notable: true, heritage: false, hours: null, website: null, wikipedia: null, wikidata: "Q2", photo: null }, fit: { verdict: "great", score: 100, why: "Usually 27 °C by day, rain on about 5% of days — clear, cool days" }, researched: { reason: "Cool and misty from October to February.", source: "example.org" }, km: 112 }, month: 11, tripId: "t", saved: { places: [], ready: true, error: null, loadFailed: false, isSaved: () => false, toggle: async () => undefined } as never, added: new Set<string>(), addIdea: async () => undefined, regionName: null }))))),
-  control: renderToStaticMarkup(h("main", { className: "mx-auto w-full px-4" }, h("ol", { className: "flex gap-1.5 overflow-x-auto" },
+  // The bug of 4 Nov 2026: cards in a swipe row carry screen-reader text; in a row that was not positioned it escaped to the far end of the
+  // scrolled content and made the whole page ~1400 px wide (a phone zoomed the app out). Real cards, six of them, in the real row.
+  "explore-swipe-row": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6" },
+    h(MoodTiles, { value: "all", onPick: noop }),
+    h("section", { className: "overflow-hidden rounded-[2rem] bg-pine p-5 text-white" }, h(PickRow, null, ...Array.from({ length: 6 }, (_, i) => h(PickCard, { key: i, pick: { item: { id: `wd:Q${i}`, name: `Araku Valley and the hills around it ${i}`, category: "viewpoint", lat: 18, lng: 82, notable: true, heritage: false, hours: null, website: null, wikipedia: null, wikidata: `Q${i}`, photo: null }, fit: { verdict: "great", score: 100, why: "Usually 27 °C by day, rain on about 5% of days — clear, cool days" }, researched: null, km: 80 + i }, month: 11, tripId: "t", saved: { places: [], ready: true, error: null, loadFailed: false, isSaved: () => false, toggle: async () => undefined } as never, added: new Set<string>(), addIdea: async () => undefined, regionName: null }))))))),
+  control: renderToStaticMarkup(h("main", { className: "mx-auto w-full px-4" }, h("ol", { className: "flex gap-1.5 overflow-x-auto", style: { position: "static" } },
     ...Array.from({ length: 12 }, (_, i) => h("li", { key: i, className: "w-14 shrink-0" }, `${i}h`, h("span", { className: "sr-only" }, `hour ${i} details`)))))),
   addplace: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },
     h(AddPlaceForm, { tripId: "t", dayNumber: 1, near: HYD, onAdded: noop, onCancel: noop } as never))),

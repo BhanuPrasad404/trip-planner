@@ -92,7 +92,7 @@ describe("every route has an instant loading screen with exactly one announcemen
       const h = html(el());
       expect(h).toContain('aria-busy="true"');
       expect((h.match(/role="status"/g) ?? []).length).toBe(1);
-      expect(h).toMatch(/tm-skeleton|tm-mark-trail|tm-roadload/);
+      expect(h).toMatch(/tm-skeleton|tm-mark-trail|tm-splash/);
     });
   }
 });
@@ -112,12 +112,18 @@ describe("the opening screen (AppLoader)", () => {
     }
   });
   it("moves only when motion is welcome: every animated part is still for reduced motion", () => {
-    for (const c of ["tm-roadload-sun", "tm-roadload-line", "tm-roadload-name"]) {
-      expect(css).toMatch(new RegExp(`\\.${c} \\{ animation:`));
+    for (const c of ["tm-splash-sun", "tm-splash-hills", "tm-splash-dot", "tm-splash-name", "tm-splash-ring"]) {
+      expect(css).toMatch(new RegExp(`\.${c} \{[^}]*animation:`));
       expect(css).toMatch(new RegExp(`prefers-reduced-motion: reduce\\) \\{[^}]*\\.${c}`));
     }
   });
   it("is the root loading screen", () => {
-    expect(html(<RootLoading />)).toContain("tm-roadload");
+    expect(html(<RootLoading />)).toContain("tm-splash");
+  });
+  it("fills the whole screen in the brand's marigold yellow (the same colour as the phone's own splash), with the mark and the name in the middle", () => {
+    const h = html(<AppLoader />);
+    expect(h).toContain("fixed inset-0"); expect(h).toContain("bg-marigold"); expect(h).toContain("TrailMate"); expect(h).toContain("Plan · Ride · Explore");
+    expect((h.match(/tm-splash-dot/g) ?? []).length).toBe(7);               // the dotted trail, laid one dot at a time
+    expect(readFileSync(new URL("../lib/pwa.tsx", import.meta.url), "utf8")).toContain('PWA_BACKGROUND = "#e8a33d"');
   });
 });

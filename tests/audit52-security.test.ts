@@ -99,6 +99,10 @@ describe("every API route authenticates (or is secret-gated)", () => {
   // Public ON PURPOSE: the connectivity probe has to work with no sign-in (and when the session service itself is unreachable). It is only
   // allowed to stay public while it is provably inert: no imports at all (so no database, no secrets, no user data), a 204, never cached.
   const PUBLIC_BY_DESIGN = new Set(["ping/route.ts"]);
+  // Public ON PURPOSE and safe because it takes NO input: the landing page's photos. Its list of places is fixed in code, so a visitor can
+  // neither choose what is looked up nor read anything private. Allowed only while it stays that way: no request object, no cookies,
+  // headers, database or secrets, and an edge-cacheable answer.
+  const PUBLIC_FIXED_ANSWER = new Set(["landing-photos/route.ts"]);
   // Open to signed-out visitors ON PURPOSE (trip creation, phase 1: "search and reverse lookup must also work for guests, limited per
   // visitor"). Each must identify the visitor (signed-in user, or a hashed random cookie + hashed network), apply the per-minute limit,
   // validate its input, set the visitor cookie, and never use the service-role key itself (guest daily limits go through
@@ -112,6 +116,12 @@ describe("every API route authenticates (or is secret-gated)", () => {
       expect(src).toMatch(/parseBody\(req, (?:place|intake|group)[A-Za-z]+Schema\)/);
       expect(src).toContain("rememberVisitor(");
       expect(/supabase\/admin|SERVICE_ROLE|createAdminClient/.test(src)).toBe(false);
+      return;
+    }
+    if (PUBLIC_FIXED_ANSWER.has(n)) {
+      expect(/export async function GET\(\)/.test(src), "takes no request at all").toBe(true);
+      expect(/(req|request)|cookies\(|headers\(|supabase|process\.env|SERVICE_ROLE|searchParams|\.json\(\)\s*\)?\s*;?\s*$/m.test(src.replace(/\/\/.*$/gm, ""))).toBe(false);
+      expect(src).toContain("s-maxage"); expect(src).toContain("DESTINATIONS");
       return;
     }
     if (PUBLIC_BY_DESIGN.has(n)) {

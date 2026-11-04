@@ -16,6 +16,7 @@ import { plannerCategory } from "@/lib/explore/glyph";
 import { VERDICT_WORD, type SeasonPick } from "@/lib/explore/season-picks";
 import { REGIONS, regionByCode } from "@/lib/explore/regions";
 import { googleMapsPlace } from "@/lib/maps-links";
+import { AboutPlace } from "@/components/place/AboutPlace";
 
 type Saved = ReturnType<typeof useSavedPlaces>;
 type Anchor = { id: string; label: string; lat: number; lng: number };
@@ -140,6 +141,7 @@ export function PickCard({ pick, photo, month, tripId, saved, added, addIdea, re
         {researched?.reason && <p className="mt-1 text-sm text-ink-muted">{researched.reason}{researched.source && <span className="block text-xs">Source: {researched.source}</span>}</p>}
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
           {tripId && (added.has(item.id) ? <span className="inline-flex min-h-11 items-center gap-1.5 px-1 text-sm font-semibold text-teal-ink"><Glyph name="check" size={16} />Added to Ideas</span> : <button type="button" onClick={() => void addIdea({ key: item.id, name: item.name, lat: item.lat, lng: item.lng, category: plannerCategory(item.category) })} className="inline-flex min-h-11 items-center justify-center rounded-full border border-pine bg-pine px-4 text-sm font-semibold text-white hover:opacity-90">Add to my ideas<span className="sr-only">: {item.name}</span></button>)}
+          <AboutPlace place={{ name: item.name, lat: item.lat, lng: item.lng, category: item.category, wikipedia: item.wikipedia, wikidata: item.wikidata, heritage: item.heritage, hours: item.hours, website: item.website }} className={ghost} label="About" />
           <a href={googleMapsPlace(item)} target="_blank" rel="noopener noreferrer" className={ghost}>Map<span className="sr-only"> of {item.name} (opens in a new tab)</span></a>
         </div>
       </div>

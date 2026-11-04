@@ -565,6 +565,16 @@ export const pulseSchema = z.object({
   include_photos: z.boolean().default(false),
 });
 
+/** "About this place": one place, by name and position, with its own Wikipedia / Wikidata link when the map has one. */
+export const placeAboutSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  lat: latitude,
+  lng: longitude,
+  wikipedia: z.string().trim().max(300).nullish().transform((v) => v || null),
+  wikidata: z.string().trim().regex(/^Q\d{1,12}$/, "Not a Wikidata id").nullish().transform((v) => v || null),
+  category: z.string().trim().max(20).nullish().transform((v) => v || null),
+});
+
 /** Real photos for a batch of places (a review list, a builder preview). Only places we could locate are asked about. */
 export const placePhotosSchema = z.object({
   places: z.array(z.object({

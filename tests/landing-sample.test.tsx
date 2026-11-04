@@ -76,7 +76,8 @@ describe("the card", () => {
     const card = html.slice(html.indexOf("Example route"), html.indexOf("Example from our researched season data"));
     expect(card).not.toMatch(/\b\d{1,2}:\d{2}\b/); // no clock times
     expect(card).not.toMatch(/\d\s?km\b/); // no distances
-    for (const old of ["Tiger&#x27;s Leap", "Kalu Waterfall", "Della Adventure Park", "Maharashtra"]) expect(html).not.toContain(old);
+    for (const old of ["Tiger&#x27;s Leap", "Kalu Waterfall", "Della Adventure Park"]) expect(html).not.toContain(old);
+    expect(card).not.toContain("Maharashtra"); // the sample route itself holds only researched Andhra Pradesh and Telangana places
   });
 
   it("the source code no longer hard-codes stops on the landing page", () => {

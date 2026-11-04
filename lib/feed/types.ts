@@ -17,6 +17,7 @@ export type FeedCandidate = {
   authorId: string;
   username: string;
   displayName: string | null;
+  avatarPath?: string | null;
   destinationId: string;
   destinationName: string;
   destinationSlug: string;

@@ -8,7 +8,7 @@ import type { BadgeDTO } from "@/lib/social/standing";
 /** One row of feed_items()/feed_candidates(). */
 export type FeedRow = {
   pools?: string[] | null;
-  id: string; author_id: string; username: string; display_name: string | null;
+  id: string; author_id: string; username: string; display_name: string | null; avatar_path?: string | null;
   destination_id: string; destination_name: string; destination_slug: string; destination_posts: number;
   kind: string; caption: string | null; place_name: string; lat: number; lng: number; location_precision: string;
   captured_at: string; created_at: string; comments_allowed: string; duration_s: number | string | null;
@@ -23,7 +23,7 @@ const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n
 export function rowToCandidate(r: FeedRow): FeedCandidate | null {
   if (!KINDS.includes(r.kind as PostKind) || !r.id || !r.destination_id) return null;   // a malformed row never reaches the ranker
   return {
-    id: r.id, authorId: r.author_id, username: r.username, displayName: r.display_name,
+    id: r.id, authorId: r.author_id, username: r.username, displayName: r.display_name, avatarPath: r.avatar_path ?? null,
     destinationId: r.destination_id, destinationName: r.destination_name, destinationSlug: r.destination_slug, destinationPosts: num(r.destination_posts),
     kind: r.kind as PostKind, caption: r.caption, placeName: r.place_name, lat: num(r.lat), lng: num(r.lng),
     locationPrecision: r.location_precision === "exact" ? "exact" : "approx",
@@ -49,7 +49,7 @@ export type FeedItemDTO = {
   placeName: string;
   destination: { id: string; name: string; slug: string };
   /** `badge`: what the author earned by helping other travelers (absent when they have not yet, or it could not be read). */
-  author: { username: string; displayName: string | null; badge?: BadgeDTO | null; /** The viewer follows this traveler (accepted). */ followed?: boolean };
+  author: { username: string; displayName: string | null; /** Their profile picture (a storage path), when they set one. */ avatarPath?: string | null; badge?: BadgeDTO | null; /** The viewer follows this traveler (accepted). */ followed?: boolean };
   media: MediaDTO[];
   counts: { likes: number; comments: number; saves: number; helpful: number; tripAdds: number };
   me: { liked: boolean; saved: boolean; helped: boolean };
@@ -69,7 +69,7 @@ export function toItem(c: FeedCandidate, media: MediaDTO[], opts: { now: Date; v
   return {
     id: c.id, kind: c.kind, caption: c.caption, placeName: c.placeName,
     destination: { id: c.destinationId, name: c.destinationName, slug: c.destinationSlug },
-    author: { username: c.username, displayName: c.displayName, followed: c.followed, ...(opts.badge ? { badge: opts.badge } : {}) },
+    author: { username: c.username, displayName: c.displayName, ...(c.avatarPath ? { avatarPath: c.avatarPath } : {}), followed: c.followed, ...(opts.badge ? { badge: opts.badge } : {}) },
     media,
     counts: { likes: c.counters.likes, comments: c.counters.comments, saves: c.counters.saves, helpful: c.counters.helpful, tripAdds: c.counters.tripAdds },
     me: { liked: c.liked, saved: c.saved, helped: c.helped },

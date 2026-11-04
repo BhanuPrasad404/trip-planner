@@ -20,7 +20,11 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 36, color: "#E8A33D" }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: "#E8A33D" }} />
+          <svg width="64" height="64" viewBox="0 0 26 26">
+            <circle cx="13" cy="13" r="13" fill="#E8A33D" />
+            <path d="M5 18.5l4.6-6.2 2.6 3.2 3-5.4 5.8 8.4z" fill="#0B3D3A" />
+            <path d="M6 20.5c3-1.2 6-.3 9-1.4 2-.7 3.6-.6 5-1.1" stroke="#0B3D3A" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="0.1 2.4" fill="none" />
+          </svg>
           Trailmate
         </div>
         <div style={{ marginTop: 40, fontSize: 84, lineHeight: 1.05, fontWeight: 700, maxWidth: 950 }}>

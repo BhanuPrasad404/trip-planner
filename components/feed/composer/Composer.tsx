@@ -10,6 +10,8 @@ import { blocker, capturedAtFor, canAddMore, postKindFor, STEPS, type ComposeSte
 import { MEDIA_LIMITS, POST_MEDIA_BUCKET } from "@/lib/social/media";
 import { createClient } from "@/lib/supabase/client";
 import { BackIcon, CloseIcon } from "../icons";
+import { Logo } from "@/components/Logo";
+import { Glyph } from "@/components/ui/Glyph";
 import { currentPosition } from "@/lib/client/position";
 import { type CrowdLevel } from "@/lib/feed/experience";
 import { CameraCapture } from "./CameraCapture";
@@ -21,7 +23,7 @@ import { PostPreview } from "./PostPreview";
 import type { ComposerItem, Uploaded } from "./types";
 
 const TITLES: Record<ComposeStep, { title: string; hint: string }> = {
-  media: { title: "Add photos or a video", hint: "Real, recent and honest is what helps most." },
+  media: { title: "Capture the journey.", hint: "Share the places, moments and conditions that matter." },
   place: { title: "Where was this?", hint: "So it shows up for people planning that trip." },
   details: { title: "Tell travelers more", hint: "A line or two is plenty." },
 };
@@ -200,7 +202,7 @@ export function Composer({ hasProfile, onClose, onPosted }: { hasProfile: boolea
         onDragLeave={(e) => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
         onDrop={(e) => { e.preventDefault(); setDragging(false); if (step === "media") void addFiles(e.dataTransfer.files); }}
         onPaste={(e) => { const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (files.length && step === "media") { e.preventDefault(); void addFiles(files); } }}
-        className="relative flex h-full w-full flex-col overflow-hidden bg-white outline-none md:h-[min(90dvh,780px)] md:max-w-[56rem] md:flex-row md:rounded-[32px] md:shadow-2xl">
+        className="relative flex h-full w-full flex-col overflow-hidden bg-background outline-none md:h-[min(90dvh,780px)] md:max-w-[56rem] md:flex-row md:rounded-[32px] md:shadow-2xl">
 
         {/* ── live preview (wide screens) ─────────────────────── */}
         <aside className="relative hidden w-[21rem] shrink-0 flex-col items-center justify-center gap-4 overflow-hidden bg-gradient-to-b from-pine via-[#0e3a37] to-[#0a2625] p-6 md:flex">
@@ -214,19 +216,26 @@ export function Composer({ hasProfile, onClose, onPosted }: { hasProfile: boolea
 
         {/* ── the flow ───────────────────────────────────────── */}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="shrink-0 px-5 pb-3 pt-4 md:px-7 md:pt-6">
-            <div className="flex items-center gap-2" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={stepIndex + 1} aria-label={`Step ${stepIndex + 1} of ${STEPS.length}`}>
-              {STEPS.map((s, i) => <span key={s.id} className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${i <= stepIndex || phase === "done" ? "bg-teal" : "bg-line"}`} />)}
+          <header className="shrink-0 px-5 pb-2 pt-4 md:px-7 md:pt-6">
+            <div className="flex items-center justify-between gap-3">
+              {stepIndex > 0 && phase === "edit"
+                ? <button type="button" onClick={() => setStep(STEPS[stepIndex - 1].id)} aria-label="Back" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-pine shadow-card ring-1 ring-line transition active:scale-90"><BackIcon size={22} /></button>
+                : <span aria-hidden="true" className="h-11 w-11 shrink-0" />}
+              <Logo />
+              <button type="button" onClick={requestClose} disabled={phase === "uploading"} aria-label="Close" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-pine shadow-card ring-1 ring-line transition active:scale-90 disabled:opacity-40"><CloseIcon size={22} /></button>
             </div>
-            <div className="mt-4 flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-2">
-                {stepIndex > 0 && phase === "edit" && <button type="button" onClick={() => setStep(STEPS[stepIndex - 1].id)} aria-label="Back" className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-sky"><BackIcon size={22} /></button>}
-                <div className="min-w-0">
-                  <h2 id="composer-title" className="font-display text-2xl font-semibold leading-tight text-pine md:text-[1.7rem]">{phase === "done" ? "Shared" : phase === "uploading" ? "Sharing…" : TITLES[step].title}</h2>
-                  {phase === "edit" && <p className="mt-0.5 text-sm text-ink-muted">{TITLES[step].hint}</p>}
+            {/* Where you are: filled dots joined by a line that fills as you go */}
+            <div className="mx-auto mt-5 flex max-w-xs items-center" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={stepIndex + 1} aria-label={`Step ${stepIndex + 1} of ${STEPS.length}`}>
+              {STEPS.map((st, i) => (
+                <div key={st.id} className={`flex items-center ${i < STEPS.length - 1 ? "flex-1" : ""}`}>
+                  <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 transition-all duration-300 ${i < stepIndex || phase === "done" ? "border-teal bg-teal" : i === stepIndex ? "border-teal bg-white ring-4 ring-teal/20" : "border-line bg-white"}`} />
+                  {i < STEPS.length - 1 && <span className="mx-1 h-0.5 flex-1 overflow-hidden rounded-full bg-line"><span className={`block h-full bg-teal transition-all duration-500 ${i < stepIndex || phase === "done" ? "w-full" : "w-0"}`} /></span>}
                 </div>
-              </div>
-              <button type="button" onClick={requestClose} disabled={phase === "uploading"} aria-label="Close" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-sky disabled:opacity-40"><CloseIcon size={22} /></button>
+              ))}
+            </div>
+            <div className="mt-5 min-w-0">
+              <h2 id="composer-title" className="font-display text-[2rem] font-semibold leading-[1.1] text-pine md:text-4xl">{phase === "done" ? "Shared" : phase === "uploading" ? "Sharing…" : TITLES[step].title}</h2>
+              {phase === "edit" && <p className="mt-1.5 text-base text-ink">{TITLES[step].hint}<svg aria-hidden="true" viewBox="0 0 80 8" className="mt-1 block h-2 w-20 text-marigold"><path d="M2 5c14-5 24-5 38-1s26 1 38-2" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg></p>}
             </div>
             <p className="sr-only" aria-live="polite">{phase === "edit" ? `Step ${stepIndex + 1} of ${STEPS.length}: ${TITLES[step].title}` : ""}</p>
           </header>
@@ -280,19 +289,18 @@ export function Composer({ hasProfile, onClose, onPosted }: { hasProfile: boolea
           </div>
 
           {phase === "edit" && (
-            <footer className="shrink-0 border-t border-line bg-white px-5 py-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:px-7">
+            <footer className="shrink-0 bg-background/95 px-5 py-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:px-7">
               {error && (
                 <p role="alert" className="mb-3 rounded-2xl bg-clay-light px-4 py-2.5 text-sm text-clay-ink">
                   {error.message} {error.needsProfile && <Link href="/profile" className="font-semibold underline">Open profile</Link>}
                 </p>
               )}
-              <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 flex-1 text-xs text-ink-muted" aria-live="polite">{stop ?? (step === "details" ? "Ready to share" : "Looks good")}</p>
-                <button type="button" onClick={next} disabled={stop !== null}
-                  className={`min-h-12 shrink-0 rounded-full px-8 text-sm font-semibold shadow-sm transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${step === "details" ? "bg-marigold text-pine" : "bg-teal text-white"}`}>
-                  {step === "details" ? (error ? "Try again" : "Share") : "Continue"}
-                </button>
-              </div>
+              <p className="mb-2 text-center text-xs text-ink-muted" aria-live="polite">{stop ?? (step === "details" ? "Ready to share" : "Looks good")}</p>
+              <button type="button" onClick={next} disabled={stop !== null}
+                className={`group relative isolate flex min-h-14 w-full items-center justify-center gap-3 overflow-hidden rounded-full text-lg font-semibold shadow-float transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${step === "details" ? "bg-marigold text-pine" : "bg-gradient-to-r from-pine via-pine to-teal text-white"}`}>
+                <svg aria-hidden="true" viewBox="0 0 400 60" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-full w-full opacity-30"><path d="M0 60V38c40-18 70-14 110 2 40-24 90-26 130-4 40-14 100-8 160 12v12z" fill={step === "details" ? "var(--marigold-deep)" : "var(--teal)"} /></svg>
+                {step === "details" ? (error ? "Try again" : "Share") : "Continue"}<Glyph name="arrow" size={20} className="transition-transform group-hover:translate-x-1" />
+              </button>
             </footer>
           )}
         </section>

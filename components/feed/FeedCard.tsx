@@ -58,7 +58,7 @@ export function FeedCard(p: CardProps) {
     <article data-post-id={item.id} aria-posinset={p.index + 1} aria-setsize={-1} aria-label={`${item.destination.name}, post by ${item.author.username}`}
       className="overflow-hidden border-y border-line bg-white sm:rounded-3xl sm:border sm:shadow-sm">
       <header className="flex items-center gap-3 px-3 py-3">
-        <Link href={travelerPath(item.author.username)} aria-label={`@${item.author.username}'s profile`} className="shrink-0 rounded-full"><Avatar username={item.author.username} displayName={item.author.displayName} /></Link>
+        <Link href={travelerPath(item.author.username)} aria-label={`@${item.author.username}'s profile`} className="shrink-0 rounded-full"><Avatar username={item.author.username} displayName={item.author.displayName} avatarPath={item.author.avatarPath} /></Link>
         <div className="min-w-0 flex-1">
           <h2 className="flex min-w-0 items-center gap-2 font-display text-lg font-semibold leading-tight text-pine">
             <button type="button" onClick={p.onDestination} aria-label={`What is it like at ${item.destination.name} right now?`} className="min-w-0 truncate text-left">{item.destination.name}</button>

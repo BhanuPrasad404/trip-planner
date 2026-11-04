@@ -18,12 +18,12 @@ async function getUserSafe() {
   }
 }
 
-export async function SiteHeader({ tone = "light" }: { tone?: "light" | "dark" }) {
+export async function SiteHeader({ tone = "light" }: { tone?: "light" | "dark" | "ink" }) {
   const user = await getUserSafe();
-  const dark = tone === "dark";
+  const dark = tone === "dark" || tone === "ink";
 
   return (
-    <header className={dark ? "bg-pine text-white" : "bg-transparent text-pine"}>
+    <header className={tone === "ink" ? "bg-ink text-white" : dark ? "bg-pine text-white" : "bg-transparent text-pine"}>
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href={user ? "/trips" : "/"} aria-label="Trailmate home" className="rounded-lg">
           <Logo />

@@ -117,13 +117,13 @@ describe("Share flow", () => {
   it("opens on step 1 as a proper dialog: clear title, drop zone, privacy promise, a disabled Continue that says why", () => {
     const html = renderToStaticMarkup(<Composer hasProfile onClose={noop} onPosted={noop} />);
     expect(html).toContain('role="dialog"');
-    expect(html).toContain("Add photos or a video");
-    expect(html).toContain("Show what it looks like");
-    expect(html).toContain("Upload from device");
+    expect(html).toContain("Capture the journey."); expect(html).toContain("Share the places, moments and conditions that matter.");
+    expect(html).toContain("Add photos or a video"); expect(html).toContain("Drag &amp; drop, or choose from below");
+    expect(html).toContain("Choose from gallery");
     expect(html).toContain("Your location stays private");
     expect(html).toContain("Live preview");
     expect(html).toContain('aria-valuenow="1"');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Continue<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?Continue/);
     expect(html).toContain("Add a photo or video");                          // the reason, in plain words
     expect(html).toContain("Share a written condition report instead");
   });
@@ -158,18 +158,19 @@ describe("Share flow", () => {
 import { CameraCapture } from "@/components/feed/composer/CameraCapture";
 describe("Camera", () => {
   const empty = (support: { photo: boolean; video: boolean }) => renderToStaticMarkup(<MediaStep items={[]} dragging={false} busy={false} onFiles={noop} onRemove={noop} onMakeCover={noop} onWrittenOnly={noop} cameraSupport={support} onCamera={noop} />);
-  it("offers Take photo, Record video and Upload from device side by side when the browser has a camera", () => {
+  it("offers Take a photo, Record a video and Choose from gallery as three big rows when the browser has a camera", () => {
     const html = empty({ photo: true, video: true });
-    expect(html).toContain("Take photo"); expect(html).toContain("Record video"); expect(html).toContain("Upload from device");
+    expect(html).toContain("Take a photo"); expect(html).toContain("Record a video"); expect(html).toContain("Choose from gallery");
+    expect(html).toContain("Capture the moment directly."); expect(html).toContain("Share up to"); expect(html).toContain("Upload existing travel memories.");
     expect(html).toContain("recorded or uploaded");
   });
   it("without camera support, upload is still there and there is no dead 'Record video' button", () => {
     const html = empty({ photo: false, video: false });
-    expect(html).toContain("Upload from device"); expect(html).not.toContain("Record video");
+    expect(html).toContain("Choose from gallery"); expect(html).not.toContain("Record a video");
   });
   it("a browser that can take photos but not record video says so by simply not offering recording", () => {
     const html = empty({ photo: true, video: false });
-    expect(html).toContain("Take photo"); expect(html).not.toContain("Record video");
+    expect(html).toContain("Take a photo"); expect(html).not.toContain("Record a video");
   });
   it("opens as a labelled full-screen dialog that tells you it is starting, with a close button", () => {
     const video = renderToStaticMarkup(<CameraCapture initialMode="video" onUse={noop} onClose={noop} onUpload={noop} />);

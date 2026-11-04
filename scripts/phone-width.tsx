@@ -45,6 +45,13 @@ import { ExploreHero } from "@/components/explore/Hero";
 import { ExploreCard } from "@/components/explore/ExploreCard";
 import { PickCard, PickRow } from "@/components/explore/BestInMonth";
 import { MoodTiles } from "@/components/explore/MoodTiles";
+import { LandingBody } from "@/components/landing/LandingBody";
+import { TripsGrid } from "@/components/trips/TripsGrid";
+import { Composer } from "@/components/feed/composer/Composer";
+import { AppLoader } from "@/components/ui/AppLoader";
+import { TravelerProfileForm } from "@/components/TravelerProfileForm";
+import { ContributionCard } from "@/components/ContributionCard";
+import { RadarList } from "@/components/intel/RadarList";
 import { buildTimeline, deriveJourney, allowedActions, type JourneyEvent } from "@/lib/trip/journey";
 import { rankAttractions } from "@/lib/place-intel/attractions";
 import { placeRole } from "@/lib/place-intel/role";
@@ -192,6 +199,30 @@ export const pages: Record<string, string> = {
   "explore-swipe-row": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6" },
     h(MoodTiles, { value: "all", onPick: noop }),
     h("section", { className: "overflow-hidden rounded-[2rem] bg-pine p-5 text-white" }, h(PickRow, null, ...Array.from({ length: 6 }, (_, i) => h(PickCard, { key: i, pick: { item: { id: `wd:Q${i}`, name: `Araku Valley and the hills around it ${i}`, category: "viewpoint", lat: 18, lng: 82, notable: true, heritage: false, hours: null, website: null, wikipedia: null, wikidata: `Q${i}`, photo: null }, fit: { verdict: "great", score: 100, why: "Usually 27 °C by day, rain on about 5% of days — clear, cool days" }, researched: null, km: 80 + i }, month: 11, tripId: "t", saved: { places: [], ready: true, error: null, loadFailed: false, isSaved: () => false, toggle: async () => undefined } as never, added: new Set<string>(), addIdea: async () => undefined, regionName: null }))))))),
+  // Travel Radar rows: status chips, one solid action, quiet ones, About; long names, a note, a photo credit.
+  "radar-list": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-3xl px-4 py-5" }, h(RadarList, { photos: {}, mapping: false, trafficConnected: false, busy: false, onAdd: noop, radar: [
+    { key: "a", kind: "viewpoint", name: "Sundial viewpoint near the old toll plaza and a very long name", lat: 17, lng: 78, etaMin: 0, aheadKm: 0.4, detourMin: 0, open: { state: "unknown" }, note: "Sunset in 42 min", score: 80, hours: null, fetchedAt: "2026-11-04T00:00:00Z" },
+    { key: "b", kind: "restroom", name: "Restroom", lat: 17, lng: 78, etaMin: 12, aheadKm: 14, detourMin: 3, open: { state: "open", at: "9:00 PM" }, note: null, score: 60, hours: "Mo-Su 06:00-21:00", fetchedAt: "2026-11-04T00:00:00Z" },
+    { key: "c", kind: "sight", name: "Sri Varaha Lakshmi Narasimha temple", lat: 17, lng: 78, etaMin: 25, aheadKm: 31, detourMin: 8, open: { state: "closed" }, note: null, score: 55, hours: null, fetchedAt: "2026-11-04T00:00:00Z" },
+  ] as never })))),
+  // The public landing page (everything under the header): long, animated, with a swipe-free mosaic and a phone mockup; must never be wider than the phone.
+  "landing-page": renderToStaticMarkup(h(LandingBody)),
+  // The profile screen (reference-style card, icon-led fields, privacy rows, gradient Save) and the contribution card, with long values.
+  "profile-form": renderToStaticMarkup(h("main", { id: "main", className: "mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6" },
+    h(TravelerProfileForm, { initial: { username: "a_very_long_username_here", display_name: "Ravi Kumar from a village with a very long name", bio: "Weekend rider. Hills, waterfalls and the long way round, always with a flask of tea.", interests: ["road trips", "beaches", "food", "mountains", "temples", "waterfalls"], is_private: false, show_follow_lists: true, avatar_path: null }, userId: "11111111-1111-4111-8111-111111111111" }),
+    h(ContributionCard, { posts: 0, destinations: 0, travelersHelped: 0, saves: 0, helpful: 0, tripAdds: 0 }),
+    h(ContributionCard, { posts: 14, destinations: 9, travelersHelped: 1240, saves: 320, helpful: 118, tripAdds: 41 }))),
+  "profile-new": renderToStaticMarkup(h("main", { id: "main", className: "mx-auto w-full max-w-3xl px-4 py-6 sm:px-6" }, h(TravelerProfileForm, { initial: null, userId: "11111111-1111-4111-8111-111111111111", fallbackName: "Ravi" }))),
+  // The share flow (step 1, "Capture the journey.") and the full-yellow opening screen: fixed full-screen surfaces, must fit every phone.
+  "composer-start": renderToStaticMarkup(h(Composer, { hasProfile: true, onClose: noop, onPosted: noop })),
+  "app-loader": renderToStaticMarkup(h(AppLoader)),
+  // My trips: the cover (bold colour + trail), the stat row, progress and the big action, for every state, with long names.
+  "trips-grid": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6" }, h(TripsGrid, { userId: "u1", trips: [
+    { id: "t1", owner_id: "u1", name: "Hyderabad to Goa and back along the coast with the whole family", start_city: "Hyderabad", start_lat: 17.4, start_lng: 78.5, dest_name: "Candolim Beach, Bardez, North Goa", dest_lat: 15.5, dest_lng: 73.8, end_mode: "start", num_days: 6, start_date: "2026-11-03", state: "active", outcome: { kind: "active", label: "Active now" }, daysUntil: null, stops: 12, ideas: 3, done: 5, skipped: 1 },
+    { id: "t2", owner_id: "u2", name: "Araku weekend", start_city: "Visakhapatnam", start_lat: 17.7, start_lng: 83.2, dest_name: "Araku Valley", dest_lat: 18.3, dest_lng: 82.9, end_mode: "start", num_days: 2, start_date: "2026-11-20", state: "upcoming", outcome: { kind: "upcoming", label: "Upcoming" }, daysUntil: 16, stops: 4, ideas: 0, done: 0, skipped: 0 },
+    { id: "t3", owner_id: "u1", name: "Untitled", start_city: null, start_lat: null, start_lng: null, dest_name: null, dest_lat: null, dest_lng: null, end_mode: null, num_days: 3, start_date: null, state: "draft", outcome: { kind: "draft", label: "Draft" }, daysUntil: null, stops: 0, ideas: 7, done: 0, skipped: 0 },
+    { id: "t4", owner_id: "u1", name: "Kerala backwaters", start_city: "Kochi", start_lat: 9.9, start_lng: 76.3, dest_name: "Alappuzha", dest_lat: 9.5, dest_lng: 76.3, end_mode: "start", num_days: 4, start_date: "2026-09-01", state: "completed", outcome: { kind: "completed", label: "Completed" }, daysUntil: null, stops: 8, ideas: 0, done: 8, skipped: 0 },
+  ] as never })))),
   control: renderToStaticMarkup(h("main", { className: "mx-auto w-full px-4" }, h("ol", { className: "flex gap-1.5 overflow-x-auto", style: { position: "static" } },
     ...Array.from({ length: 12 }, (_, i) => h("li", { key: i, className: "w-14 shrink-0" }, `${i}h`, h("span", { className: "sr-only" }, `hour ${i} details`)))))),
   addplace: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },

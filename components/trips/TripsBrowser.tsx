@@ -7,12 +7,7 @@ import { useState, type ReactNode } from "react";
 import { Glyph } from "@/components/ui/Glyph";
 import { TripsGrid } from "@/components/trips/TripsGrid";
 import type { TripSummary } from "@/lib/server/trip-summaries";
-import type { TripState } from "@/lib/trip-state";
-
-export type TripsTab = "all" | TripState;
-export const TRIP_TABS: { id: TripsTab; label: string }[] = [
-  { id: "all", label: "All" }, { id: "active", label: "Active" }, { id: "upcoming", label: "Upcoming" }, { id: "draft", label: "Drafts" }, { id: "completed", label: "Completed" },
-];
+import { TRIP_TABS, type TripsTab } from "@/lib/trip/tabs";
 
 export function TripsBrowser({ trips, userId, initialTab, failed, children }: { trips: TripSummary[]; userId: string; initialTab: TripsTab; failed: boolean; /** The column beside the list (plan card, new-trip form). */ children: ReactNode }) {
   const [tab, setTab] = useState<TripsTab>(initialTab);

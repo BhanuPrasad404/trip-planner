@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NewTripForm } from "@/components/NewTripForm";
-import { TRIP_TABS, TripsBrowser } from "@/components/trips/TripsBrowser";
+import { TripsBrowser } from "@/components/trips/TripsBrowser";
+import { TRIP_TABS } from "@/lib/trip/tabs";
 import { Glyph } from "@/components/ui/Glyph";
 import { requireUserAnd } from "@/lib/auth";
 import { summarizeTrips } from "@/lib/server/trip-summaries";

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/PageHeader";
-import { SetupCheck } from "@/components/SetupCheck";
 import { AccountDataPanel } from "@/components/AccountDataPanel";
 import { ContributionCard } from "@/components/ContributionCard";
 import { TravelerProfileForm } from "@/components/TravelerProfileForm";
@@ -9,7 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { signOut } from "@/app/actions/auth";
 import { SignOutForm } from "@/components/SignOutForm";
 import { requireUser } from "@/lib/auth";
-import { getSetupStatus } from "@/lib/config";
 import { loadLearnTrips } from "@/lib/server/learning-data";
 
 export const metadata: Metadata = { title: "Profile", robots: { index: false } };
@@ -17,7 +15,6 @@ export const metadata: Metadata = { title: "Profile", robots: { index: false } }
 export default async function ProfilePage() {
   const { supabase, user } = await requireUser("/profile");
   const trips = await loadLearnTrips(supabase);
-  const setup = getSetupStatus();
   const { data: profile } = await supabase.from("profiles").select("username, display_name, bio, interests, is_private, show_follow_lists, avatar_path").eq("id", user.id).maybeSingle();
   const { data: contribution } = await supabase.rpc("my_contribution");
   const c = (Array.isArray(contribution) ? contribution[0] : contribution) as { posts: number; destinations: number; travelers_helped: number; saves: number; helpful: number; trip_adds: number } | null;
@@ -44,8 +41,6 @@ export default async function ProfilePage() {
       </section>
 
       <AccountDataPanel email={user.email ?? ""} />
-
-      <SetupCheck items={setup} />
     </main>
   );
 }

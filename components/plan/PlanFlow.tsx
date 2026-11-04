@@ -28,7 +28,8 @@ import { FitMeterBar } from "./FitMeterBar";
 import { PlaceList } from "./PlaceList";
 import { QuestionCard, questionFor } from "./QuestionCard";
 import { SimilarTray } from "./SimilarTray";
-import { FinishedPlans, PromptChips, TryExamples, WaysIn } from "./StartStep";
+import { FinishedPlans, PlanHero, PromptChips, TryExamples, WaysIn } from "./StartStep";
+import { PlanCard, StepBar, StepTitle, Stepper } from "./chrome";
 import { ProposePanel } from "./ProposePanel";
 import { PlaceHours } from "@/components/place/PlaceHours";
 import type { AroundItem } from "@/lib/place-intel/hours-answer";
@@ -52,7 +53,7 @@ const stepIndex = (s: Step) => (s === "words" ? 0 : STEPS.findIndex((x) => x.id 
 export const EXAMPLES = [
   { text: "4 rojulu Hyderabad nundi, friends tho beaches", lang: "Telugu" },
   { text: "Bangalore se 3 din, doston ke saath, waterfalls aur trekking", lang: "Hinglish" },
-  { text: "📍 Gandikota\n📍 Belum Caves\n📍 Lepakshi temple", lang: "Reel caption" },
+  { text: "Gandikota\nBelum Caves\nLepakshi temple", lang: "Reel caption" },
 ];
 
 const AI_LINE: Record<Exclude<AiState, "idle" | "ok" | "reading">, string> = {
@@ -164,7 +165,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
   async function read() {
     const words = text.trim();
     if (words.length < 2) { setReadError("Write or paste a little more."); return; }
-    if (!online) { setReadError("You&apos;re offline. Reading needs the internet; your text is kept here."); return; }
+    if (!online) { setReadError("You're offline. Reading needs the internet; your text is kept here."); return; }
     setReadError(null); setReading(true); setProposeHub(null);
     const startAt = startBody();
     const r = await postJson<{ understanding: Draft["understanding"] & object; start: Draft["start"]; places: PlaceMatch[] }>("/api/intake/read", { text: words, start: startAt });
@@ -207,7 +208,7 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
     if (!t.ok) { setSaving(false); setSaveError(t.error); return; }
     if (req.places.length) {
       const p = await postJson<{ added: number }>("/api/places/bulk", { trip_id: t.data.id, places: req.places });
-      if (!p.ok) { setSaving(false); setSaveError(`The trip was saved, but its places weren't: ${p.error} You can add them on the trip&apos;s Plan page.`); router.push(`/trips/${t.data.id}/plan`); return; }
+      if (!p.ok) { setSaving(false); setSaveError(`The trip was saved, but its places weren't: ${p.error} You can add them on the trip's Plan page.`); router.push(`/trips/${t.data.id}/plan`); return; }
     }
     clearDraft();
     router.push(`/trips/${t.data.id}/result`);
@@ -227,84 +228,78 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
     <div className="flex flex-wrap gap-2" aria-label="What we understood. Tap one to change it.">
       {chips.map((c) => (
         <button key={c.key} type="button" onClick={() => (c.key === "start" ? setStep("start") : (setEditing(c.key as AnswerKey), setStep("questions")))}
-          className={`inline-flex min-h-11 items-center gap-1 rounded-full border px-3.5 text-sm font-semibold ${c.source === "default" ? "border-dashed border-line text-ink-muted" : "border-teal bg-teal-light/50 text-teal-ink"}`}>
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border-2 px-4 text-sm font-semibold transition-colors ${c.source === "default" ? "border-dashed border-ink-soft/40 bg-white text-ink-muted hover:border-teal" : "border-teal bg-teal-light text-teal-ink hover:bg-teal-light/70"}`}>
           {c.text}{c.source === "default" && <span className="sr-only"> (our default)</span>}{c.source === "ai" && <span className="text-[10px] font-bold uppercase tracking-wide opacity-70">AI</span>}
         </button>
       ))}
     </div>
   );
 
+  const warnBox = "rounded-2xl border border-marigold/50 bg-marigold-light/70 px-4 py-3 text-sm text-marigold-ink";
+  const noteBox = "flex items-start gap-2 rounded-2xl bg-sky px-4 py-3 text-sm text-ink-muted";
+
   return (
-    <div ref={top} className="mx-auto w-full max-w-2xl scroll-mt-16 px-4 pb-28 pt-2">
-      {/* progress */}
-      <ol className="mb-4 grid grid-cols-4 gap-1.5" aria-label="Steps">
-        {STEPS.map((s, i) => {
-          const at = stepIndex(step);
-          return (
-            <li key={s.id} className="min-w-0" aria-current={i === at ? "step" : undefined}>
-              <div className={`h-1.5 rounded-full ${i <= at ? "bg-teal" : "bg-sky"}`} />
-              <span title={s.label} className={`mt-1 block truncate text-[11px] font-semibold ${i === at ? "text-teal-ink" : "text-ink-muted"}`}>{s.label}{i < at ? <span className="sr-only"> (done)</span> : null}</span>
-            </li>
-          );
-        })}
-      </ol>
+    <div ref={top} className="mx-auto w-full max-w-2xl scroll-mt-16 px-4 pb-8 pt-2">
+      <Stepper steps={STEPS} at={stepIndex(step)} />
 
       {step === "start" && (
-        <section aria-labelledby="h-start" className="space-y-5">
-          <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-widest text-marigold">Plan your trip</p>
-            <h1 id="h-start" className="mt-1 text-balance font-display text-3xl font-semibold leading-tight text-pine">Saw some places? Let&apos;s make them a real trip.</h1>
-            <p className="mt-2 text-base text-ink-muted">Tell us in your own words, in English, Telugu, Hindi, Tamil, Kannada or Marathi. We plan real roads: drive times with a safety margin, no driving after dark, opening hours, and night halts in real towns.</p>
-          </div>
-          <PlaceSearch label="Starting from" value={toPicked(start)} onChange={setStart} currentLocation="auto" recentList="start" placeholder="Your town or area" hint="Used only to plan the route. Your location is used only if you allow it." />
+        <div className="space-y-6">
+          <PlanHero />
+          <PlanCard title="Where does the trip start?" icon="pin">
+            <PlaceSearch label="Starting from" value={toPicked(start)} onChange={setStart} currentLocation="auto" recentList="start" placeholder="Your town or area" hint="Used only to plan the route. Your location is used only if you allow it." />
+          </PlanCard>
           <WaysIn onPick={(m) => { setMode(m); if (m === "manual") { setDraft((d) => ({ ...d, ai: "idle" })); setStep("understood"); } else setStep("words"); }} />
           <FinishedPlans plans={EXAMPLE_LINKS} />
           <TryExamples examples={EXAMPLES} onPick={(e) => { setText(e.text); setMode(e.lang === "Reel caption" ? "paste" : "describe"); setStep("words"); }} />
-        </section>
+        </div>
       )}
 
       {step === "words" && (
-        <section aria-labelledby="h-words" className="space-y-4">
-          <h1 id="h-words" className="font-display text-2xl font-semibold text-pine">{mode === "paste" ? "Paste what you saw" : "Tell us about the trip"}</h1>
-          <label htmlFor="trip-words" className="sr-only">{mode === "paste" ? "Place names or caption" : "Your trip, in your words"}</label>
-          <textarea id="trip-words" value={text} onChange={(e) => setText(e.target.value)} rows={6} maxLength={4000} autoFocus
-            placeholder={mode === "paste" ? "📍 Gandikota\n📍 Belum Caves\nor the reel's caption…" : "e.g. 4 rojulu Hyderabad nundi, friends tho beaches, night driving vaddu"}
-            className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-base outline-none focus:border-teal focus:ring-2 focus:ring-teal/40" />
-          <p className="-mt-2 text-right text-xs text-ink-muted" aria-live="polite">{`${text.length}/4000`}</p>
-          {mode === "describe" && <PromptChips text={text} onAdd={(c) => setText((cur) => (cur.trim() ? `${cur.trim()}, ${c.toLowerCase()}` : c))} />}
-          <p className="flex items-start gap-1.5 rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted"><Glyph name="info" size={15} className="mt-0.5" />We can&apos;t open Instagram or YouTube links. Paste the place names or the caption instead. Google Maps links work.</p>
-          <VoiceButton onText={(t) => setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t))} />
+        <section aria-labelledby="h-words" className="space-y-5">
+          <StepTitle id="h-words" icon={mode === "paste" ? "paste" : "wand"} kicker="Step 1" title={mode === "paste" ? "Paste what you saw" : "Tell us about the trip"}
+            sub={mode === "paste" ? "A reel caption, a list of place names, or a Google Maps link." : "Days, who is going, where from, what you enjoy. Write or say it the way you would tell a friend."} />
+          <PlanCard>
+            <label htmlFor="trip-words" className="sr-only">{mode === "paste" ? "Place names or caption" : "Your trip, in your words"}</label>
+            <textarea id="trip-words" value={text} onChange={(e) => setText(e.target.value)} rows={7} maxLength={4000} autoFocus
+              placeholder={mode === "paste" ? "Gandikota\nBelum Caves\nor the reel's caption" : "e.g. 4 rojulu Hyderabad nundi, friends tho beaches, night driving vaddu"}
+              className="w-full resize-y rounded-2xl border-2 border-line bg-sky/50 px-4 py-3.5 text-base leading-relaxed text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-soft/70 focus:border-teal focus:bg-white focus:ring-4 focus:ring-teal/20" />
+            <p className="mt-1.5 text-right text-xs font-medium text-ink-muted" aria-live="polite">{`${text.length}/4000`}</p>
+          </PlanCard>
+          {mode === "describe" && <PlanCard><PromptChips text={text} onAdd={(c) => setText((cur) => (cur.trim() ? `${cur.trim()}, ${c.toLowerCase()}` : c).slice(0, 4000))} /></PlanCard>}
+          <p className={noteBox}><Glyph name="info" size={16} className="mt-0.5" />We can&apos;t open Instagram or YouTube links. Paste the place names or the caption instead. Google Maps links work.</p>
+          <VoiceButton onText={(t) => setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t).slice(0, 4000))} />
           <FormError message={readError} />
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={() => setStep("start")}>Back</Button>
-            <Button onClick={() => void read()} loading={reading} loadingLabel="Reading…" disabled={!text.trim() || !online} className="flex-1">Read it</Button>
-          </div>
-          {!online && <p className="text-sm font-medium text-clay-ink">You&apos;re offline. Reading needs the internet; your text stays here.</p>}
+          {!online && <p className="text-sm font-semibold text-clay-ink">You&apos;re offline. Reading needs the internet; your text stays here.</p>}
+          <StepBar>
+            <Button variant="secondary" onClick={() => setStep("start")}>Back</Button>
+            <Button onClick={() => void read()} loading={reading} loadingLabel="Reading…" disabled={!text.trim() || !online} className="flex-1">Read it<Glyph name="arrow" size={18} /></Button>
+          </StepBar>
         </section>
       )}
 
-      {(step === "understood" || step === "questions") && <div className="mb-4"><FitMeterBar meter={meter} roads={roads} /></div>}
+      {(step === "understood" || step === "questions") && <div className="mb-5"><FitMeterBar meter={meter} roads={roads} /></div>}
 
       {step === "understood" && (
-        <section aria-labelledby="h-und" className="space-y-4">
-          <h1 id="h-und" className="font-display text-2xl font-semibold text-pine">{mode === "manual" ? "Add your places" : "Here's what we understood"}</h1>
-          {chips.length > 0 && Chips}
-          {draft.ai === "reading" && <p role="status" className="flex items-center gap-2 text-sm text-ink-muted"><Spinner /> The AI is reading your text for more place names…</p>}
+        <section aria-labelledby="h-und" className="space-y-5">
+          <StepTitle id="h-und" icon="checkCircle" kicker="Step 2" title={mode === "manual" ? "Add your places" : "Here's what we understood"}
+            sub={mode === "manual" ? "Search for each place you want to visit." : "Tap a chip to change it. Check the places below, then continue."} />
+          {chips.length > 0 && <PlanCard title="Your trip so far" icon="sparkles">{Chips}</PlanCard>}
+          {draft.ai === "reading" && <p role="status" className={noteBox}><Spinner /> The AI is reading your text for more place names…</p>}
           {aiLine && (
-            <div role="status" className="rounded-xl border border-marigold/50 bg-marigold-light/60 px-3.5 py-2.5 text-sm text-[#7a4a00]">
-              <p className="flex items-start gap-1.5"><Glyph name="warn" size={15} className="mt-0.5" />{aiLine}</p>
-              {draft.ai !== "off" && draft.ai !== "limit" && draft.text && <button type="button" onClick={() => void runAi(draft.text, startBody())} className="tm-action mt-1 min-h-11 font-semibold">Try the AI again</button>}
+            <div role="status" className={warnBox}>
+              <p className="flex items-start gap-2"><Glyph name="warn" size={16} className="mt-0.5" />{aiLine}</p>
+              {draft.ai !== "off" && draft.ai !== "limit" && draft.text && <button type="button" onClick={() => void runAi(draft.text, startBody())} className="tm-action mt-2 min-h-11 font-semibold">Try the AI again</button>}
             </div>
           )}
           {unbacked.length > 0 && (
-            <div className="rounded-xl border border-line bg-white p-3 text-sm">
-              <p className="font-semibold text-ink">The AI also suggested (not in your words, so not used):</p>
-              <ul className="mt-1 space-y-1">{unbacked.map((u) => <li key={`${u.key}-${String(u.value)}`} className="flex flex-wrap items-center gap-2 text-ink-muted">{unbackedText(u.key as AnswerKey, u.value, thisMonth)} <span className="text-xs">({u.why})</span> <button type="button" onClick={() => choose(u.key as AnswerKey, u.value)} className="tm-action min-h-11 font-semibold">Use it</button></li>)}</ul>
-            </div>
+            <PlanCard>
+              <p className="font-bold text-pine">The AI also suggested (not in your words, so not used):</p>
+              <ul className="mt-2 space-y-1">{unbacked.map((u) => <li key={`${u.key}-${String(u.value)}`} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">{unbackedText(u.key as AnswerKey, u.value, thisMonth)} <span className="text-xs">({u.why})</span> <button type="button" onClick={() => choose(u.key as AnswerKey, u.value)} className="tm-action min-h-11 font-semibold">Use it</button></li>)}</ul>
+            </PlanCard>
           )}
           {hubPlace && (
-            <details className="rounded-2xl border border-line bg-white p-4">
-              <summary className="min-h-11 cursor-pointer py-2 font-semibold text-pine">Opening hours and places to visit in {hubPlace.name}</summary>
+            <details className="group rounded-3xl border border-line bg-white p-4 shadow-card">
+              <summary className="flex min-h-11 cursor-pointer items-center gap-2 py-1 font-bold text-pine">Opening hours and places to visit in {hubPlace.name}</summary>
               <PlaceHours place={{ name: hubPlace.name, lat: hubPlace.lat, lng: hubPlace.lng, kind: hubPlace.kind, state: hubPlace.state }} date={chosenStart} onAdd={addSite} added={(i) => addedIds.has(siteId(i))} />
             </details>
           )}
@@ -324,61 +319,68 @@ export function PlanFlow({ signedIn, initial }: { signedIn: boolean; initial?: {
           <PlaceList places={draft.places} near={start ? { lat: start.lat, lng: start.lng } : null} onChange={(places) => setDraft((d) => ({ ...d, places }))} />
           <PlaceSearch label="Add a place" value={null} onChange={addPlace} near={start ? { lat: start.lat, lng: start.lng } : null} recentList="places" placeholder="Search a place to add" preview={false} />
           <SimilarTray online={online} onAdd={addSimilar} input={{ start: start ? { lat: start.lat, lng: start.lng } : null, places: usablePlaces(draft).filter((p) => p.place!.kind !== "state").map((p) => ({ id: p.key, name: p.place!.name, lat: p.place!.lat, lng: p.place!.lng, kind: p.place!.kind, state: p.place!.state, must: p.must })), interests: eff.answers.interests ?? [], month: eff.answers.month ?? null, roundTrip: eff.answers.endMode !== "place" }} />
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={() => setStep(mode === "manual" ? "start" : "words")}>Back</Button>
-            <Button onClick={() => setStep(questions.length ? "questions" : "ready")} className="flex-1">Continue</Button>
-          </div>
+          <StepBar>
+            <Button variant="secondary" onClick={() => setStep(mode === "manual" ? "start" : "words")}>Back</Button>
+            <Button onClick={() => setStep(questions.length ? "questions" : "ready")} className="flex-1">Continue<Glyph name="arrow" size={18} /></Button>
+          </StepBar>
         </section>
       )}
 
       {step === "questions" && (
-        <section aria-labelledby="h-q" className="space-y-4">
-          <h1 id="h-q" className="font-display text-2xl font-semibold text-pine">{cardsNow.length ? "A few quick questions" : "That's everything"}</h1>
-          {Chips}
-          {seasonLine && <p className="rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted">{seasonLine}</p>}
+        <section aria-labelledby="h-q" className="space-y-5">
+          <StepTitle id="h-q" icon="chat" kicker="Step 3" title={cardsNow.length ? "A few quick questions" : "That's everything"}
+            sub={cardsNow.length ? "Each one has an answer ready. Change it or skip." : "You can still change anything on the next screen."} />
+          <PlanCard title="Your trip so far" icon="sparkles">{Chips}</PlanCard>
+          {seasonLine && <p className={noteBox}><Glyph name="sun" size={16} className="mt-0.5" />{seasonLine}</p>}
           {cardsNow.map((k) => (
             <QuestionCard key={k} k={k} value={eff.answers[k]} source={eff.source[k]} reason={reasonFor(k)} thisMonth={thisMonth} conflict={conflictFor(k)} onAnswer={(v) => choose(k, v)} onSkip={() => skip(k)} />
           ))}
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={() => setStep("understood")}>Back</Button>
+          <button type="button" onClick={() => setStep("ready")} className="tm-action-quiet text-sm">Skip the rest and use the defaults</button>
+          <StepBar>
+            <Button variant="secondary" onClick={() => setStep("understood")}>Back</Button>
             <Button onClick={() => { setDraft((d) => ({ ...d, skipped: [...new Set([...d.skipped, ...cardsNow])] })); setEditing(null); if (questionsToAsk({ ...draft, skipped: [...draft.skipped, ...cardsNow] }, eff).length === 0) setStep("ready"); }} className="flex-1">
-              {cardsNow.length ? "Next" : "Continue"}
+              {cardsNow.length ? "Next" : "Continue"}<Glyph name="arrow" size={18} />
             </Button>
-          </div>
-          <button type="button" onClick={() => setStep("ready")} className="tm-action min-h-11 text-sm font-semibold">Skip the rest and use the defaults</button>
+          </StepBar>
         </section>
       )}
 
       {step === "ready" && (
-        <section aria-labelledby="h-ready" className="space-y-4">
-          <h1 id="h-ready" className="font-display text-2xl font-semibold text-pine">Save your trip</h1>
+        <section aria-labelledby="h-ready" className="space-y-5">
+          <StepTitle id="h-ready" icon="flag" kicker="Step 4" title="Save your trip" sub="One last look. Dashed chips are our defaults: tap any chip to change it." />
           <FitMeterBar meter={meter} roads={roads} />
-          {Chips}
-          <p className="text-sm text-ink-muted">{usablePlaces(draft).length} {usablePlaces(draft).length === 1 ? "place" : "places"}{draft.places.some((p) => p.status === "missing") ? ` (${draft.places.filter((p) => p.status === "missing").length} not found, left out)` : ""}. Dashed chips are our defaults: tap any chip to change it.</p>
-          <TextField label="Trip name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder={tripRequests(draft, eff).trip.name} hint="Leave it empty to use the suggested name." />
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-semibold text-ink">Dates</legend>
-            {chosenStart !== null ? (
-              <>
-                <label htmlFor="plan-start-date" className="block text-sm text-ink-muted">First day{startDate === undefined ? " (our suggestion: change it if you know your dates)" : ""}</label>
-                <DatePicker id="plan-start-date" label="First day" today={todayIndia} min={todayIndia} value={chosenStart} onChange={(v) => setStartDate(v || null)} />
-                {endText && <p className="text-sm text-ink-muted">{tripDays} {tripDays === 1 ? "day" : "days"}: {endText}{eff.answers.startTime && (!eff.answers.startDate || eff.answers.startDate === chosenStart) ? ` · leaving ${clock12(eff.answers.startTime)} on day 1` : ""}</p>}
-                <button type="button" onClick={() => setStartDate(null)} className="tm-action min-h-11 text-sm font-semibold">No dates yet</button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-ink-muted">No dates yet: weather and opening days won&apos;t be checked until you add them.</p>
-                <button type="button" onClick={() => setStartDate(undefined)} className="tm-action min-h-11 text-sm font-semibold">Add dates</button>
-              </>
-            )}
-          </fieldset>
+          <PlanCard title="Your trip" icon="sparkles">
+            {Chips}
+            <p className="mt-3 text-sm text-ink-muted">{usablePlaces(draft).length} {usablePlaces(draft).length === 1 ? "place" : "places"}{draft.places.some((p) => p.status === "missing") ? ` (${draft.places.filter((p) => p.status === "missing").length} not found, left out)` : ""}.</p>
+          </PlanCard>
+          <PlanCard>
+            <TextField label="Trip name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder={tripRequests(draft, eff).trip.name} hint="Leave it empty to use the suggested name." />
+          </PlanCard>
+          <PlanCard title="Dates" icon="calendar">
+            <fieldset className="space-y-2">
+              <legend className="sr-only">Dates</legend>
+              {chosenStart !== null ? (
+                <>
+                  <label htmlFor="plan-start-date" className="block text-sm text-ink-muted">First day{startDate === undefined ? " (our suggestion: change it if you know your dates)" : ""}</label>
+                  <DatePicker id="plan-start-date" label="First day" today={todayIndia} min={todayIndia} value={chosenStart} onChange={(v) => setStartDate(v || null)} />
+                  {endText && <p className="text-sm font-semibold text-pine">{tripDays} {tripDays === 1 ? "day" : "days"}: {endText}{eff.answers.startTime && (!eff.answers.startDate || eff.answers.startDate === chosenStart) ? ` · leaving ${clock12(eff.answers.startTime)} on day 1` : ""}</p>}
+                  <button type="button" onClick={() => setStartDate(null)} className="tm-action min-h-11 text-sm font-semibold">No dates yet</button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-ink-muted">No dates yet: weather and opening days won&apos;t be checked until you add them.</p>
+                  <button type="button" onClick={() => setStartDate(undefined)} className="tm-action min-h-11 text-sm font-semibold">Add dates</button>
+                </>
+              )}
+            </fieldset>
+          </PlanCard>
           <FormError message={saveError} />
-          {!signedIn && <p className="rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted">Create a free account to save this trip. Your plan stays on this phone while you sign up, and opens here again afterwards.</p>}
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={() => setStep("questions")}>Back</Button>
-            <Button onClick={() => void planIt()} loading={saving} loadingLabel="Saving your trip…" disabled={!online} className="flex-1">{signedIn ? "Save and plan my trip" : "Sign up and save this trip"}</Button>
-          </div>
+          {!signedIn && <p className={noteBox}><Glyph name="info" size={16} className="mt-0.5" />Create a free account to save this trip. Your plan stays on this phone while you sign up, and opens here again afterwards.</p>}
           <p className="text-xs text-ink-muted">Once it&apos;s saved, you can ask your group for their pace, interests and things to avoid from the trip&apos;s Plan page.</p>
+          <StepBar>
+            <Button variant="secondary" onClick={() => setStep("questions")}>Back</Button>
+            <Button onClick={() => void planIt()} loading={saving} loadingLabel="Saving your trip…" disabled={!online} className="flex-1">{signedIn ? "Save and plan my trip" : "Sign up and save this trip"}</Button>
+          </StepBar>
         </section>
       )}
     </div>

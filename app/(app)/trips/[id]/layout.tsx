@@ -16,17 +16,21 @@ import { tripOutcome, tripState } from "@/lib/trip-state";
 // The header every page of ONE trip shares: which trip, where it is in its life, who is on it, and the section tabs.
 export default async function TripLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const trip = await getTrip(id);
+  // The trip, its members, today's date and the signed-in person are independent: ask for all of them at once, not one after another.
+  const [trip, members, today, auth] = await Promise.all([
+    getTrip(id),
+    getMembers(id),
+    todayISO(),
+    createClient().then((sb) => sb.auth.getUser()),
+  ]);
   if (!trip) notFound();
-  const members = await getMembers(id);
-  const today = await todayISO();
   const state = tripState(trip, today);
   // Counts are only needed when the dates are over or the owner has resumed/closed the trip (one query, not one per page view).
   const counts = state === "completed" || trip.resumed_at || trip.closed_at ? await getTripCounts(id) : { stops: 0, done: 0, skipped: 0 };
   const outcome = tripOutcome(state, state === "completed" ? counts : { stops: 0, done: 0, skipped: 0 });
   const lifecycle = lifecycleOf(trip, today, counts);
   const chip = lifecycleChip(lifecycle);
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = auth.data.user;
   const start = trip.start_date ? parseISODate(trip.start_date) : null;
   const end = start ? addDays(start, trip.num_days - 1) : null;
   const fmt = { day: "numeric", month: "short" } as const;

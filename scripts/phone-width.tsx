@@ -208,11 +208,11 @@ export const pages: Record<string, string> = {
   // The public landing page (everything under the header): long, animated, with a swipe-free mosaic and a phone mockup; must never be wider than the phone.
   "landing-page": renderToStaticMarkup(h(LandingBody)),
   // The profile screen (reference-style card, icon-led fields, privacy rows, gradient Save) and the contribution card, with long values.
-  "profile-form": renderToStaticMarkup(h("main", { id: "main", className: "mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6" },
+  "profile-form": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6" },
     h(TravelerProfileForm, { initial: { username: "a_very_long_username_here", display_name: "Ravi Kumar from a village with a very long name", bio: "Weekend rider. Hills, waterfalls and the long way round, always with a flask of tea.", interests: ["road trips", "beaches", "food", "mountains", "temples", "waterfalls"], is_private: false, show_follow_lists: true, avatar_path: null }, userId: "11111111-1111-4111-8111-111111111111" }),
     h(ContributionCard, { posts: 0, destinations: 0, travelersHelped: 0, saves: 0, helpful: 0, tripAdds: 0 }),
-    h(ContributionCard, { posts: 14, destinations: 9, travelersHelped: 1240, saves: 320, helpful: 118, tripAdds: 41 }))),
-  "profile-new": renderToStaticMarkup(h("main", { id: "main", className: "mx-auto w-full max-w-3xl px-4 py-6 sm:px-6" }, h(TravelerProfileForm, { initial: null, userId: "11111111-1111-4111-8111-111111111111", fallbackName: "Ravi" }))),
+    h(ContributionCard, { posts: 14, destinations: 9, travelersHelped: 1240, saves: 320, helpful: 118, tripAdds: 41 })))),
+  "profile-new": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-3xl px-4 py-6 sm:px-6" }, h(TravelerProfileForm, { initial: null, userId: "11111111-1111-4111-8111-111111111111", fallbackName: "Ravi" })))),
   // The share flow (step 1, "Capture the journey.") and the full-yellow opening screen: fixed full-screen surfaces, must fit every phone.
   "composer-start": renderToStaticMarkup(h(Composer, { hasProfile: true, onClose: noop, onPosted: noop })),
   "app-loader": renderToStaticMarkup(h(AppLoader)),
@@ -238,6 +238,9 @@ export const pages: Record<string, string> = {
   ], members: [], today: "2026-10-29", siteUrl: "http://localhost", conditions: {}, userId: "u1", votes: {} } as never))),
   "plan-start": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false }))),
   "save-step": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "ready" } }))),
+  "plan-words": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "words" } }))),
+  "plan-understood": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "understood" } }))),
+  "plan-questions": renderToStaticMarkup(withRouter(h(PlanFlow, { signedIn: false, initial: { draft: exampleDraft(kochi), step: "questions" } }))),
   ...Object.fromEntries(EXAMPLES.map((e) => [`result-${e.slug}`, renderToStaticMarkup(withRouter(h(ResultView, { kind: "example", example: e, signedIn: false })))])),
   "result-parts": renderToStaticMarkup(withRouter(h("main", { className: "mx-auto w-full max-w-2xl space-y-4 px-4" },
     h(ComparePlans, { data: kochi.data, total: kochi.places.length }),

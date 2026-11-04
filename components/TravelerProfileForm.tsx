@@ -2,12 +2,14 @@
 
 // The traveler profile: who you are to other travelers. Optional: nothing about you is public until you set this up. A soft, rounded card
 // (a profile photo you may add or skip, one icon-led field per line, tap-to-add interests, two privacy switches) and one clear Save button.
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AvatarPicker } from "./profile/AvatarPicker";
 import { Glyph } from "./ui/Glyph";
 import { FormError } from "./ui/Field";
 import type { GlyphName } from "@/lib/glyphs";
 import { initialOf } from "@/lib/feed/people";
+import { clearSnapshot } from "@/lib/client/feed-snapshot";
 
 type Initial = { username: string; display_name: string | null; bio: string | null; interests: string[]; is_private: boolean; show_follow_lists: boolean; avatar_path?: string | null } | null;
 
@@ -24,6 +26,7 @@ function Label({ icon, children, hint }: { icon: GlyphName; children: React.Reac
 }
 
 export function TravelerProfileForm({ initial, userId, fallbackName = "" }: { initial: Initial; userId: string; fallbackName?: string }) {
+  const router = useRouter();
   const [username, setUsername] = useState(initial?.username ?? "");
   const [displayName, setDisplayName] = useState(initial?.display_name ?? "");
   const [bio, setBio] = useState(initial?.bio ?? "");
@@ -55,7 +58,11 @@ export function TravelerProfileForm({ initial, userId, fallbackName = "" }: { in
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) setError(json.error ?? "Could not save. Please try again.");
-      else { setSaved(true); setAvatarTouched(false); }
+      else {
+        setSaved(true); setAvatarTouched(false);
+        try { clearSnapshot(window.sessionStorage); } catch { /* private mode */ }
+        router.refresh();                                          // the menu, header and your posts show the new picture and name at once
+      }
     } catch {
       setError("No connection. Please try again.");
     } finally {

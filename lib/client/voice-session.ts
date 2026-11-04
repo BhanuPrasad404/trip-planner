@@ -41,7 +41,7 @@ const MAX_EMPTY_RUNS = 3;
 const MAX_RESTARTS = 40;
 
 export function startVoice(Ctor: RecCtor, lang: string, h: VoiceHandlers): { stop: () => void } {
-  let wanted = true, emptyRuns = 0, restarts = 0, heard = false, current: Rec | null = null;
+  let wanted = true, emptyRuns = 0, restarts = 0, heard = false, spoke = false, unsaid = "", current: Rec | null = null;
 
   const finish = () => { wanted = false; h.onInterim(""); h.onListening(false); };
   const fail = (code: string) => { finish(); h.onError(voiceErrorMessage(code), code); };
@@ -49,15 +49,16 @@ export function startVoice(Ctor: RecCtor, lang: string, h: VoiceHandlers): { sto
   function begin() {
     const r = new Ctor();
     r.lang = lang; r.interimResults = true; r.continuous = false;
-    heard = false;
+    heard = false; unsaid = "";
     r.onresult = (e) => {
       let interim = "";
       for (let i = e.resultIndex ?? 0; i < e.results.length; i++) {
         const res = e.results[i], text = (res[0]?.transcript ?? "").trim();
         if (!text) continue;
-        heard = true; emptyRuns = 0;
+        heard = true; spoke = true; emptyRuns = 0;
         if (res.isFinal) { h.onFinal(text); interim = ""; } else interim = text;
       }
+      unsaid = interim;
       h.onInterim(interim);
     };
     r.onerror = (e) => {
@@ -67,9 +68,12 @@ export function startVoice(Ctor: RecCtor, lang: string, h: VoiceHandlers): { sto
       fail(e.error);
     };
     r.onend = () => {
+      // The phone ended a sentence without marking it final (some Android builds do): keep the words instead of dropping them.
+      if (unsaid) { h.onFinal(unsaid); unsaid = ""; }
       if (!wanted) { h.onInterim(""); h.onListening(false); return; }
       if (!heard) emptyRuns++;
-      if (emptyRuns >= MAX_EMPTY_RUNS) { fail("no-speech"); return; }
+      // Went quiet after speaking: the words are already in the box, so just stop listening. "We didn't hear anything" is only for a session that never heard a word.
+      if (emptyRuns >= MAX_EMPTY_RUNS) { if (spoke) finish(); else fail("no-speech"); return; }
       if (++restarts > MAX_RESTARTS) { finish(); return; }
       h.onInterim("");
       try { begin(); } catch { fail("start-failed"); }

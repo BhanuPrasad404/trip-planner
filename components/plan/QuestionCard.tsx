@@ -51,31 +51,31 @@ export function QuestionCard({ k, value, source, reason, thisMonth, conflict, on
   const id = `q-${k}`;
 
   return (
-    <section aria-labelledby={id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
-      <h3 id={id} className="font-display text-lg font-semibold text-pine">{q.title}</h3>
+    <section aria-labelledby={id} className="rounded-3xl border border-line bg-white p-4 shadow-card sm:p-5">
+      <h3 id={id} className="font-display text-xl font-semibold text-pine">{q.title}</h3>
       {conflict && (
         <p className="mt-1 text-sm text-ink-muted">We read “{labelOf(conflict.said)}”, the AI read “{labelOf(conflict.ai)}”. Which is right?</p>
       )}
       {!conflict && value !== undefined && source === "default" && (
         <p className="mt-1 text-sm text-ink-muted"><span className="font-semibold text-ink">We&apos;ll assume: {Array.isArray(value) ? value.map(labelOf).join(", ") : labelOf(value)}.</span>{reason ? ` ${reason}` : ""}</p>
       )}
-      <div role={q.multi ? "group" : "radiogroup"} aria-labelledby={id} className="mt-3 flex flex-wrap gap-2">
+      <div role={q.multi ? "group" : "radiogroup"} aria-labelledby={id} className="mt-3.5 flex flex-wrap gap-2.5">
         {(conflict ? q.options.filter((o) => same(o.value, conflict.said) || same(o.value, conflict.ai)) : q.options).map((o) => {
           const on = q.multi ? picked.some((p) => same(p, o.value)) : same(value, o.value);
           return (
             <button key={String(o.value)} type="button" role={q.multi ? undefined : "radio"} aria-checked={q.multi ? undefined : on} aria-pressed={q.multi ? on : undefined}
               onClick={() => (q.multi ? setPicked((cur) => (cur.some((p) => same(p, o.value)) ? cur.filter((p) => !same(p, o.value)) : [...cur, o.value])) : onAnswer(o.value))}
-              className={`inline-flex min-h-12 items-center gap-1.5 rounded-xl border-2 px-3.5 text-left text-sm font-semibold ${on ? "border-teal bg-teal-light/60 text-teal-ink" : "border-line text-ink hover:border-teal/60"}`}>
+              className={`inline-flex min-h-12 items-center gap-1.5 rounded-2xl border-2 px-4 text-left text-[15px] font-semibold transition-colors active:scale-[0.98] motion-reduce:active:scale-100 ${on ? "border-pine bg-pine text-[var(--tm-on-accent)]" : "border-line bg-white text-ink hover:border-teal"}`}>
               {on && <Glyph name="check" size={14} strokeWidth={3} />}
-              <span>{o.label}{o.hint && <span className="block text-xs font-normal text-ink-muted">{o.hint}</span>}</span>
+              <span>{o.label}{o.hint && <span className={`block text-xs font-normal ${on ? "text-[var(--tm-on-accent)]/80" : "text-ink-muted"}`}>{o.hint}</span>}</span>
             </button>
           );
         })}
       </div>
       {q.note && <p className="mt-2 text-xs text-ink-muted">{q.note}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        {q.multi && <button type="button" onClick={() => onAnswer(picked)} className="min-h-11 rounded-xl bg-pine px-4 text-sm font-bold text-white">Done</button>}
-        <button type="button" onClick={onSkip} className="tm-action min-h-11 text-sm font-semibold">Skip{value !== undefined && source === "default" ? " (keep this)" : ""}</button>
+        {q.multi && <button type="button" onClick={() => onAnswer(picked)} className="tm-action-solid">Done</button>}
+        <button type="button" onClick={onSkip} className="tm-action-quiet">Skip{value !== undefined && source === "default" ? " (keep this)" : ""}</button>
       </div>
     </section>
   );

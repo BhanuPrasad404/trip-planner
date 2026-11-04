@@ -4,12 +4,14 @@
 // a picture the person shows as their initial. Picking opens the editor (drag and zoom); "Use this photo" uploads one small square file to the
 // person's own folder, and (when the traveler profile already exists) points the profile at it at once. Before the profile exists the new
 // path is handed to the form and saved with it. Nothing about the original photo is kept.
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Glyph } from "@/components/ui/Glyph";
 import { AvatarEditor, type AvatarResult } from "./AvatarEditor";
 import { AVATAR_BUCKET, AVATAR_PICK_MAX_BYTES, avatarUrl, newAvatarPath } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { clearSnapshot } from "@/lib/client/feed-snapshot";
 
 type Props = {
   userId: string;
@@ -23,6 +25,7 @@ type Props = {
 };
 
 export function AvatarPicker({ userId, path, initial, hasProfile, onChange }: Props) {
+  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,6 +43,13 @@ export function AvatarPicker({ userId, path, initial, hasProfile, onChange }: Pr
     if (!hasProfile) return;                                         // held for the form: it saves the picture with the profile
     const res = await fetch("/api/profile/avatar", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: next }) });
     if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "Couldn't save your picture.");
+    showEverywhere();
+  }
+
+  /** The menu, the header and every post of yours are drawn by the server or remembered by this tab: tell both, so the new picture shows at once. */
+  function showEverywhere() {
+    try { clearSnapshot(window.sessionStorage); } catch { /* private mode: the feed starts fresh anyway */ }
+    router.refresh();
   }
 
   async function upload(r: AvatarResult) {

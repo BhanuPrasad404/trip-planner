@@ -77,7 +77,7 @@ export type EngineProps = {
   /** Save this drive on the phone (only the tab that holds the drive's lock does: it never overwrites another tab's drive). */
   canSave?: boolean;
   /** Start pressed while another trip is being driven: asks first (one drive at a time). False = do not start. */
-  guardStart?: () => boolean;
+  guardStart?: () => boolean | Promise<boolean>;
   restore: { snapshot: DriveSnapshot; resumeGps: boolean } | null;
   refresh: () => void;
   onDriveStart: (tripId: string, tripName: string) => void;
@@ -138,7 +138,7 @@ export function useEngineValue({ data, restore, refresh, onDriveStart, onDriveEn
   // driven, Start asks first.
   const view = useMemo(() => {
     const go = paused ? live.drive.resume : live.drive.start;
-    const start = guardStart ? () => { if (guardStart()) go(); } : go;
+    const start = guardStart ? () => { const ok = guardStart(); if (typeof ok === "boolean") { if (ok) go(); } else void ok.then((yes) => { if (yes) go(); }); } : go;
     return start === live.drive.start ? live : { ...live, drive: { ...live.drive, start } };
   }, [paused, live, guardStart]);
 

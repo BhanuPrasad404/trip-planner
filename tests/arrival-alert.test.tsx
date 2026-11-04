@@ -359,10 +359,10 @@ describe("the arrival card", () => {
   const html = (o: Partial<Parameters<typeof ArrivalCard>[0]>) => renderToStaticMarkup(createElement(ArrivalCard, { ...base, ...o }));
   it("says 'You have arrived at X' with a clear, large \"I've arrived\"", () => {
     const h = html({ prompt: { name: "Thousand Pillar Temple", distanceM: 22, accuracyM: 6 } });
-    expect(h).toContain("You have arrived at Thousand Pillar Temple"); expect(h).toContain("I&#x27;ve arrived"); expect(h).toContain("min-h-12"); expect(h).toContain("Not yet");
+    expect(h).toContain("We think you&#x27;ve reached Thousand Pillar Temple. Have you arrived?"); expect(h).toContain("Yes, I&#x27;ve arrived"); expect(h).toContain("min-h-12"); expect(h).toContain("Not yet");
   });
   it("a large place: 'You've reached the … area'; the destination: 'Finish drive'", () => {
-    expect(html({ prompt: { name: "Pakhal Lake", distanceM: 300, accuracyM: 8, area: true } })).toContain("You&#x27;ve reached the Pakhal Lake area");
+    expect(html({ prompt: { name: "Pakhal Lake", distanceM: 300, accuracyM: 8, area: true } })).toContain("We think you&#x27;ve reached the Pakhal Lake area. Have you arrived?");
     const d = html({ prompt: { name: "Hanamkonda", distanceM: 20, accuracyM: 5, destination: true } });
     expect(d).toContain("Finish drive"); expect(d).not.toContain("Mark as done");
   });

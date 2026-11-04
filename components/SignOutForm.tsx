@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { askConfirm, hostMounted } from "@/lib/client/dialog";
 import { OUTBOX_PREFIX, countWaiting } from "@/lib/client/outbox";
 import { DRIVE_SIGN_OUT_EVENT, DRIVE_SIGN_OUT_KEY, clearUserDrives } from "@/lib/drive/persist";
 
@@ -13,12 +14,23 @@ export const signOutWarning = (n: number) =>
  * Signing out deletes their waiting changes, so the next person on a shared phone can never see or send them.
  */
 export function SignOutForm({ action, userId, className, children }: { action: () => Promise<void>; userId: string | null; className?: string; children?: ReactNode }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmed = useRef(false);
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     if (!userId) return;
     try {
       const store = window.localStorage;
       const n = countWaiting(store, userId, Date.now());
-      if (n > 0 && !window.confirm(signOutWarning(n))) { e.preventDefault(); return; }
+      if (n > 0 && !confirmed.current) {
+        if (hostMounted()) {
+          // Our own dialog: hold the sign-out, ask, and send the form again if the answer is yes.
+          e.preventDefault();
+          void askConfirm({ title: "Sign out with changes waiting?", body: signOutWarning(n), confirmLabel: "Sign out anyway", cancelLabel: "Stay signed in", danger: true }).then((ok) => { if (ok) { confirmed.current = true; formRef.current?.requestSubmit(); } });
+          return;
+        }
+        if (!window.confirm(signOutWarning(n))) { e.preventDefault(); return; }
+      }
+      confirmed.current = false;
       const mine: string[] = [];
       for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k?.startsWith(`${OUTBOX_PREFIX}${userId}:`)) mine.push(k); }
       for (const k of mine) store.removeItem(k);
@@ -30,5 +42,5 @@ export function SignOutForm({ action, userId, className, children }: { action: (
       // storage blocked: nothing can be waiting there
     }
   }
-  return <form action={action} onSubmit={onSubmit} className={className}>{children}</form>;
+  return <form ref={formRef} action={action} onSubmit={onSubmit} className={className}>{children}</form>;
 }

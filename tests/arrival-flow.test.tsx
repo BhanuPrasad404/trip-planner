@@ -179,15 +179,15 @@ describe("ArrivalCard: what the traveller reads", () => {
   it("shows nothing when there is nothing to say", () => { expect(html({})).toBe(""); });
   it("the question has four honest answers on a phone: I've arrived (large), Just passing, Not yet; the destination only finishes or waits", () => {
     const h = html({ prompt: { name: "Vijayawada", distanceM: 900, accuracyM: 60, area: true } });
-    expect(h).toContain("You&#x27;ve reached the Vijayawada area"); expect(h).toContain("I&#x27;ve arrived"); expect(h).toContain("Just passing"); expect(h).toContain("Not yet"); expect(h).toContain("min-h-12");
+    expect(h).toContain("We think you&#x27;ve reached the Vijayawada area. Have you arrived?"); expect(h).toContain("Yes, I&#x27;ve arrived"); expect(h).toContain("Just passing through"); expect(h).toContain("Not yet"); expect(h).toContain("min-h-12");
     const d = html({ prompt: { name: "Vijayawada", distanceM: 900, accuracyM: 60, destination: true } });
     expect(d).toContain("Finish drive"); expect(d).not.toContain("Just passing");
   });
   it("asks the exact question, with the evidence and a way to say no", () => {
     const h = html({ prompt: { name: "Bhongir Fort", distanceM: 42, accuracyM: 18 } });
-    expect(h).toContain("You have arrived at Bhongir Fort"); expect(h).toContain("Marking it visited is a separate step");
+    expect(h).toContain("We think you&#x27;ve reached Bhongir Fort. Have you arrived?"); expect(h).toContain("Finishing the stop is a separate step");
     expect(h).toContain("About 42 m from its pin"); expect(h).toContain("±18 m");
-    expect(h).toContain("I&#x27;ve arrived"); expect(h).not.toContain("Mark as done"); expect(h).toContain("Not yet"); expect(h).toContain('aria-label="Dismiss: not at Bhongir Fort yet"');
+    expect(h).toContain("Yes, I&#x27;ve arrived"); expect(h).not.toContain("Mark as done"); expect(h).toContain("Not yet"); expect(h).toContain('aria-label="Dismiss: not at Bhongir Fort yet"');
     expect(h).toContain('role="alertdialog"'); expect(h).toContain("pointer-events-none"); // never blocks the map behind it
   });
   it("the touch targets are large (44 px+)", () => { expect(html({ prompt: { name: "X", distanceM: 1, accuracyM: 1 } })).toContain("h-11 w-11"); });
@@ -203,8 +203,8 @@ describe("ArrivalCard: what the traveller reads", () => {
   });
   it("after 'I've arrived': when, that it is NOT marked visited, and three clear choices", () => {
     const h = html({ done: { name: "Kanaka Durga Temple", queued: false, earlier: [], stage: "arrived", arrivedAt: Date.UTC(2026, 10, 2, 20, 37) }, next: { name: "K", km: 3, minutes: 5, mapsHref: null } });
-    expect(h).toContain("You&#x27;re at Kanaka Durga Temple."); expect(h).toContain("Arrived 2:07 AM. Not marked as visited yet."); // India time: 20:37 UTC = 02:07 next day
-    expect(h).toContain("Mark as visited"); expect(h).toContain("I&#x27;m exploring"); expect(h).toContain("Not here yet");
+    expect(h).toContain("You&#x27;re at Kanaka Durga Temple."); expect(h).toContain("Arrived 2:07 AM."); expect(h).toContain("it isn&#x27;t marked visited"); // India time: 20:37 UTC = 02:07 next day
+    expect(h).toContain("Finished this stop"); expect(h).toContain("Still exploring"); expect(h).toContain("Not here yet");
     expect(h).not.toContain("marked as done."); expect(h).not.toContain("Next: K"); // the next stop waits until it is marked
   });
   it("saved offline: it says it is kept on the phone", () => { expect(html({ done: { name: "Fort", queued: true, earlier: [], stage: "done", arrivedAt: T0 } })).toContain("Saved on this phone. It will be sent when you&#x27;re back online."); });

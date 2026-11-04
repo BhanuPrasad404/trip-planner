@@ -4,6 +4,8 @@
 // time, then offers the places in and around it with their own hours (/api/places/around), filterable by kind and date. Adding one of
 // them never removes the traveller's destination: the screen's own onAdd decides what "add" means there.
 import { useEffect, useMemo, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
 import type { AroundAnswer, AroundItem, HoursAnswer } from "@/lib/place-intel/hours-answer";
 import { hoursBadge, nextStep, sourceLine, type HoursTone } from "@/lib/place-intel/hours-labels";
 import { exploreCategoryLabel, type ExploreCategoryId } from "@/lib/explore/categories";
@@ -131,6 +133,7 @@ type ViewProps = Pick<Props, "onAdd" | "added" | "onAddHours"> & {
 
 /** The answer as data: what every screen shows (the static render and the phone-width check use this directly). */
 export function PlaceHoursView({ place, answer, around, aroundLoading, aroundError, date, onDate, onAdd, added, onAddHours }: ViewProps) {
+  const [today] = useState(() => dateOf(Date.now(), INDIA_UTC_OFFSET_MIN));  // today in India, read once
   const [kind, setKind] = useState<ExploreCategoryId | "all">("all");
   const town = answer.status === "not_applicable";
   const items = useMemo(() => {
@@ -143,10 +146,10 @@ export function PlaceHoursView({ place, answer, around, aroundLoading, aroundErr
   return (
     <section className="min-w-0 space-y-3" aria-label={`Opening hours: ${place.name}`}>
       <HoursDetails answer={answer} onAddHours={town ? undefined : onAddHours} />
-      <label className="flex flex-wrap items-center gap-2 text-sm text-ink">
-        <span>Visit date</span>
-        <input type="date" className="min-h-11 max-w-full rounded-lg border border-line bg-background px-2 text-ink" value={date} onChange={(e) => onDate(e.target.value || null)} />
-      </label>
+      <div className="text-sm text-ink">
+        <label htmlFor="hours-visit-date" className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">Visit date</label>
+        <div className="mt-1 max-w-xs"><DatePicker id="hours-visit-date" label="Visit date" value={date} onChange={(d) => onDate(d || null)} today={today} showToday /></div>
+      </div>
       {(town || items.length > 0 || aroundLoading) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-ink">{town ? `Places to visit in and around ${place.name}` : "Nearby places with known hours"}</h3>

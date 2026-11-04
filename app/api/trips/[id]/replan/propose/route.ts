@@ -3,10 +3,10 @@ import { jsonError, parseBody } from "@/lib/api";
 import { rateLimiter } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { loadReplanInput, proposalMeta, snapshotWith } from "@/lib/server/replan-proposals";
-import { recordEvent, recordRevision } from "@/lib/server/journey-events";
+import { recordProposal } from "@/lib/server/journey-events";
+import { proposalBucket, proposalKey } from "@/lib/trip/proposal-key";
 import { planStaleness, proposeReplan, strategiesFor, type Strategy } from "@/lib/trip/replan-proposal";
 import { replanProposeSchema, uuid } from "@/lib/validation/schemas";
-import { randomUUID } from "node:crypto";
 
 export const maxDuration = 30;
 
@@ -41,8 +41,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const proposal = proposeReplan(input, strategy);
     let rev: number | null = null;
     if (proposal.feasible) {
-      rev = await recordRevision(supabase, id, user.id, snapshotWith(places, proposal), `Suggested: ${proposal.label}`, { kind: "proposed", meta: proposalMeta(proposal, baseRev, signature, commitSig) });
-      if (rev !== null) await recordEvent(supabase, { tripId: id, userId: user.id, kind: "revision_proposed", occurredAt: new Date().toISOString(), source: "system", clientEventId: randomUUID(), meta: { rev, strategy } }).catch(() => undefined);
+      // The same suggestion for the same situation is kept once: asking again (refresh, second tap, second device) shows the stored one.
+      const key = proposalKey({ strategy, baseRev, signature, commitSig, nightDriving: !!body.night_driving, pace: body.pace ?? null, keep: body.keep ?? [], drop: body.drop ?? [], pins: body.pins, fuelPercent: body.fuel_percent ?? null, journey: input.journey, nowDay: input.nowDay, bucket: proposalBucket(Date.now()) });
+      rev = (await recordProposal(supabase, id, user.id, key, snapshotWith(places, proposal), `Suggested: ${proposal.label}`, proposalMeta(proposal, baseRev, signature, commitSig))).rev;
     }
     out.push({ ...proposal, rev, canApprove: proposal.feasible && rev !== null && isOwner, canSuggest: proposal.feasible && rev !== null });
   }

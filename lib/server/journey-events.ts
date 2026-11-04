@@ -104,3 +104,55 @@ export async function ensureOriginalRevision(supabase: SupabaseClient, tripId: s
   if (places.error) return;
   await recordRevision(supabase, tripId, userId, toSnapshot((places.data ?? []) as PlaceRow[]), reason);
 }
+
+// ── Proposals: stored once per situation ──
+/**
+ * Keep a PROPOSED change, once. The same suggestion (same `dedupe_key` in its meta, see lib/trip/proposal-key.ts: the schedule, the
+ * bookings, the way of dealing with it, the stated preferences and a 3-hour window) asked for again returns the revision that already
+ * exists. Three layers keep two requests at the same instant from storing two copies:
+ *   1. a lock in this server process (the same key never runs twice at once here),
+ *   2. the database: a partial unique index on (trip_id, dedupe_key) for proposals (migration 20261104000000_proposal_dedupe_key.sql, when
+ *      applied): the loser of a race gets error 23505 on that index and reads the winner's row,
+ *   3. before that migration is applied, every request that stored a copy reads back all copies of its key and answers with the LOWEST
+ *      revision, so all callers converge on one; extra rows are never shown (the app only ever asks for a proposal by its key).
+ * Returns the revision number, or null when nothing could be kept (said to the caller, never thrown).
+ */
+const keyLocks = new Map<string, Promise<unknown>>();
+export async function recordProposal(supabase: SupabaseClient, tripId: string, userId: string, key: string, snapshot: SnapshotRow[], reason: string | null, meta: Record<string, unknown>): Promise<{ rev: number | null; reused: boolean }> {
+  const lockKey = `${tripId}:${key}`;
+  const before = keyLocks.get(lockKey) ?? Promise.resolve();
+  const run = before.catch(() => undefined).then(() => storeProposal(supabase, tripId, userId, key, snapshot, reason, meta));
+  keyLocks.set(lockKey, run);
+  try { return await run; } finally { if (keyLocks.get(lockKey) === run) keyLocks.delete(lockKey); }
+}
+
+async function copiesOf(supabase: SupabaseClient, tripId: string, key: string): Promise<number[] | null> {
+  const { data, error } = await supabase.from("trip_plan_revisions").select("rev").eq("trip_id", tripId).eq("kind", "proposed").eq("meta->>dedupe_key", key).order("rev", { ascending: true }).limit(20);
+  if (error) return null;
+  return ((data ?? []) as { rev: number }[]).map((r) => r.rev);
+}
+
+async function storeProposal(supabase: SupabaseClient, tripId: string, userId: string, key: string, snapshot: SnapshotRow[], reason: string | null, meta: Record<string, unknown>): Promise<{ rev: number | null; reused: boolean }> {
+  const existing = await copiesOf(supabase, tripId, key);
+  if (existing && existing.length > 0) return { rev: existing[0], reused: true };
+  const withKey = { ...meta, dedupe_key: key };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const last = await supabase.from("trip_plan_revisions").select("rev").eq("trip_id", tripId).order("rev", { ascending: false }).limit(1);
+    if (last.error) return { rev: null, reused: false };
+    const rev = ((last.data as { rev: number }[] | null)?.[0]?.rev ?? 0) + 1;
+    const { error } = await supabase.from("trip_plan_revisions").insert({ trip_id: tripId, rev, kind: rev === 1 ? "original" : "proposed", snapshot, reason: reason ? reason.slice(0, 300) : null, meta: withKey, created_by: userId });
+    if (!error) {
+      // Layer 3: if another request stored the same suggestion at the same moment, everyone answers with the lowest revision.
+      const all = await copiesOf(supabase, tripId, key);
+      const winner = all && all.length > 0 ? Math.min(...all, rev) : rev;
+      return { rev: winner, reused: winner !== rev };
+    }
+    if (!isDuplicate(error)) return { rev: null, reused: false };
+    // 23505: either another device took this revision number (try the next), or the database's one-per-key rule says it already exists.
+    if (/proposal_key|dedupe/i.test(`${error.message ?? ""}`)) {
+      const again = await copiesOf(supabase, tripId, key);
+      if (again && again.length > 0) return { rev: again[0], reused: true };
+    }
+  }
+  return { rev: null, reused: false };
+}

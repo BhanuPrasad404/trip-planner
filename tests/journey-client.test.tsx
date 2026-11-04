@@ -11,7 +11,6 @@ vi.mock("@/lib/client/stop-signal", () => ({ announceStopsChanged: async () => u
 import { addToOutbox, applyOutboxToPlaces, describe as describeItem, itemKey, outboxKey, parseOutbox, requestFor, type OutboxItem } from "@/lib/client/outbox";
 import { useOutbox } from "@/lib/client/use-outbox";
 import { journeyCacheKey, useJourney } from "@/lib/client/use-journey";
-import { JourneyCard } from "@/components/JourneyCard";
 import { allowedActions, buildTimeline, deriveJourney, type JourneyEvent } from "@/lib/trip/journey";
 import { perUserDriveKeyPrefixes } from "@/lib/drive/persist";
 
@@ -202,117 +201,5 @@ describe("useJourney", () => {
     expect(api.journey.state).toBe("travelling");
     expect(api.rows.map((x) => x.label)).toContain("Journey continued into Tue 3 Nov");
     expect(api.rows.find((x) => x.label.startsWith("Journey continued"))!.certainty).toBe("inferred");
-  });
-});
-
-describe("the journey card", () => {
-  const base = (events: JourneyEvent[], o: Partial<Parameters<typeof JourneyCard>[0]> = {}) => {
-    const journey = deriveJourney(events);
-    return { journey, actions: allowedActions(journey.state), rows: buildTimeline(events, { offsetMin: 330, me: "u1" }), record: async () => "saved" as const, fix: { source: "manual" as const }, waiting: 0, stored: true as boolean | null, closed: false, offsetMin: 330, ...o };
-  };
-  const html = (events: JourneyEvent[], o: Partial<Parameters<typeof JourneyCard>[0]> = {}) => renderToStaticMarkup(createElement(JourneyCard, base(events, o)));
-  const ev = (kind: JourneyEvent["kind"], at: string, o: Partial<JourneyEvent> = {}): JourneyEvent => ({ clientEventId: `evt-${kind}-${at}`.slice(0, 40), kind, occurredAt: at, source: "manual", userId: "u1", ...o });
-
-  it("before leaving: says so, offers only 'I've left', and tells the privacy rule", () => {
-    const h = html([]);
-    expect(h).toContain("You haven&#x27;t set off yet."); expect(h).toContain("I&#x27;ve left"); expect(h).not.toContain("Pause");
-    expect(h).toContain("never a trail of where you went");
-  });
-  it("on the road: since when (India time), and Pause / Stop to rest", () => {
-    const h = html([ev("departed", "2026-11-02T16:30:00Z")]);
-    expect(h).toContain("On the road since 10:00 PM, Mon 2 Nov."); expect(h).toContain("Pause"); expect(h).toContain("Stop to rest"); expect(h).not.toContain("I&#x27;ve left");
-  });
-  it("paused and resting: the way back onto the road", () => {
-    expect(html([ev("departed", "2026-11-02T16:30:00Z"), ev("paused", "2026-11-02T17:30:00Z")])).toContain("Back on the road");
-    const h = html([ev("departed", "2026-11-02T16:30:00Z"), ev("rest_started", "2026-11-02T20:45:00Z")]);
-    expect(h).toContain("Resting since 2:15 AM, Tue 3 Nov."); expect(h).toContain("Back on the road");
-  });
-  it("arrived but not visited: says it is not marked visited", () => {
-    const h = html([ev("departed", "2026-11-02T16:30:00Z"), ev("arrived", "2026-11-02T20:30:00Z", { placeId: "v", placeName: "Vijayawada" })]);
-    expect(h).toContain("Arrived at Vijayawada 2:00 AM; not marked visited yet.");
-  });
-  it("a finished trip: no buttons", () => {
-    const h = html([ev("departed", "2026-11-02T16:30:00Z")], { actions: [], closed: true });
-    expect(h).toContain("This trip is finished or called off."); expect(h).not.toContain("Pause");
-  });
-  it("waiting updates and a database without history are said plainly", () => {
-    expect(html([], { waiting: 1 })).toContain("1 update is saved on this phone and will be sent when you&#x27;re back online.");
-    expect(html([], { waiting: 3 })).toContain("3 updates are saved on this phone");
-    expect(html([], { stored: false })).toContain("can&#x27;t be saved to the trip yet");
-  });
-  it("the timeline says how sure each line is, and the worked-out midnight is marked as not recorded", () => {
-    const h = html([ev("departed", "2026-11-02T16:30:00Z", { source: "gps" }), ev("arrived", "2026-11-02T20:30:00Z", { placeName: "Vijayawada" })], { rows: buildTimeline([ev("departed", "2026-11-02T16:30:00Z", { source: "gps" }), ev("arrived", "2026-11-02T20:30:00Z", { placeName: "Vijayawada" })], { offsetMin: 330, me: "u1", nowMs: Date.parse("2026-11-02T21:00:00Z") }) });
-    expect(h).toContain("Journey so far (3)"); expect(h).toContain("From your phone&#x27;s location"); expect(h).toContain("You said"); expect(h).toContain("Worked out, not recorded");
-    expect(h).toContain("Journey continued into Tue 3 Nov"); expect(h).toContain("nothing was recorded");
-  });
-  it("an event that did not fit is counted, not hidden", () => {
-    const h = html([ev("departed", "2026-11-02T16:30:00Z"), { ...ev("departed", "2026-11-02T17:30:00Z"), clientEventId: "evt-second-dep" }]);
-    expect(h).toContain("One update didn&#x27;t fit the order of events");
-  });
-  it("touch targets are at least 44 px and long names wrap instead of widening the screen", () => {
-    const h = html([ev("departed", "2026-11-02T16:30:00Z")]);
-    expect(h).toContain("min-h-11"); expect(h).toContain("break-words");
-  });
-});
-
-describe("'I visited somewhere else' (an unplanned stop)", () => {
-  const base = { journey: deriveJourney([]), actions: allowedActions("awaiting-departure"), rows: [], fix: { source: "manual" as const }, waiting: 0, stored: true as boolean | null, closed: false, offsetMin: 330 };
-  const flat = (n: TestRenderer.ReactTestInstance | string): string => (typeof n === "string" ? n : n.children.map(flat).join(""));
-  const text = (r: TestRenderer.ReactTestRenderer) => flat(r.root);
-  const press = async (r: TestRenderer.ReactTestRenderer, label: string) => {
-    const textOf = (n: TestRenderer.ReactTestInstance | string): string => (typeof n === "string" ? n : n.children.map(textOf).join(""));
-    const b = r.root.findAll((n) => n.type === "button" && textOf(n).includes(label))[0];
-    await act(async () => { b.props.onClick(); });
-  };
-  const type = async (r: TestRenderer.ReactTestRenderer, v: string) => { await act(async () => { r.root.findByType("input").props.onChange({ target: { value: v } }); }); };
-  const submit = async (r: TestRenderer.ReactTestRenderer) => { await act(async () => { r.root.findByType("form").props.onSubmit({ preventDefault() {} }); }); };
-
-  it("is offered on the card; the plan is not touched until the traveller says so", async () => {
-    const calls: string[] = [];
-    const unplanned = { add: async (n: string) => { calls.push(`add:${n}`); }, addToPlan: async (n: string) => { calls.push(`plan:${n}`); }, dayLabel: "Day 2" };
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, { ...base, record: async () => "saved" as const, unplanned })); });
-    expect(text(r)).toContain("I visited somewhere else");
-    await press(r, "I visited somewhere else");
-    await submit(r);                         // no name: nothing happens
-    expect(calls).toEqual([]);
-    await type(r, "  Roadside Hanuman temple  ");
-    await submit(r);
-    expect(calls).toEqual(["add:Roadside Hanuman temple"]); // trimmed, noted in the journey only
-    expect(text(r)).toContain("Noted: Roadside Hanuman temple."); expect(text(r)).toContain("Add to Day 2"); expect(text(r)).toContain("Nothing is marked done");
-    await press(r, "Add to Day 2");
-    expect(calls).toEqual(["add:Roadside Hanuman temple", "plan:Roadside Hanuman temple"]);
-    expect(text(r)).toContain("is in your plan as your next stop");
-    act(() => r.unmount());
-  });
-  it("'No, just note it' leaves the plan alone", async () => {
-    const calls: string[] = [];
-    const unplanned = { add: async (n: string) => { calls.push(`add:${n}`); }, addToPlan: async () => { calls.push("plan"); }, dayLabel: "Day 1" };
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, { ...base, record: async () => "saved" as const, unplanned })); });
-    await press(r, "I visited somewhere else"); await type(r, "Lake view"); await submit(r); await press(r, "No, just note it");
-    expect(calls).toEqual(["add:Lake view"]);
-    expect(text(r)).toContain("I visited somewhere else");
-    act(() => r.unmount());
-  });
-  it("without a precise position there is no 'add to plan': the stop is only noted (a place is never invented)", async () => {
-    const unplanned = { add: async () => {}, addToPlan: null, dayLabel: "Day 1" };
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, { ...base, record: async () => "saved" as const, unplanned })); });
-    await press(r, "I visited somewhere else"); await type(r, "A dhaba"); await submit(r);
-    expect(text(r)).toContain("Noted: A dhaba."); expect(text(r)).not.toContain("Add to Day");
-    act(() => r.unmount());
-  });
-  it("Cancel closes the form without saving, and a finished trip does not offer it", async () => {
-    const calls: string[] = [];
-    const unplanned = { add: async () => { calls.push("add"); }, addToPlan: null, dayLabel: "Day 1" };
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, { ...base, record: async () => "saved" as const, unplanned })); });
-    await press(r, "I visited somewhere else"); await type(r, "x"); await press(r, "Cancel");
-    expect(calls).toEqual([]); expect(text(r)).toContain("I visited somewhere else");
-    act(() => r.unmount());
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, { ...base, record: async () => "saved" as const, unplanned, closed: true, actions: [] })); });
-    expect(text(r)).not.toContain("I visited somewhere else");
-    act(() => r.unmount());
   });
 });

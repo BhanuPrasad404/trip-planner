@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/Button";
 import { Glyph } from "@/components/ui/Glyph";
+import { Select } from "@/components/ui/Select";
 import type { ConditionsReport } from "@/lib/client/use-conditions";
 import { restAdvice, type ConditionItem, type Severity } from "@/lib/trip/conditions";
 
@@ -88,12 +89,10 @@ export function ConditionsCard(p: Props) {
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {items.length > 0 && <Button size="sm" onClick={p.onAdjust} className="min-h-11">Rearrange my trip</Button>}
-        <label className="flex min-h-11 items-center gap-2 text-sm text-pine">
-          <span>Fuel in the tank</span>
-          <select className="min-h-11 rounded-xl border border-line bg-white px-2 text-sm" value={p.fuelPct === null ? "" : String(p.fuelPct)} onChange={(e) => p.onFuel(e.target.value === "" ? null : Number(e.target.value))} aria-label="How full is your tank? Optional">
-            {FUEL.map((f) => <option key={f.v} value={f.v}>{f.t}</option>)}
-          </select>
-        </label>
+        <div className="flex min-h-11 items-center gap-2 text-sm text-pine">
+          <label htmlFor="fuel-level">How full is your tank? Optional</label>
+          <div className="min-w-[10rem]"><Select id="fuel-level" label="How full is your tank? Optional" value={p.fuelPct === null ? "" : String(p.fuelPct)} onChange={(v) => p.onFuel(v === "" ? null : Number(v))} options={FUEL.map((f) => ({ value: f.v, label: f.t }))} className="!min-h-11 !text-sm" /></div>
+        </div>
       </div>
 
       {p.report && p.report.unresolved.length > 0 && (

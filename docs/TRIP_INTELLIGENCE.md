@@ -203,3 +203,12 @@ kind of information it is (your plan, an estimate, hours you entered, a forecast
 7. **Push notifications and background evaluation.**
 8. Cloud / wind / storm visuals (no such data in the weather feed), animated route progress and itinerary transitions, bottom-sheet redesigns beyond the existing ones.
 9. Cluster explanations beyond what the planner already shows; accommodation, fuel and rest-stop intelligence.
+
+---
+
+## Live tab as a travel companion (4 Nov 2026)
+
+The Live screen is now state-driven (`components/live/*`, `lib/trip/live-phase.ts`). The journey's own events stay the single authority; `livePhase()` only names the moment (not started, on the road, almost there, at a stop, paused, resting, finished) and the header (`LiveHeader`) offers the one main action for it: **Start my trip** (sheet that says what it records first, then records the real departure; no GPS needed), **Finished this stop**, **Back on the road**, plus **Add an unplanned stop** (search or type, choose a kind, optional "also add to my plan", corrected later from the diary) and **Short pause / Stop for the night**.
+- **Your trip activity** (`TripActivity`) replaces "Journey so far": plain words, newest first, bookkeeping hidden (a system "change proposed" is never shown; a person's suggestion is), corrections kept (original stays, marked).
+- **Proposals are stored once per situation** (`lib/trip/proposal-key.ts`, `recordProposal` in `lib/server/journey-events.ts`): same schedule + bookings + options inside a 3-hour window = same stored suggestion; a process lock, the prepared unique index (`supabase/migrations/20261104000000_proposal_dedupe_key.sql`, NOT applied) and a "lowest revision wins" read-back keep parallel requests to one copy. The propose route no longer writes its own history event.
+- Plan-check card now says what happened, why it matters and what happens if nothing is done (`explainStaleness`). Preferences stay on the phone and each choice says what it does (`TravelPrefsCard`).

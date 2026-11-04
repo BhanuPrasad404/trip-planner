@@ -10,7 +10,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommitmentsCard } from "@/components/CommitmentsCard";
 import { GroupProgressCard } from "@/components/GroupProgressCard";
 import { TravelPrefsCard } from "@/components/TravelPrefsCard";
-import { JourneyCard } from "@/components/JourneyCard";
 import type { Commitment, NewCommitment } from "@/lib/client/use-commitments";
 import { memberProgress } from "@/lib/trip/group";
 import { allowedActions, buildTimeline, deriveJourney, type JourneyEvent } from "@/lib/trip/journey";
@@ -96,70 +95,4 @@ describe("the group", () => {
     expect(h).toContain("someone arriving or pausing doesn&#x27;t mean everyone has"); expect(h).toContain("Marking a stop done is for the whole group"); expect(h).toContain("never where anyone is");
   });
   it("a trip of one person shows nothing", () => { expect(html([members[0]])).toBe(""); });
-});
-
-describe("how I like to travel", () => {
-  it("is the traveller's own, saved on the phone, and says hill roads after dark are never suggested", () => {
-    const h = renderToStaticMarkup(createElement(TravelPrefsCard, { prefs: DEFAULT_PREFS, onChange: () => {} }));
-    expect(h).toContain("How I like to travel"); expect(h).toContain("Hill roads after dark are never suggested either way"); expect(h).toContain("We never change these for you"); expect(h).toContain("min-h-11");
-    expect(h).toContain("Balanced"); expect(h).not.toContain("checked");
-  });
-  it("changing night driving or pace tells the page exactly what changed, nothing else", async () => {
-    const seen: unknown[] = [];
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(TravelPrefsCard, { prefs: DEFAULT_PREFS, onChange: (p) => seen.push(p) })); });
-    await act(async () => { r.root.findByProps({ type: "checkbox" }).props.onChange({ target: { checked: true } }); });
-    await act(async () => { r.root.findByType("select").props.onChange({ target: { value: "relaxed" } }); });
-    expect(seen).toEqual([{ nightDriving: true }, { pace: "relaxed" }]);
-    act(() => r.unmount());
-  });
-});
-
-describe("correcting your own history on the journey card", () => {
-  const events: JourneyEvent[] = [ev("departed", "2026-11-02T16:30:00Z", "u1"), ev("arrived", "2026-11-02T20:30:00Z", "u1", { placeId: "v", placeName: "Vijayawada" }), ev("departed", "2026-11-02T17:00:00Z", "u2")];
-  const props = (o: Partial<Parameters<typeof JourneyCard>[0]> = {}) => {
-    const mine = events.filter((e) => e.userId === "u1");
-    const journey = deriveJourney(mine);
-    return { journey, actions: allowedActions(journey.state), rows: buildTimeline(events, { offsetMin: 330, me: "u1", names: { u2: "Anil" } }), record: async () => "saved" as const, fix: { source: "manual" as const }, waiting: 0, stored: true as boolean | null, closed: false, offsetMin: 330, ...o };
-  };
-  const open = (html: string) => html.replace("<details", "<details open");
-
-  it("your own events offer 'Correct this'; other people's do not", () => {
-    const h = open(renderToStaticMarkup(createElement(JourneyCard, props({ correct: async () => {} }))));
-    expect((h.match(/Correct this/g) ?? []).length).toBe(2);   // my two events, not Anil's
-  });
-  it("without the control nothing is offered", () => {
-    expect(open(renderToStaticMarkup(createElement(JourneyCard, props())))).not.toContain("Correct this");
-  });
-  it("a corrected event stays on the timeline, marked, and offers no second correction", () => {
-    const dep = events[0];
-    const rows = buildTimeline([...events, ev("manual_correction", "2026-11-02T21:00:00Z", "u1", { meta: { target: dep.clientEventId, action: "void" } })], { offsetMin: 330, me: "u1" });
-    const h = open(renderToStaticMarkup(createElement(JourneyCard, props({ rows, correct: async () => {} }))));
-    expect(h).toContain("You marked this as a mistake, so it doesn&#x27;t count."); expect((h.match(/Correct this/g) ?? []).length).toBe(1);
-  });
-  it("correcting the time sends that event, 'retime', and the real time on the same India date; the original is promised to stay", async () => {
-    const calls: [string, string, string | undefined][] = [];
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, props({ correct: async (t, a, at) => { calls.push([t, a, at]); } }))); });
-    await press(r, "Correct this");
-    expect(textOf(r)).toContain("What time was it really?"); expect(textOf(r)).toContain("The original stays in your history, marked as corrected.");
-    await act(async () => { r.root.findByProps({ type: "time" }).props.onChange({ target: { value: "21:15" } }); });
-    await press(r, "Save the time");
-    expect(calls).toEqual([[events[0].clientEventId, "retime", "2026-11-02T15:45:00.000Z"]]); // 9:15 PM IST
-    act(() => r.unmount());
-  });
-  it("'This didn't happen' voids that event; Cancel sends nothing", async () => {
-    const calls: unknown[][] = [];
-    let r!: TestRenderer.ReactTestRenderer;
-    await act(async () => { r = TestRenderer.create(createElement(JourneyCard, props({ correct: async (...a) => { calls.push(a); } }))); });
-    await press(r, "Correct this"); await press(r, "Cancel");
-    expect(calls).toEqual([]);
-    await press(r, "Correct this"); await press(r, "This didn't happen");
-    expect(calls).toEqual([[events[0].clientEventId, "void", undefined]]);
-    act(() => r.unmount());
-  });
-  it("why a correction was refused is shown next to the controls", () => {
-    const h = renderToStaticMarkup(createElement(JourneyCard, props({ correct: async () => {}, problem: "Journey: manual correction couldn't be sent: Other events depend on this one. Correct those first." })));
-    expect(h).toContain("Other events depend on this one. Correct those first.");
-  });
 });

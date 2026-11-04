@@ -233,6 +233,8 @@ function midnightsBetween(fromMs: number, toMs: number, offsetMin: number, cap =
   return out;
 }
 
+/** The kinds of unplanned stop a traveller can pick (lib/trip/unplanned.ts), in words. */
+const STOP_TYPE_WORDS: Record<string, string> = { food: "Food break", fuel: "Fuel stop", sight: "Sightseeing", stay: "Place to stay", emergency: "Emergency", visit: "Visiting someone", other: "Other stop" };
 const name = (e: JourneyEvent) => e.placeName?.trim() || "a stop";
 function words(e: JourneyEvent): { label: string; detail: string | null } {
   const from = typeof e.meta?.from === "string" && e.meta.from ? e.meta.from : null;
@@ -250,11 +252,11 @@ function words(e: JourneyEvent): { label: string; detail: string | null } {
     case "visit_skipped": return { label: `Skipped ${name(e)}`, detail: null };
     case "visit_corrected": return { label: `Corrected: ${name(e)} is back to planned`, detail: null };
     case "arrival_corrected": return { label: `Corrected: not at ${name(e)} yet`, detail: null };
-    case "unplanned_stop_added": return { label: `Unplanned stop: ${name(e)}`, detail: null };
-    case "revision_proposed": return { label: "Itinerary change proposed", detail: typeof e.meta?.note === "string" ? e.meta.note : null };
-    case "revision_approved": return { label: "Itinerary change approved", detail: typeof e.meta?.note === "string" ? e.meta.note : null };
-    case "revision_rejected": return { label: "Itinerary change declined", detail: typeof e.meta?.note === "string" ? e.meta.note : null };
-    case "manual_correction": return { label: "Progress corrected by hand", detail: typeof e.meta?.note === "string" ? e.meta.note : null };
+    case "unplanned_stop_added": return { label: `Unplanned stop: ${name(e)}`, detail: typeof e.meta?.category === "string" ? STOP_TYPE_WORDS[e.meta.category] ?? null : null };
+    case "revision_proposed": return { label: "Suggested a change to the plan", detail: "Waiting for the trip owner to decide" };
+    case "revision_approved": return { label: "Schedule updated", detail: "The suggested change was approved" };
+    case "revision_rejected": return { label: "Suggested change declined", detail: "The plan stays as it was" };
+    case "manual_correction": return { label: "Corrected an earlier entry", detail: typeof e.meta?.note === "string" ? e.meta.note : null };
   }
 }
 
@@ -276,7 +278,10 @@ export type TimelineOptions = {
 export function buildTimeline(events: JourneyEvent[], o: TimelineOptions): TimelineRow[] {
   const mine = (e: JourneyEvent) => !o.me || !e.userId || e.userId === o.me;
   const pendingIds = new Set((o.pending ?? []).map((e) => e.clientEventId));
-  const raw = [...events.filter((e) => !pendingIds.has(e.clientEventId)), ...(o.pending ?? [])];
+  // The app's own bookkeeping ("a change was proposed" by the system) is not something that happened on the trip: it stays in the data and
+  // out of the traveller's history. A suggestion a person sent to the owner is a real event and stays.
+  const bookkeeping = (e: JourneyEvent) => e.kind === "revision_proposed" && e.meta?.suggested !== true;
+  const raw = [...events.filter((e) => !pendingIds.has(e.clientEventId)), ...(o.pending ?? [])].filter((e) => !bookkeeping(e));
   // Corrections applied: what counts is the corrected picture; what was corrected stays visible, marked.
   const fx = applyCorrections(raw);
   const all = ordered([...fx.events, ...raw.filter((e) => fx.voided.has(e.clientEventId))]);

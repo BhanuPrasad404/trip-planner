@@ -5,6 +5,8 @@ import { rateLimiter } from "@/lib/rate-limit";
 import { exploreSeasonSchema } from "@/lib/validation/schemas";
 import { getCatalogReader } from "@/lib/catalog/read-server";
 import { exploreSeason } from "@/lib/server/explore-season";
+import { attachWhere } from "@/lib/explore/where";
+import { loadGeoIndex } from "@/lib/places/geo-index-load";
 import { INDIA_UTC_OFFSET_MIN, dateOf } from "@/lib/travel/clock";
 
 export const maxDuration = 30;
@@ -23,7 +25,9 @@ export async function POST(req: Request) {
     const month = input.month ?? Number(today.slice(5, 7));
     const centre = input.region ? { region: input.region } : { lat: input.lat as number, lng: input.lng as number, radiusKm: input.radius_km };
     const answer = await exploreSeason(supabase, { centre, month, today }, { catalog: getCatalogReader() });
-    return NextResponse.json({ ...answer, month }, { headers: { "Cache-Control": "private, no-store" } });
+    const ix = await loadGeoIndex().catch(() => null);
+    const located = attachWhere(answer.picks.map((p) => p.item), ix);
+    return NextResponse.json({ ...answer, picks: answer.picks.map((p, i) => ({ ...p, item: located[i] })), month }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     console.error("[api] explore/season:", e instanceof Error ? e.message : e);
     return jsonError("Couldn't work out this month's best places. Please try again.", 500);

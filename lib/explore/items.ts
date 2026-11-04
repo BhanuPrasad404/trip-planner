@@ -22,6 +22,8 @@ export type ExploreItem = {
   wikidata: string | null;
   /** The place's own OpenStreetMap photo tag (Wikimedia Commons only), if any. */
   photo: NearbyPhoto | null;
+  /** Where it is, in words: the town it is in or near, its district and state (lib/explore/where.ts). Absent when our place index knows nothing near it. */
+  where?: { text: string; place: string; district: string | null; state: string | null };
   /** Kilometres from the anchor, only when one was given. */
   km?: number;
   /** Set only for places from our offline list (lib/explore/offline.ts); absent = OpenStreetMap (live, or in our place catalogue). */

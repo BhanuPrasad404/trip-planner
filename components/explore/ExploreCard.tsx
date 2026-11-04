@@ -64,6 +64,8 @@ export function ExploreCard({ item, photo, season, saved, onToggleSave, added, o
         <h3 className="break-words font-display text-xl font-semibold leading-snug text-pine">{item.name}</h3>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-muted"><CategoryGlyph category={glyph} size={15} className="shrink-0 text-teal" /><span>{exploreCategoryLabel(item.category)}{item.heritage && " · Heritage listed"}{item.km !== undefined && ` · ${item.km} km away`}</span></p>
 
+        {item.where && <p className="mt-1 flex items-start gap-1.5 text-sm font-medium text-ink"><Glyph name="pin" size={15} className="mt-0.5 text-clay" /><span className="min-w-0 break-words">{item.where.text}</span></p>}
+
         {reasons && reasons.length > 0 && (
           <ul aria-label={`Why ${item.name} is suggested`} className="mt-2 space-y-1 text-sm text-ink">
             {reasons.map((r) => <li key={r} className="flex items-start gap-2"><span aria-hidden="true" className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-teal" /><span>{r}</span></li>)}
@@ -86,7 +88,7 @@ export function ExploreCard({ item, photo, season, saved, onToggleSave, added, o
         </div>
       {open && (
         <div id={panel} className="mt-2 space-y-1.5 border-t border-line pt-3 text-sm">
-          <p><span className="font-semibold text-pine">Location</span> <span className="font-mono text-xs text-ink-muted">{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</span></p>
+          <p><span className="font-semibold text-pine">Location</span> {item.where && <span className="block text-ink">{item.where.text}</span>}<span className="font-mono text-xs text-ink-muted">{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</span></p>
           <div><p className="font-semibold text-pine">Opening hours</p><PlaceHours place={exploreItemRef(item)} /></div>
           <p><span className="font-semibold text-pine">Source</span> <span className="text-xs text-ink-muted">{sourceLabel(item) ?? "OpenStreetMap, looked up just now"}</span></p>
           {season && (

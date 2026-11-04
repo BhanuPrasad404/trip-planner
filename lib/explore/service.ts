@@ -25,7 +25,7 @@ export type LoadDeps = {
   store: ExploreStore; fetchImpl?: typeof fetch; now?: () => number; allowUpstream?: () => boolean | Promise<boolean>;
   /** Our own place catalogue (lib/catalog/read.ts). Null answer = not loaded: the old path runs. */
   catalog?: CatalogReader | null;
-  /** Ask the live map where the catalogue has nothing (default: OVERPASS_EXTRA isn't "off"). */
+  /** Ask the live map where the catalogue has nothing (default: only when OVERPASS_EXTRA=on). */
   liveExtra?: boolean;
   /** Last resort when the live servers fail and nothing is saved: places from our own offline list (lib/explore/offline.ts). */
   offline?: (scope: ExploreScope, kinds: ExploreKinds) => Promise<{ items: ExploreItem[]; builtAt: number } | null>;
@@ -125,12 +125,12 @@ async function askMirrors(scope: ExploreScope, category: ExploreKinds, fetchImpl
   throw new ExploreUnavailableError(`all map servers failed: ${failures.join("; ")}`);
 }
 
-/** Overpass as an EXTRA, only where our catalogue has nothing: on unless OVERPASS_EXTRA=off. */
-export const liveExtraOn = () => process.env.OVERPASS_EXTRA !== "off";
+/** Overpass as an EXTRA, only where our catalogue has nothing. OFF unless OVERPASS_EXTRA=on: the public servers are often down, and asking them only made a tap wait. */
+export const liveExtraOn = () => process.env.OVERPASS_EXTRA === "on";
 
 /**
  * Our own place catalogue first (lib/catalog): when it is loaded, its answer is THE answer and no public server is asked during the tap.
- * Only where it has nothing for this question, and only when OVERPASS_EXTRA isn't "off", the old path runs as an extra (shared cache,
+ * Only where it has nothing for this question, and only when OVERPASS_EXTRA=on, the old path runs as an extra (shared cache,
  * one live Overpass question, saved lists, the offline list); if that fails too, the catalogue's "nothing here" is believed.
  * When the catalogue isn't loaded (or can't be read), the old path runs as before.
  */

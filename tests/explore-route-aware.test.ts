@@ -87,8 +87,8 @@ describe("the map question for a road", () => {
     expect(() => buildExploreQuery({ kind: "route", line: Array.from({ length: MAX_ROUTE_POINTS + 1 }, (_, i) => [78 + i / 1000, 17] as [number, number]), radius_km: 5 }, "fort")).toThrow();
     expect(() => buildExploreQuery({ kind: "route", line: [[78, 17], [NaN, 17]], radius_km: 5 }, "fort")).toThrow();
   });
-  it("the corridor radius is clamped (1–25 km)", () => {
-    expect(buildExploreQuery({ kind: "route", line, radius_km: 500 }, "fort")).toContain("around:25000");
+  it("the corridor radius is clamped (1–50 km)", () => {
+    expect(buildExploreQuery({ kind: "route", line, radius_km: 500 }, "fort")).toContain("around:50000");
     expect(buildExploreQuery({ kind: "route", line, radius_km: 0 }, "fort")).toContain("around:1000");
   });
   it("shrinks a dense road to the limit and keeps both ends", () => {

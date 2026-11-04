@@ -48,7 +48,7 @@ export function buildExploreQuery(scope: ExploreScope, category: ExploreKinds): 
     const pts = scope.line;
     if (pts.length < 2 || pts.length > MAX_ROUTE_POINTS || !pts.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))) throw new Error("bad route");
     if (!Number.isFinite(scope.radius_km)) throw new Error("bad route");
-    const r = Math.round(Math.min(25, Math.max(1, scope.radius_km)) * 1000);
+    const r = Math.round(Math.min(50, Math.max(1, scope.radius_km)) * 1000);
     head = "";
     // Overpass reads a list of coordinates in "around" as a line: everything within r metres of the road.
     where = `(around:${r},${pts.map(([lng, lat]) => `${lat.toFixed(4)},${lng.toFixed(4)}`).join(",")})`;

@@ -79,3 +79,18 @@ exactly like Go There. Undo deletes the new stop.
 2. **Opening hours of the suggested place itself** are the map's raw text; the add-a-stop check uses the hours of the trip's own stops.
 3. **Coverage** follows OpenStreetMap. Famous places are well mapped, small ones less so; a long road asks for notable places only for the heavy categories (temples, lakes, viewpoints…).
 4. **Needs a real device and a deployed database to confirm**: the corridor query against live Overpass servers for long routes (timeouts), the shared cache table with route keys, the `destinations_near_points` match against real feed data, GPS on a phone, and the look of the new section and sheets.
+
+
+---
+
+## Update 4 Nov 2026 — Explore rebuilt on our own place list
+
+**Why.** The road search ("Finding places for your trip…") never read our place catalogue (88k places in Supabase): only `/api/explore` and the intake routes did, so it still went to the public Overpass servers and showed "The map servers are busy". `app/api/explore/trip/route.ts` now passes the catalogue and the offline list, like the other routes. Live Overpass is now an extra only when `OVERPASS_EXTRA=on` (default off), so a dead server can no longer stall a tap.
+
+**50 km.** Road search width is 5 / 10 / 25 / 50 km either side (catalogue and Overpass both allow 50); "Around a place" is 10 / 25 / 50 km (round a place on a trip you are staying at: up to 50 km).
+
+**Best in <month> is no longer one list for everybody** (`components/explore/BestInMonth.tsx`, `POST /api/explore/season`, `lib/server/explore-season.ts`, `lib/explore/season-picks.ts`). It looks near the trip, near the phone's location (asked on tap) or in a state the person picks (remembered on that phone). It takes well-known places from the catalogue, reads the TYPICAL weather of the chosen month at each ~50 km square (Open-Meteo history, 6 years, kept 30 days per square for all months), and applies a written rule per kind of place (waterfall wants rain, beach wants warm and dry, forts want comfortable days, museums are one step kinder). The numbers are shown on every card. Researched season entries (today only Andhra Pradesh and Telangana) are shown first, marked "Researched" with their source. If the weather cannot be read it says so and shows nothing.
+
+**Look.** One-line scrolling category chips, segmented distance control, image-first cards, skeletons; theme tokens only. `components/explore/kit.tsx` holds the shared pieces.
+
+**Known limits.** The free Open-Meteo plan allows a limited number of calls per minute; a cold start in a new area makes up to 6 lookups (3 at a time), later months and revisits are free until the server restarts (the cache is in memory). The commercial plan (already on the launch checklist) removes the limit. A shared database cache of the monthly numbers would survive restarts; not built.

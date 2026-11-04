@@ -6,6 +6,8 @@ import { consumeQuota } from "@/lib/quota";
 import { exploreTripSchema } from "@/lib/validation/schemas";
 import { ExploreQuotaError, ExploreUnavailableError } from "@/lib/explore/service";
 import { getExploreStore } from "@/lib/explore/store";
+import { loadOfflineExplore } from "@/lib/explore/offline-load";
+import { getCatalogReader } from "@/lib/catalog/read-server";
 import { exploreForTrip } from "@/lib/server/explore-trip";
 
 // A corridor query may have to ask the map servers (then it is shared for everyone on the same road), so it gets the same time as a region.
@@ -27,7 +29,7 @@ export async function POST(req: Request) {
     const answer = await exploreForTrip(
       supabase,
       { tripId: input.trip_id, category: input.category, radiusKm: input.radius_km, cursor: input.cursor, limit: input.limit, position: input.position },
-      { loadDeps: { store: getExploreStore(), allowUpstream: () => consumeQuota(supabase, "explore", 150) } },
+      { loadDeps: { store: getExploreStore(), allowUpstream: () => consumeQuota(supabase, "explore", 150), offline: loadOfflineExplore, catalog: getCatalogReader() } },
     );
     if ("error" in answer) return jsonError("Trip not found", 404);
     return NextResponse.json(answer, { headers: { "Cache-Control": "private, no-store" } });

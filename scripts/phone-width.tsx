@@ -39,6 +39,10 @@ import { memberProgress } from "@/lib/trip/group";
 import { DEFAULT_PREFS } from "@/lib/trip/preferences";
 import { LIMITATIONS } from "@/lib/trip/conditions";
 import { ArrivalCard } from "@/components/ArrivalCard";
+import { ExploreView } from "@/components/ExploreView";
+import { ExploreHero } from "@/components/explore/Hero";
+import { ExploreCard } from "@/components/explore/ExploreCard";
+import { PickCard } from "@/components/explore/BestInMonth";
 import { buildTimeline, deriveJourney, allowedActions, type JourneyEvent } from "@/lib/trip/journey";
 import { rankAttractions } from "@/lib/place-intel/attractions";
 import { placeRole } from "@/lib/place-intel/role";
@@ -171,6 +175,12 @@ export const pages: Record<string, string> = {
   "post-page": renderToStaticMarkup(withRouter(h(PostDetail, { initial: FEED_POST, more: [FEED_POST], trips: [{ id: "t1", name: "Monsoon weekend with the family" }], focusTripId: "t1", hasProfile: true } as never))),
   "traveler-page": renderToStaticMarkup(withRouter(h(TravelerProfile, { profile: { username: "ravi_kumar_long_name", displayName: "Ravi Kumar from a long village name", bio: "Weekend rider. Hills, waterfalls and the long way round.", isPrivate: false, mine: true }, standing: { helped: 1240, posts: 3400, followers: 125000, following: 980, tier: "guide", place: { id: "d", name: "Araku Valley and the hills around it", helped: 300 } }, follow: "none", posts: [FEED_POST, { ...FEED_POST, id: "33333333-3333-4333-8333-333333333333" }], nextCursor: "c", postsHidden: false } as never))),
   "quick-report": renderToStaticMarkup(h(QuickReport, { place: { name: "Echo Point and a very long viewpoint name", lat: 18.98, lng: 73.26 }, onClose: feedNoop })),
+  // Explore: the whole page (trip section, Best in <month>, Discover, food/stays/fuel) and the two kinds of result card with long names.
+  "explore-page": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6" }, h(ExploreHero, { title: "Where to next?", subtitle: "Ideas for “Home - vizag”, picked for when you travel — not just what's popular." }), h(ExploreView, { tripId: "t", anchors: [{ id: "d", label: "Visakhapatnam and the very long name of a destination", lat: 17.7, lng: 83.2 }], seasonTags: [], month: 11 })))),
+  "explore-no-trip": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6" }, h(ExploreHero, { title: "Where to next?", subtitle: "Forts, temples, waterfalls and beaches across every state." }), h(ExploreView, { tripId: null, anchors: [], seasonTags: [], month: 11, guess: { lat: 28.6, lng: 77.2 } })))),
+  "explore-cards": renderToStaticMarkup(withRouter(h("main", { id: "main", className: "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6" }, h("ul", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" },
+    h(ExploreCard, { item: { id: "wd:Q1", name: "Sri Venkateswara Swamy Vari Devasthanam and a very long name", category: "temple", lat: 17, lng: 78, notable: true, heritage: true, hours: null, website: null, wikipedia: null, wikidata: "Q1", photo: null, km: 12 }, season: null, saved: true, onToggleSave: noop, added: false, onAdd: noop, onAddStop: noop, reasons: ["4.2 km off your route, about 15 min extra by road"], community: { text: "3 traveller reports · latest yesterday", fresh: "new" }, onCommunity: noop }),
+    h(PickCard, { pick: { item: { id: "wd:Q2", name: "Araku Valley and the hills around it", category: "viewpoint", lat: 18, lng: 82, notable: true, heritage: false, hours: null, website: null, wikipedia: null, wikidata: "Q2", photo: null }, fit: { verdict: "great", score: 100, why: "Usually 27 °C by day, rain on about 5% of days — clear, cool days" }, researched: { reason: "Cool and misty from October to February.", source: "example.org" }, km: 112 }, month: 11, tripId: "t", saved: { places: [], ready: true, error: null, loadFailed: false, isSaved: () => false, toggle: async () => undefined } as never, added: new Set<string>(), addIdea: async () => undefined, regionName: null }))))),
   control: renderToStaticMarkup(h("main", { className: "mx-auto w-full px-4" }, h("ol", { className: "flex gap-1.5 overflow-x-auto" },
     ...Array.from({ length: 12 }, (_, i) => h("li", { key: i, className: "w-14 shrink-0" }, `${i}h`, h("span", { className: "sr-only" }, `hour ${i} details`)))))),
   addplace: renderToStaticMarkup(h("main", { className: "mx-auto w-full max-w-3xl px-4 py-5" },

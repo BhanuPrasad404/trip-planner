@@ -19,7 +19,7 @@ anything that is a town, village or administrative area is left out.
 ## Serving order (lib/explore/service.ts → loadExplore)
 
 1. **Catalogue loaded** → its answer is the answer. No public server is asked.
-2. Catalogue has **nothing** for that question → the live Overpass map as an **extra** (unless `OVERPASS_EXTRA=off`), then saved lists,
+2. Catalogue has **nothing** for that question → the live Overpass map as an **extra** (only when `OVERPASS_EXTRA=on`; it is OFF by default since 4 Nov 2026: the public servers are often down and only made taps wait), then saved lists,
    then the offline GeoNames list. If all of that fails, the catalogue's "nothing here" stands (never an error).
 3. Catalogue **not loaded / unreadable** → the old path exactly as before.
 

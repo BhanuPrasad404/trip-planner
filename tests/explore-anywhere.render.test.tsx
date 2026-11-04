@@ -58,8 +58,8 @@ describe("Explore: anywhere in India, not only the places in your trip", () => {
     await act(async () => { button(r, "Hampi").props.onClick(); });
     await act(async () => { await Promise.resolve(); });
     const call = requests.find((x) => x.url === "/api/nearby");
-    expect(call?.body).toMatchObject({ kind: "sights", lat: 15.335, lng: 76.46, radius_km: 25 });
-    expect(text(r.root)).toContain("Around Hampi");
+    expect(call?.body).toMatchObject({ kind: "food", lat: 15.335, lng: 76.46, radius_km: 8 });
+    expect(text(r.root)).toContain("near Hampi");
     expect(text(r.root)).toContain("Virupaksha Temple");
   });
 
@@ -74,13 +74,6 @@ describe("Explore: anywhere in India, not only the places in your trip", () => {
     expect(imgs.map((i) => i.props.alt)).toEqual(["Photo of Virupaksha Temple"]); // the shrine without a photo has an icon, not a stand-in
     const credit = r.root.findAll((n) => n.type === "a" && text(n).includes("Photo: Jane Doe"))[0];
     expect(credit.props.href).toBe("https://commons.wikimedia.org/wiki/File:Virupaksha.jpg");
-  });
-
-  it("is honest that season guidance exists only for researched places", async () => {
-    const r = await mount();
-    await act(async () => { button(r, "Hampi").props.onClick(); });
-    await act(async () => { await Promise.resolve(); });
-    expect(text(r.root)).toContain("haven't researched the best months");
   });
 
   it("with a trip, its start/destination are still offered alongside the searched place", async () => {

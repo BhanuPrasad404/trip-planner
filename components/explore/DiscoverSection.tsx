@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDeviceHere } from "@/lib/client/use-device-here";
 import { ExplorePlaceSearch } from "@/components/ExplorePlaceSearch";
-import { CategoryGlyph } from "@/components/ui/Glyph";
+import { CategoryGlyph, Glyph } from "@/components/ui/Glyph";
 import { ExploreCard, type SeasonNote } from "@/components/explore/ExploreCard";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { ChipRow, PlaceSkeletons, Segmented, pill as chip } from "@/components/explore/kit";
 import { CATEGORIES, normalizeCategory, type PlaceCategory } from "@/lib/categories";
 import { useExplore } from "@/lib/client/use-explore";
 import { usePlacePhotos } from "@/lib/client/use-place-photos";
@@ -38,18 +39,25 @@ type Props = {
   added: Set<string>;
   addIdea: AddIdea;
   addError: string | null;
+  /** Lifted to the page when other parts of it (the hero search, the mood tiles) also set them. */
+  mode?: "region" | "place"; onMode?: (m: "region" | "place") => void;
+  category?: ExploreCategoryId | "all"; onCategory?: (c: ExploreCategoryId | "all") => void;
+  hideSearch?: boolean;
 };
 
 const MONTH = (m: number) => new Date(2000, m - 1, 1).toLocaleString("en-IN", { month: "short" });
-const RADII = [10, 25, 50];
-const chip = (on: boolean) => `min-h-11 rounded-full border px-3 text-sm font-semibold ${on ? "border-pine bg-pine text-white" : "border-line bg-white text-ink-muted hover:border-teal"}`;
+const RADII = [10, 25, 50] as const;
 
-export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onPickPlace, researched, month, saved, added, addIdea, addError }: Props) {
+export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onPickPlace, researched, month, saved, added, addIdea, addError, mode: modeProp, onMode, category: categoryProp, onCategory, hideSearch }: Props) {
   const [tab, setTab] = useState<"discover" | "saved">("discover");
-  const [mode, setMode] = useState<"region" | "place">(anchors.length > 0 ? "place" : "region");
+  const [localMode, setLocalMode] = useState<"region" | "place">(anchors.length > 0 ? "place" : "region");
+  const mode = modeProp ?? localMode;
+  const setMode = onMode ?? setLocalMode;
   const [region, setRegion] = useState("");
   const [radius, setRadius] = useState(25);
-  const [category, setCategory] = useState<ExploreCategoryId | "all">("all");
+  const [localCategory, setLocalCategory] = useState<ExploreCategoryId | "all">("all");
+  const category = categoryProp ?? localCategory;
+  const setCategory = onCategory ?? setLocalCategory;
   const [sort, setSort] = useState<"notable" | "nearest">("notable");
   const [q, setQ] = useState("");
   // "Near me": asked for on a tap, used to look round this spot, never stored or shared.
@@ -93,11 +101,11 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
   const toSaved = (i: ExploreItem) => ({ key: i.id, name: i.name, lat: i.lat, lng: i.lng, category: plannerCategory(i.category), region: regionName ?? null });
 
   return (
-    <section aria-labelledby="discover-heading" className="rounded-3xl border border-line bg-white p-5 sm:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-2">
+    <section id="discover" aria-labelledby="discover-heading" className="scroll-mt-4 rounded-[2rem] border border-line bg-white p-5 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="discover-heading" className="font-display text-2xl font-semibold text-pine">Discover places across India</h2>
-          <p className="mt-1 max-w-2xl text-sm text-ink-muted">Real places from OpenStreetMap, well-known ones first, in every state and union territory. Photos come from Wikipedia and Wikimedia Commons (free licences, credited), only where a real one exists.</p>
+          <h2 id="discover-heading" className="font-display text-2xl font-semibold leading-tight text-pine sm:text-3xl">Discover places across India</h2>
+          <p className="mt-1 max-w-2xl text-sm text-ink-muted">Forts, temples, waterfalls, beaches and more in every state and union territory, well-known places first. Search a town, tap Near me, or pick a state.</p>
         </div>
         <div className="flex gap-2" role="group" aria-label="Discover or saved">
           <button type="button" aria-pressed={tab === "discover"} onClick={() => setTab("discover")} className={chip(tab === "discover")}>Discover</button>
@@ -111,11 +119,13 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
         <SavedList saved={saved} tripId={tripId} added={added} addIdea={addIdea} />
       ) : (
         <>
-          <div className="mt-4"><ExplorePlaceSearch onPick={(p) => { setMode("place"); onPickPlace(p); }} /></div>
-          <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="How to look">
-            <button type="button" aria-pressed={mode === "region"} onClick={() => setMode("region")} className={chip(mode === "region")}>By state or UT</button>
-            <button type="button" aria-pressed={mode === "place"} onClick={() => setMode("place")} className={chip(mode === "place")}>Around a place</button>
-            <button type="button" disabled={here.status === "asking"} onClick={() => { wantNear.current = true; if (here.status === "on") { wantNear.current = false; setMode("place"); onPickPlace({ name: "Your location", address: "", lat: here.lat, lng: here.lng, source: "map" }); } else request(); }} className={chip(false)}>{here.status === "asking" ? "Asking…" : "Near me"}</button>
+          {!hideSearch && <div className="mt-4"><ExplorePlaceSearch onPick={(p) => { setMode("place"); onPickPlace(p); }} /></div>}
+          <div className="mt-4">
+            <ChipRow label="How to look">
+              <button type="button" aria-pressed={mode === "region"} onClick={() => setMode("region")} className={chip(mode === "region")}>By state or UT</button>
+              <button type="button" aria-pressed={mode === "place"} onClick={() => setMode("place")} className={chip(mode === "place")}>Around a place</button>
+              <button type="button" disabled={here.status === "asking"} onClick={() => { wantNear.current = true; if (here.status === "on") { wantNear.current = false; setMode("place"); onPickPlace({ name: "Your location", address: "", lat: here.lat, lng: here.lng, source: "map" }); } else request(); }} className={chip(false)}><Glyph name="locate" size={16} />{here.status === "asking" ? "Asking…" : "Near me"}</button>
+            </ChipRow>
           </div>
           {here.status === "denied" && <p role="status" className="mt-2 text-sm text-ink-muted">Location is blocked in this browser, so “Near me” can&apos;t work. Search for a place or choose a state instead.</p>}
           {here.status === "unavailable" && <p role="status" className="mt-2 text-sm text-ink-muted">We couldn&apos;t find your location just now. Search for a place or choose a state instead.</p>}
@@ -133,9 +143,9 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
           ) : (
             <div className="mt-3 space-y-3">
               {anchors.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="discover-around">Around</label><div className="min-w-[10rem]"><Select id="discover-around" label="Around" value={anchor?.id ?? ""} onChange={onAnchorChange} options={anchors.map((a) => ({ value: a.id, label: a.label }))} className="!min-h-11 !text-sm font-normal" /></div></div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-pine"><label htmlFor="discover-within">Within</label><div className="min-w-[7rem]"><Select id="discover-within" label="Within" value={String(radius)} onChange={(v) => setRadius(Number(v))} options={RADII.map((r) => ({ value: String(r), label: `${r} km` }))} className="!min-h-11 !text-sm font-normal" /></div></div>
+                <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                  <div className="min-w-[12rem] flex-1 sm:flex-none"><label htmlFor="discover-around" className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Around</label><div className="mt-1"><Select id="discover-around" label="Around" value={anchor?.id ?? ""} onChange={onAnchorChange} options={anchors.map((a) => ({ value: a.id, label: a.label }))} className="!min-h-11 !text-sm font-normal" /></div></div>
+                  <div className="min-w-[16rem] flex-1 sm:flex-none"><Segmented label="Within" value={radius} options={RADII.map((r) => ({ value: r, label: `${r} km` }))} onChange={setRadius} /></div>
                 </div>
               )}
               {anchors.length === 0 && <p className="text-sm text-ink-muted">Search for a city, town or landmark above, or create a trip to explore around its destination.</p>}
@@ -144,9 +154,11 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
 
           {scope && (
             <>
-              <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filter by type">
-                <button type="button" aria-pressed={category === "all"} onClick={() => setCategory("all")} className={chip(category === "all")}>All</button>
-                {EXPLORE_CATEGORIES.map((c) => <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? "all" : c.id)} className={chip(category === c.id)}><CategoryGlyph category={plannerCategory(c.id)} size={15} className="mr-1.5 inline align-text-bottom" />{c.label}</button>)}
+              <div className="mt-4">
+                <ChipRow label="Filter by type">
+                  <button type="button" aria-pressed={category === "all"} onClick={() => setCategory("all")} className={chip(category === "all")}>All</button>
+                  {EXPLORE_CATEGORIES.map((c) => <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? "all" : c.id)} className={chip(category === c.id)}><CategoryGlyph category={plannerCategory(c.id)} size={16} />{c.label}</button>)}
+                </ChipRow>
               </div>
               <div className="mt-3 flex flex-wrap items-end gap-3">
                 <div className="min-w-[12rem] flex-1">
@@ -160,7 +172,7 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
 
           <div aria-live="polite" className="mt-4">
             {!scope && mode === "region" && <p className="text-sm text-ink-muted">Choose a state or union territory to see its places.</p>}
-            {scope && state.status === "loading" && <Skeleton />}
+            {scope && state.status === "loading" && <PlaceSkeletons />}
             {state.status === "error" && (
               <p role="alert" className="rounded-2xl border border-line bg-clay-light/40 p-4 text-sm font-semibold text-clay-ink">{state.error} <Button size="sm" variant="ghost" onClick={state.retry}>Try again</Button></p>
             )}
@@ -188,7 +200,7 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
               </>
             )}
           </div>
-          <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL) and Wikidata (CC0); each place shows its source and the date of that data. Opening hours say where they come from and whether anyone confirmed them; unconfirmed map hours are labelled so. Price and rating filters will appear once a source for them is connected; we don&apos;t guess.</p>
+          <p className="mt-4 text-[11px] text-ink-muted">Place data © OpenStreetMap contributors (ODbL) and Wikidata (CC0); each place shows its source and the date of that data. Photos are from Wikipedia and Wikimedia Commons (free licences, credited), only where a real one exists. Opening hours say where they come from. We show no prices or ratings because we have no source for them; we don&apos;t guess.</p>
         </>
       )}
     </section>
@@ -196,16 +208,6 @@ export function DiscoverSection({ tripId, anchors, anchorId, onAnchorChange, onP
 }
 
 function safeHost(url: string): string | null { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; } }
-
-function Skeleton() {
-  return (
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading places" aria-busy="true">
-      {Array.from({ length: 6 }, (_, i) => (
-        <li key={i} className="rounded-2xl border border-line bg-white p-5"><div className="h-36 animate-pulse rounded-xl bg-sky motion-reduce:animate-none" /><div className="mt-3 h-5 w-2/3 animate-pulse rounded bg-sky motion-reduce:animate-none" /><div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-sky motion-reduce:animate-none" /></li>
-      ))}
-    </ul>
-  );
-}
 
 function SavedList({ saved, tripId, added, addIdea }: { saved: Saved; tripId: string | null; added: Set<string>; addIdea: AddIdea }) {
   if (!saved.ready) return <p className="mt-4 text-sm text-ink-muted">Loading your saved places…</p>;

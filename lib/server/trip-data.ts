@@ -63,7 +63,7 @@ export type TripBundle = {
 };
 
 /** How long a page may wait for forecasts before it renders without them (the rest are simply missing, which the UI states). */
-export const WEATHER_PAGE_BUDGET_MS = 3_000;
+export const WEATHER_PAGE_BUDGET_MS = 1_500;
 
 export async function loadTripBundle(id: string, nextPath: string, opts: { weather?: boolean; reports?: boolean } = {}): Promise<TripBundle> {
   const placesQuery = (supabase: SupabaseClient, cols: string) =>

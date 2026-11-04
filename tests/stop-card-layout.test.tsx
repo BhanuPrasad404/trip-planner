@@ -25,13 +25,13 @@ describe("a long place name", () => {
 });
 
 describe("Skip and Done", () => {
-  it("share the row on a phone (equal tap targets, Done a little wider), with Map beside them, and never wrap onto a second line", () => {
+  it("share the row on a phone (equal tap targets, Done a little wider), with Map as a small icon button beside them, and never wrap onto a second line (a labelled Map button pushed past the card edge at 412 px)", () => {
     const h = html(place());
     const row = /role="group" aria-label="Progress for Visakhapatnam"([^>]*)>/.exec(h)![0];
     expect(row).not.toContain("flex-wrap");
-    expect(h).toMatch(/class="[^"]*min-h-11 flex-1[^"]*"[^>]*>[\s\S]*?Skip/);
-    expect(h).toMatch(/class="[^"]*min-h-11 flex-\[1\.4\][^"]*"[^>]*>[\s\S]*?Done/);
-    expect(h).toMatch(/shrink-0[^>]*sm:hidden[^>]*>[\s\S]*?Map<span/);
+    expect(h).toMatch(/class="[^"]*min-h-11 min-w-0 flex-1[^"]*"[^>]*>[\s\S]*?Skip/);
+    expect(h).toMatch(/class="[^"]*min-h-11 min-w-0 flex-\[1\.4\][^"]*"[^>]*>[\s\S]*?Done/);
+    expect(h).toMatch(/w-11 shrink-0[^>]*sm:hidden[^>]*>[\s\S]*?Map<span/);
   });
 });
 

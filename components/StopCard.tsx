@@ -194,22 +194,22 @@ export function StopCard({
       {((onStatus && scheduled) || (!scheduled && onMove)) && (
         <div className="mt-3 flex items-center gap-2" role="group" aria-label={`Progress for ${place.name}`}>
 {onStatus && scheduled && (finished ? (
-            <Button size="sm" variant="secondary" className="min-h-11 flex-1 sm:flex-none" loading={busy} onClick={() => onStatus(place.id, "planned")}>
+            <Button size="sm" variant="secondary" className="min-h-11 min-w-0 flex-1 sm:flex-none" loading={busy} onClick={() => onStatus(place.id, "planned")}>
               <Glyph name="uturn" size={15} />Undo<span className="sr-only"> {place.status} for {place.name}</span>
             </Button>
           ) : (
             <>
-              <Button size="sm" variant="secondary" className="min-h-11 flex-1 sm:flex-none" disabled={busy} onClick={() => onStatus(place.id, "skipped")}>
+              <Button size="sm" variant="secondary" className="min-h-11 min-w-0 flex-1 px-2.5 sm:flex-none sm:px-3.5" disabled={busy} onClick={() => onStatus(place.id, "skipped")}>
                 <Glyph name="skip" size={15} />Skip<span className="sr-only"> {place.name}</span>
               </Button>
-              <Button size="sm" className="min-h-11 flex-[1.4] sm:flex-none" disabled={busy} onClick={() => onStatus(place.id, "done")}>
+              <Button size="sm" className="min-h-11 min-w-0 flex-[1.4] px-2.5 sm:flex-none sm:px-3.5" disabled={busy} onClick={() => onStatus(place.id, "done")}>
                 <Glyph name="check" size={16} />Done<span className="sr-only"> with {place.name}</span>
               </Button>
             </>
           ))}
           {onShowOnMap && (
-            <button type="button" onClick={() => onShowOnMap(place.id)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-semibold text-teal-ink hover:bg-sky sm:hidden">
-              <Glyph name="pin" size={16} />Map<span className="sr-only"> for {place.name}</span>
+            <button type="button" onClick={() => onShowOnMap(place.id)} className="inline-flex min-h-11 w-11 shrink-0 items-center justify-center rounded-2xl border-2 border-line bg-white text-teal-ink hover:bg-sky sm:hidden">
+              <Glyph name="pin" size={18} /><span className="sr-only">Map<span> for {place.name}</span></span>
             </button>
           )}
           {!scheduled && onMove && moveOptions.length > 0 && (
@@ -234,7 +234,7 @@ export function StopCard({
       )}
 
       <details className="group mt-3 border-t border-line">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold text-ink-muted [&::-webkit-details-marker]:hidden">
+        <summary className="tm-no-chevron flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold text-ink-muted [&::-webkit-details-marker]:hidden">
           <span>More about this place</span>
           <Glyph name="down" size={16} className="transition-transform group-open:rotate-180" />
         </summary>

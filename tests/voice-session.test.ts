@@ -53,6 +53,20 @@ describe("voice session", () => {
     expect(h.onError).toHaveBeenCalledWith(voiceErrorMessage("no-speech"), "no-speech");
     expect(h.onListening).toHaveBeenLastCalledWith(false);
   });
+  it("went quiet AFTER speaking: stops without an error (the words are already in the box)", () => {
+    const { Ctor, made } = fake(); const h = handlers();
+    startVoice(Ctor, "en-IN", h);
+    made[0].onresult!({ results: [res("go to goa", true)] }); made[0].onend!();
+    made[1].onend!(); made[2].onend!(); made[3].onend!();
+    expect(h.onError).not.toHaveBeenCalled(); expect(h.onListening).toHaveBeenLastCalledWith(false);
+  });
+  it("a sentence the phone ended without marking final is kept, not dropped", () => {
+    const { Ctor, made } = fake(); const h = handlers();
+    startVoice(Ctor, "en-IN", h);
+    made[0].onresult!({ results: [res("three days from pune", false)] });
+    made[0].onend!();
+    expect(h.onFinal).toHaveBeenCalledWith("three days from pune"); expect(h.onFinal).toHaveBeenCalledTimes(1);
+  });
   it.each(["not-allowed", "service-not-allowed", "audio-capture", "network", "language-not-supported"])("%s stops with its own plain message, never a restart", (code) => {
     const { Ctor, made } = fake(); const h = handlers();
     startVoice(Ctor, "en-IN", h);

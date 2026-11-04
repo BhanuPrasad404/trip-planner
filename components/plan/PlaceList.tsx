@@ -12,7 +12,7 @@ import { KIND_LABEL } from "@/lib/places/types";
 
 const STATUS = {
   sure: { icon: "checkCircle" as const, word: "Sure", cls: "bg-teal-light text-teal-ink" },
-  check: { icon: "warn" as const, word: "Check this", cls: "bg-marigold-light text-[#7a4a00]" },
+  check: { icon: "warn" as const, word: "Check this", cls: "bg-marigold-light text-marigold-ink" },
   missing: { icon: "info" as const, word: "Not found", cls: "bg-clay-light text-clay-ink" },
 };
 
@@ -25,31 +25,31 @@ export function PlaceList({ places, near, onChange }: { places: DraftPlace[]; ne
     setFixing(null);
   };
 
-  if (places.length === 0) return <p className="rounded-xl border border-dashed border-line px-4 py-3 text-sm text-ink-muted">No places yet. Add them with the search below.</p>;
+  if (places.length === 0) return <p className="rounded-3xl border-2 border-dashed border-line bg-white/70 px-4 py-4 text-sm text-ink-muted">No places yet. Add them with the search below.</p>;
   return (
     <>
       <ul className="space-y-2.5" aria-label="Your places">
         {places.map((p) => {
           const s = STATUS[p.status];
           return (
-            <li key={p.key} className={`rounded-2xl border bg-white p-3.5 ${p.status === "sure" ? "border-line" : p.status === "check" ? "border-marigold/60" : "border-clay/40"}`}>
+            <li key={p.key} className={`rounded-3xl border-2 bg-white p-4 shadow-card ${p.status === "sure" ? "border-line" : p.status === "check" ? "border-marigold/60" : "border-clay/40"}`}>
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-semibold">{p.place?.name ?? p.said}</p>
+                  <p className="break-words text-[17px] font-bold text-pine">{p.place?.name ?? p.said}</p>
                   {p.place && <p className="break-words text-sm text-ink-muted">{[KIND_LABEL[p.place.kind] === "Place" ? null : KIND_LABEL[p.place.kind], p.place.area].filter(Boolean).join(" · ")}{p.place.calledAs ? ` · also called ${p.place.calledAs}` : ""}</p>}
                   {p.place && p.said.toLowerCase() !== p.place.name.toLowerCase() && <p className="text-xs text-ink-muted">You wrote “{p.said}”{p.source === "ai" ? " (read by AI)" : ""}</p>}
                   <p className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${s.cls}`}><Glyph name={s.icon} size={13} />{s.word}</p>
                   {p.reason && <p className="mt-1.5 text-sm text-ink-muted">{p.reason}</p>}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
-                  <button type="button" aria-pressed={p.must} onClick={() => update(p.key, { must: !p.must })} className={`inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-xs font-bold ${p.must ? "bg-marigold text-pine" : "border border-line text-ink-muted"}`}>
+                  <button type="button" aria-pressed={p.must} onClick={() => update(p.key, { must: !p.must })} className={`inline-flex min-h-11 items-center gap-1 rounded-full px-3.5 text-xs font-bold transition-colors ${p.must ? "bg-marigold text-pine" : "border-2 border-line text-ink-muted hover:border-teal"}`}>
                     <Glyph name="star" size={13} />{p.must ? "Must see" : "Nice to have"}<span className="sr-only">: {p.place?.name ?? p.said}</span>
                   </button>
                   <button type="button" onClick={() => onChange(places.filter((x) => x.key !== p.key))} className="tm-action min-h-11 text-xs font-semibold">Remove<span className="sr-only"> {p.place?.name ?? p.said}</span></button>
                 </div>
               </div>
               {p.status !== "sure" && (
-                <button type="button" onClick={() => setFixing(p)} className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-pine px-4 text-sm font-bold text-white">
+                <button type="button" onClick={() => setFixing(p)} className="tm-action-solid mt-2">
                   <Glyph name={p.status === "missing" ? "search" : "pin"} size={15} />{p.status === "missing" ? "Search for it" : p.alternatives.length ? "Fix" : "Choose another"}<span className="sr-only">: {p.said}</span>
                 </button>
               )}

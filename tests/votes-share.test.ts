@@ -34,14 +34,14 @@ describe("buildItineraryText", () => {
   ];
 
   it("builds a day-by-day message with route, dates, times, drive legs and flags", () => {
-    const t = buildItineraryText({ trip, places, flags: { "2": "⚠ check timing" }, link: "https://x.test/join/abc" });
-    expect(t).toContain("🧭 *Hyderabad → Vijayawada* — 2 days");
+    const t = buildItineraryText({ trip, places, flags: { "2": "check timing" }, link: "https://x.test/join/abc" });
+    expect(t).toContain("*Hyderabad → Vijayawada* · 2 days");
     expect(t).toContain("*Day 1 · Thu, 8 Oct*");
-    expect(t).toContain("🚗 4 h 30 min · 275 km");
-    expect(t).toContain("09:30 — 🏰 Kondapalli Fort");
-    expect(t).toContain("Bhavani Island  ⚠ check timing");
+    expect(t).toContain("Drive 4 h 30 min · 275 km");
+    expect(t).toContain("9:30 AM  Kondapalli Fort");
+    expect(t).toContain("Bhavani Island  check timing");
     expect(t).toContain("*Day 2");
-    expect(t).toContain("💡 *Still to schedule:* Idea Place");
+    expect(t).toContain("*Still to schedule:* Idea Place");
     expect(t).toContain("https://x.test/join/abc");
   });
   it("orders stops within a day by sequence, not input order", () => {
@@ -50,6 +50,6 @@ describe("buildItineraryText", () => {
   });
   it("works with no dates, no destination and no places", () => {
     const t = buildItineraryText({ trip: { name: "Goa", start_city: null, dest_name: null, start_date: null, num_days: 1 }, places: [] });
-    expect(t).toBe("🧭 *Goa* — 1 day");
+    expect(t).toBe("*Goa* · 1 day");
   });
 });

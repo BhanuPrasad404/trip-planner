@@ -133,6 +133,8 @@ describe("PUT /api/profile and the picture", () => {
 
 // ── The picker, the profile form and the avatar mark ──
 const flat = (x: ReactTestInstance | string): string => (typeof x === "string" ? x : x.children.map(flat).join(""));
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: () => {}, replace: () => {} }) }));
 vi.mock("@/components/ui/Sheet", async () => { const { createElement: h } = await import("react"); return { PICKER_BUTTON: "picker-button", PickerSheet: ({ title, children, footer }: { title: string; children: unknown; footer?: unknown }) => h("div", { role: "dialog", "aria-label": title }, children as never, footer as never) }; });
 const uploaded: { path: string; type: string }[] = []; const storageRemoved: string[] = []; const up = { error: null as { message: string } | null };
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ storage: { from: () => ({ upload: async (path: string, blob: Blob) => { if (!up.error) uploaded.push({ path, type: blob.type }); return { error: up.error }; }, remove: async (p: string[]) => { storageRemoved.push(...p); return { error: null }; } }) } }) }));
@@ -166,6 +168,7 @@ describe("the picture control and the avatar mark", () => {
     await act(async () => { r.unmount(); });
   });
   it("Remove (profile exists) asks the server to clear the picture and tells the form", async () => {
+    refresh.mockClear();
     const calls: { url: string; body: unknown }[] = []; const changes: (string | null)[] = [];
     const real = globalThis.fetch;
     globalThis.fetch = vi.fn(async (u: unknown, init?: RequestInit) => { calls.push({ url: String(u), body: JSON.parse(String(init?.body)) }); return new Response("{}", { status: 200 }); }) as unknown as typeof fetch;
@@ -173,6 +176,7 @@ describe("the picture control and the avatar mark", () => {
     await act(async () => { r = TestRenderer.create(createElement(AvatarPicker, { userId: ME, path: mine, initial: "R", hasProfile: true, onChange: (p) => changes.push(p) })); });
     await act(async () => { r.root.findAll((x) => x.type === "button" && flat(x) === "Remove")[0].props.onClick(); });
     expect(calls).toEqual([{ url: "/api/profile/avatar", body: { path: null } }]); expect(changes).toEqual([null]);
+    expect(refresh).toHaveBeenCalledTimes(1);          // the menu and header are drawn by the server: they must show the change without a manual refresh
     globalThis.fetch = real; await act(async () => { r.unmount(); });
   });
   it("before the profile exists a removed picture is only held for the form (no request)", async () => {

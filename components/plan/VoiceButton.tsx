@@ -33,7 +33,7 @@ function LevelBars({ level }: { level: number }) {
   const heights = [0.45, 0.8, 1, 0.8, 0.45];
   return (
     <span aria-hidden="true" className="flex h-8 items-center gap-1">
-      {heights.map((h, i) => <span key={i} className="w-1.5 rounded-full bg-white/90 motion-safe:transition-[height] motion-safe:duration-100" style={{ height: `${Math.round(18 + level * h * 82)}%` }} />)}
+      {heights.map((h, i) => <span key={i} className="w-1.5 rounded-full bg-[var(--tm-on-accent)] motion-safe:transition-[height] motion-safe:duration-100" style={{ height: `${Math.round(18 + level * h * 82)}%` }} />)}
     </span>
   );
 }
@@ -55,11 +55,14 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   const [pending, setPending] = useState<Blob | null>(null);
   const [switched, setSwitched] = useState(false);
   const session = useRef<{ stop: () => void; cancel?: () => void } | null>(null);
+  /** A tap while the phone is still asking for microphone permission: remember it, so the recording stops the moment it starts instead of the tap being lost. */
+  const starting = useRef(false);
+  const stopWanted = useRef(false);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; queueMicrotask(() => { setSupported(!!speechRecognition()); setCanRecord(recorderSupported()); setPreferRecord(browserVoiceFailedRecently(window.localStorage, Date.now())); }); return () => { alive.current = false; session.current?.cancel?.(); session.current?.stop(); }; }, []);
-  if (supported === null) return <div className="h-24 rounded-2xl border border-line bg-sky/60" aria-hidden="true" />;
+  if (supported === null) return <div className="h-28 rounded-3xl border border-line bg-white" aria-hidden="true" />;
   if (!supported && !canRecord) {
-    return <p className="flex items-start gap-1.5 rounded-xl bg-sky px-3.5 py-2.5 text-sm text-ink-muted"><Glyph name="info" size={15} className="mt-0.5" />Voice input isn&apos;t available in this browser. Chrome on Android or desktop has it, or you can type.</p>;
+    return <p className="flex items-start gap-2 rounded-2xl bg-sky px-4 py-3 text-sm text-ink-muted"><Glyph name="info" size={16} className="mt-0.5" />Voice input isn&apos;t available in this browser. Chrome on Android or desktop has it, or you can type.</p>;
   }
 
   const useRecord = canRecord && (!supported || preferRecord);
@@ -78,12 +81,17 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   async function startRecord() {
     if (window.isSecureContext === false) { setError(INSECURE); return; }
     setError(null); setHeard(""); setPending(null); setLevel(0); setRecording(0);
-    session.current = await startRecording({
+    starting.current = true; stopWanted.current = false;
+    const rec = await startRecording({
       onTick: setRecording,
       onLevel: setLevel,
       onError: (m) => { setRecording(null); setLevel(0); setError(m); },
       onDone: (blob) => { setRecording(null); setLevel(0); void convert(blob); },
     });
+    starting.current = false;
+    session.current = rec;
+    if (!alive.current) { rec.cancel(); return; }
+    if (stopWanted.current) rec.stop();
   }
 
   function startLive() {
@@ -105,6 +113,7 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   }
 
   function main() {
+    if (starting.current) { stopWanted.current = true; return; }
     if (listening || recording !== null) { session.current?.stop(); return; }
     if (converting) return;
     if (useRecord) void startRecord(); else startLive();
@@ -113,21 +122,21 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   const active = listening || recording !== null;
 
   return (
-    <div className="rounded-2xl border border-line bg-sky/60 p-3">
-      <div className="flex items-center gap-3">
+    <div className="rounded-3xl border border-line bg-white p-4 shadow-card">
+      <div className="flex items-center gap-4">
         <button type="button" onClick={main} disabled={converting} aria-pressed={active} aria-label={active ? "Stop and use what you said" : "Start speaking"}
-          className={`relative inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-white shadow-md outline-none transition-colors focus-visible:ring-4 focus-visible:ring-teal/40 disabled:opacity-60 ${active ? "bg-clay" : "bg-pine"}`}>
+          className={`relative inline-flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-[var(--tm-on-accent)] shadow-float outline-none transition-colors focus-visible:ring-4 focus-visible:ring-teal/40 disabled:opacity-60 ${active ? "bg-clay" : "bg-pine"}`}>
           {active && <span aria-hidden="true" className="absolute inset-0 rounded-full bg-clay/40 motion-safe:animate-ping" />}
-          <span className="relative">{active && recording !== null ? <LevelBars level={level} /> : <Glyph name={active ? "stop" : "mic"} size={26} />}</span>
+          <span className="relative">{active && recording !== null ? <LevelBars level={level} /> : <Glyph name={active ? "stop" : "mic"} size={30} />}</span>
         </button>
         <div className="min-w-0 flex-1">
-          <p role="status" aria-live="polite" className="text-base font-bold text-pine">{stateLabel}</p>
+          <p role="status" aria-live="polite" className="text-[17px] font-bold leading-snug text-pine">{stateLabel}</p>
           <p className="text-sm text-ink-muted">{active ? "Pauses are fine." : converting ? "This takes a few seconds." : "Say the trip in your own words."}</p>
         </div>
         {active && recording !== null && <button type="button" onClick={() => { session.current?.cancel?.(); setRecording(null); setLevel(0); }} className="tm-action min-h-11 shrink-0 px-2 text-sm font-semibold">Cancel</button>}
       </div>
 
-      {listening && <p aria-live="polite" className="mt-2 min-h-5 rounded-lg bg-white/70 px-3 py-2 text-sm text-ink">{heard || <span className="text-ink-muted">Speak now…</span>}</p>}
+      {listening && <p aria-live="polite" className="mt-3 min-h-5 rounded-2xl bg-sky px-3.5 py-2.5 text-sm text-ink">{heard || <span className="text-ink-muted">Speak now…</span>}</p>}
 
       <div className="mt-3 flex items-center gap-2">
         <label htmlFor="voice-lang" className="sr-only">Language you will speak</label>
@@ -136,7 +145,7 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
 
       {switched && useRecord && !error && <p role="status" className="mt-2 flex items-start gap-1.5 text-sm text-ink-muted"><Glyph name="info" size={14} className="mt-0.5" />Live voice didn&apos;t connect on this phone, so we&apos;ll record you instead. Tap the mic again.</p>}
       {error && (
-        <div role="alert" className="mt-2 rounded-xl border border-clay/30 bg-clay-light px-3 py-2.5 text-sm font-medium text-clay-ink">
+        <div role="alert" className="mt-3 rounded-2xl border border-clay/30 bg-clay-light px-3.5 py-3 text-sm font-medium text-clay-ink">
           <p>{error}</p>
           <div className="mt-1 flex flex-wrap gap-x-4">
             {pending && !converting && <button type="button" onClick={() => void convert(pending)} className="tm-action min-h-11 font-bold">Try again with the same recording</button>}
